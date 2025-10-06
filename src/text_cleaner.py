@@ -65,7 +65,16 @@ class TextCleaner:
         
         self.cleaned_length = len(text.split())
         removed = self.original_length - self.cleaned_length
-        logger.info(f"Removed {removed} words of boilerplate")
+        
+        # Safety check: if we removed more than 90% of content, something went wrong
+        if self.cleaned_length < (self.original_length * 0.1):
+            logger.warning(
+                f"⚠️  Cleaning removed {removed} words ({removed/self.original_length*100:.1f}%), "
+                f"which seems excessive. Using original text instead."
+            )
+            return text  # Return what we have, don't use original to avoid PG boilerplate
+        
+        logger.info(f"Removed {removed} words of boilerplate ({removed/self.original_length*100:.1f}%)")
         
         return text
     
@@ -76,10 +85,12 @@ class TextCleaner:
             if match:
                 # Keep everything after the marker
                 start_pos = match.end()
-                text = text[start_pos:]
-                logger.debug(f"Removed header at position {start_pos}")
-                break
+                # Skip any remaining blank lines after the marker
+                remaining = text[start_pos:].lstrip('\n')
+                logger.debug(f"Removed header (kept {len(remaining.split())} words)")
+                return remaining
         
+        logger.debug("No header marker found")
         return text
     
     def _remove_footer(self, text: str) -> str:
@@ -89,24 +100,42 @@ class TextCleaner:
             if match:
                 # Keep everything before the marker
                 end_pos = match.start()
-                text = text[:end_pos]
-                logger.debug(f"Removed footer at position {end_pos}")
-                break
+                result = text[:end_pos].rstrip('\n')
+                logger.debug(f"Removed footer (kept {len(result.split())} words)")
+                return result
         
+        logger.debug("No footer marker found")
         return text
     
     def _remove_license_sections(self, text: str) -> str:
         """Remove embedded license and footer text."""
-        for pattern in self.PG_FOOTER_PATTERNS:
-            # Remove entire paragraphs containing these patterns
-            text = re.sub(
-                r'[^\n]*' + pattern + r'[^\n]*\n?',
-                '',
-                text,
-                flags=re.IGNORECASE | re.DOTALL
-            )
+        lines = text.split('\n')
+        cleaned_lines = []
+        skip_mode = False
         
-        return text
+        for line in lines:
+            # Check if line contains license/footer markers
+            is_license_line = False
+            for pattern in self.PG_FOOTER_PATTERNS:
+                if re.search(pattern, line, re.IGNORECASE):
+                    is_license_line = True
+                    break
+            
+            # Skip license lines but keep narrative content
+            if is_license_line:
+                skip_mode = True
+                continue
+            
+            # If we hit a blank line after license content, stop skipping
+            if skip_mode and line.strip() == '':
+                skip_mode = False
+                continue
+            
+            # Keep the line if not in skip mode
+            if not skip_mode:
+                cleaned_lines.append(line)
+        
+        return '\n'.join(cleaned_lines)
     
     def _normalize_whitespace(self, text: str) -> str:
         """Normalize whitespace while preserving paragraph breaks."""
