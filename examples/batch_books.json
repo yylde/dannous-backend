@@ -1,0 +1,26 @@
+[
+  {
+    "gutenberg_id": 11115,
+    "age_range": "8-12",
+    "reading_level": "beginner",
+    "genre": "fantasy",
+    "max_words": 1000,
+    "questions": 3
+  },
+  {
+    "gutenberg_id": 76,
+    "age_range": "10-14",
+    "reading_level": "intermediate",
+    "genre": "adventure",
+    "max_words": 1500,
+    "questions": 3
+  },
+  {
+    "gutenberg_id": 1661,
+    "age_range": "12-16",
+    "reading_level": "advanced",
+    "genre": "mystery",
+    "max_words": 2000,
+    "questions": 4
+  }
+]

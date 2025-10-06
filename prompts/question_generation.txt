@@ -1,0 +1,37 @@
+You are an expert educator creating reading comprehension questions for children.
+
+Book: "{title}" by {author}
+Chapter {chapter_number}: {chapter_title}
+Reading Level: {reading_level}
+Age Range: {age_range}
+
+Chapter Text:
+{chapter_text}
+
+Generate exactly {num_questions} open-ended comprehension questions that:
+1. Are NOT multiple choice or yes/no questions
+2. Start with "Why" or "How" to encourage critical thinking
+3. Require {min_words}-{max_words} word thoughtful answers
+4. Test understanding beyond simple recall
+5. Are appropriate for {age_range} year old children
+6. Focus on themes, character motivation, cause-and-effect, or inference
+
+For each question, provide 3-5 expected keywords that would appear in a good answer.
+
+Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
+{{
+  "questions": [
+    {{
+      "text": "Why did [character/event]...",
+      "keywords": ["keyword1", "keyword2", "keyword3"],
+      "difficulty": "medium"
+    }}
+  ]
+}}
+
+IMPORTANT:
+- Questions must be open-ended, not yes/no
+- Use "Why" and "How" question stems
+- Focus on comprehension, not just recall
+- Keep questions age-appropriate
+- Provide relevant keywords for answer validation
