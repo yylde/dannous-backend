@@ -13,7 +13,7 @@ from typing import Optional
 
 from src.config import settings
 from src.epub_parser import EPUBParser, download_gutenberg_epub
-from src.text_cleaner import TextCleaner, extract_description
+from src.content_analyzer import ContentAnalyzer
 from src.chapter_splitter import ChapterSplitter, calculate_reading_time
 from src.question_generator import QuestionGenerator, save_prompt_template
 from src.database import DatabaseManager
@@ -286,34 +286,87 @@ def _process_epub(
     raw_text = epub_data['raw_text']
     console.print(f"[green]✓[/green] Extracted {len(raw_text.split())} words\n")
     
-    # 2. Clean text
-    console.print("[bold]🧹 Cleaning text...[/bold]")
-    cleaner = TextCleaner()
-    cleaned_text = cleaner.clean(raw_text)
-    orig, cleaned, removed = cleaner.get_cleaning_stats()
-    console.print(f"[green]✓[/green] Removed {removed} words of boilerplate\n")
+    # 2. Analyze content structure with LLM
+    console.print("[bold]🔍 Analyzing book structure with LLM...[/bold]")
+    analyzer = ContentAnalyzer()
+    analysis = analyzer.analyze_book_structure(raw_text)
     
-    # 3. Split chapters
+    console.print(f"[green]✓[/green] Analysis complete:")
+    console.print(f"   - Deleting {len(analysis['delete_pages'])} pages (Gutenberg boilerplate)")
+    console.print(f"   - Found {len(analysis['metadata_pages'])} metadata pages (no questions)")
+    console.print(f"   - Content: pages {analysis['content_start_page']}-{analysis['content_end_page']}\n")
+    
+    # 3. Apply analysis to extract clean content
+    console.print("[bold]🧹 Extracting clean content...[/bold]")
+    cleaned_text, metadata_sections = analyzer.apply_analysis(raw_text, analysis)
+    console.print(f"[green]✓[/green] Extracted {len(cleaned_text.split())} words of content")
+    console.print(f"[green]✓[/green] Found {len(metadata_sections)} metadata sections\n")
+    
+    # 4. Split chapters
     console.print("[bold]📑 Splitting chapters...[/bold]")
     splitter = ChapterSplitter(reading_level)
     if max_words:
         splitter.max_words = max_words
-    chapters_data = splitter.split(cleaned_text)
-    console.print(f"[green]✓[/green] Created {len(chapters_data)} chapters\n")
     
-    # 4. Generate questions
+    # Split main content into chapters
+    content_chapters = splitter.split(cleaned_text)
+    console.print(f"[green]✓[/green] Created {len(content_chapters)} content chapters\n")
+    
+    # Add metadata sections as special chapters
+    all_chapters = []
+    
+    # Add front matter metadata chapters first
+    for meta in metadata_sections:
+        if meta['page_range'][0] < analysis['content_start_page']:
+            all_chapters.append({
+                'number': len(all_chapters) + 1,
+                'title': meta['title'],
+                'content': meta['content'],
+                'word_count': len(meta['content'].split()),
+                'is_metadata': True
+            })
+    
+    # Add main content chapters
+    for chapter in content_chapters:
+        chapter['number'] = len(all_chapters) + 1
+        chapter['is_metadata'] = False
+        all_chapters.append(chapter)
+    
+    # Add back matter metadata chapters
+    for meta in metadata_sections:
+        if meta['page_range'][0] >= analysis['content_end_page']:
+            all_chapters.append({
+                'number': len(all_chapters) + 1,
+                'title': meta['title'],
+                'content': meta['content'],
+                'word_count': len(meta['content'].split()),
+                'is_metadata': True
+            })
+    
+    console.print(f"[dim]Total: {len(all_chapters)} chapters ({len(content_chapters)} content, {len(metadata_sections)} metadata)[/dim]\n")
+    
+    # 5. Generate questions
     console.print("[bold]🤖 Generating questions with Ollama...[/bold]")
     generator = QuestionGenerator()
     
     all_questions = []
+    content_chapter_count = sum(1 for c in all_chapters if not c.get('is_metadata', False))
+    
+    console.print(f"[dim]Skipping questions for {len(all_chapters) - content_chapter_count} metadata chapters[/dim]")
+    
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
         console=console
     ) as progress:
-        task = progress.add_task("Generating questions...", total=len(chapters_data))
+        task = progress.add_task("Generating questions...", total=content_chapter_count)
         
-        for chapter_data in chapters_data:
+        for chapter_data in all_chapters:
+            # Skip question generation for metadata chapters
+            if chapter_data.get('is_metadata', False):
+                all_questions.append([])  # Empty list for metadata chapters
+                continue
+            
             questions_data = generator.generate_questions(
                 title=metadata['title'],
                 author=metadata['author'],
@@ -328,22 +381,26 @@ def _process_epub(
             progress.update(task, advance=1)
     
     total_questions = sum(len(q) for q in all_questions)
-    console.print(f"[green]✓[/green] Generated {total_questions} questions\n")
+    console.print(f"[green]✓[/green] Generated {total_questions} questions ({content_chapter_count} chapters)\n")
     
-    # 5. Build data models
+    # 6. Build data models
     console.print("[bold]📦 Building data models...[/bold]")
+    
+    # Extract description from first content chapter
+    first_content = next((c['content'] for c in all_chapters if not c.get('is_metadata', False)), cleaned_text)
+    description = _extract_description(first_content)
     
     # Create book
     book = Book(
         title=metadata['title'],
         author=metadata['author'],
-        description=extract_description(cleaned_text),
+        description=description,
         age_range=age_range,
         reading_level=reading_level,
         genre=genre,
-        total_chapters=len(chapters_data),
+        total_chapters=len(all_chapters),
         estimated_reading_time_minutes=sum(
-            calculate_reading_time(c['word_count']) for c in chapters_data
+            calculate_reading_time(c['word_count']) for c in all_chapters
         ),
         isbn=metadata.get('isbn'),
         publication_year=metadata.get('publication_year')
@@ -353,7 +410,7 @@ def _process_epub(
     chapters = []
     questions = []
     
-    for i, chapter_data in enumerate(chapters_data):
+    for i, chapter_data in enumerate(all_chapters):
         chapter = Chapter(
             book_id=book.id,
             chapter_number=chapter_data['number'],
@@ -364,7 +421,7 @@ def _process_epub(
         )
         chapters.append(chapter)
         
-        # Create questions for this chapter
+        # Create questions for this chapter (empty for metadata chapters)
         for j, q_data in enumerate(all_questions[i]):
             question = Question(
                 book_id=book.id,
@@ -382,6 +439,27 @@ def _process_epub(
     console.print(f"[green]✓[/green] Created {len(chapters)} chapters, {len(questions)} questions\n")
     
     return ProcessedBook(book=book, chapters=chapters, questions=questions)
+
+
+def _extract_description(text: str, max_length: int = 500) -> str:
+    """Extract a description from the beginning of the text."""
+    # Take first few paragraphs
+    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    
+    description = ""
+    for para in paragraphs[:3]:
+        # Skip very short paragraphs (likely headings)
+        if len(para) < 50:
+            continue
+        
+        description = para
+        break
+    
+    # Truncate to max length
+    if len(description) > max_length:
+        description = description[:max_length].rsplit(' ', 1)[0] + '...'
+    
+    return description or "No description available."
 
 
 def _insert_to_database(processed_book: ProcessedBook):

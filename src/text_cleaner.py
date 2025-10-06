@@ -1,4 +1,48 @@
-"""Text cleaning and Project Gutenberg boilerplate removal."""
+"""Text cleaning and Project Gutenberg boilerplate extraction."""
+
+import re
+import logging
+from typing import Tuple, Optional, Dict
+
+logger = logging.getLogger(__name__)
+
+
+class TextCleaner:
+    """Clean and sanitize text content."""
+    
+    # Project Gutenberg start markers
+    PG_START_MARKERS = [
+        r'\*\*\* START OF (THIS|THE) PROJECT GUTENBERG EBOOK .+? \*\*\*',
+        r'START OF (THIS|THE) PROJECT GUTENBERG EBOOK',
+        r'\*\*\*START OF THE PROJECT GUTENBERG EBOOK',
+        r'The Project Gutenberg eBook of .+?, by',
+    ]
+    
+    # Project Gutenberg end markers
+    PG_END_MARKERS = [
+        r'\*\*\* END OF (THIS|THE) PROJECT GUTENBERG EBOOK .+? \*\*\*',
+        r'END OF (THIS|THE) PROJECT GUTENBERG EBOOK',
+        r'\*\*\*END OF THE PROJECT GUTENBERG EBOOK',
+        r'End of (the )?Project Gutenberg',
+    ]
+    
+    def __init__(self):
+        """Initialize text cleaner."""
+        self.original_length = 0
+        self.cleaned_length = 0
+        self.header_text = None
+        self.footer_text = None
+    
+    def clean(self, text: str) -> Dict[str, str]:
+        """
+        Clean text by extracting Project Gutenberg boilerplate.
+        Returns dict with 'main_content', 'header', and 'footer'.
+        """
+        self.original_length = len(text.split())
+        logger.info(f"Cleaning text ({self.original_length} words)...")
+        
+        # Extract and separate header, main content, and footer
+        header,"""Text cleaning and Project Gutenberg boilerplate removal."""
 
 import re
 import logging
