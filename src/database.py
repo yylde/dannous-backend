@@ -1,10 +1,10 @@
 """Database operations for inserting processed books."""
 
 import psycopg2
-from psycopg2.extras import Json
+import json
 from typing import Optional, List, Tuple
 import logging
-from contextlib import contextmanager
+from contextmanager import contextmanager
 
 from .config import settings
 from .models import ProcessedBook, Book, Chapter, Question
