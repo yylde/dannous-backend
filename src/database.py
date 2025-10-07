@@ -74,9 +74,9 @@ class DatabaseManager:
                         id, title, author, description, age_range, reading_level,
                         genre, total_chapters, estimated_reading_time_minutes,
                         cover_image_url, isbn, publication_year, content_rating,
-                        tags, is_active, created_at
+                        tags, is_active
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     RETURNING id
                 """, (
@@ -94,8 +94,7 @@ class DatabaseManager:
                     book.publication_year,
                     book.content_rating,
                     Json(book.tags),
-                    book.is_active,
-                    book.created_at
+                    book.is_active
                 ))
                 book_id = cur.fetchone()[0]
                 logger.info(f"Inserted book: {book.title} (ID: {book_id})")
@@ -109,9 +108,9 @@ class DatabaseManager:
                     INSERT INTO chapters (
                         id, book_id, chapter_number, title, content,
                         word_count, estimated_reading_time_minutes,
-                        vocabulary_words, created_at
+                        vocabulary_words
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     RETURNING id
                 """, (
@@ -122,8 +121,7 @@ class DatabaseManager:
                     chapter.content,
                     chapter.word_count,
                     chapter.estimated_reading_time_minutes,
-                    Json(chapter.vocabulary_words),
-                    chapter.created_at
+                    Json(chapter.vocabulary_words)
                 ))
                 chapter_id = cur.fetchone()[0]
                 return str(chapter_id)
@@ -136,9 +134,9 @@ class DatabaseManager:
                     INSERT INTO questions (
                         id, book_id, chapter_id, question_text, question_type,
                         difficulty_level, expected_keywords, min_word_count,
-                        max_word_count, order_index, is_active, created_at
+                        max_word_count, order_index, is_active
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
                     RETURNING id
                 """, (
@@ -152,8 +150,7 @@ class DatabaseManager:
                     question.min_word_count,
                     question.max_word_count,
                     question.order_index,
-                    question.is_active,
-                    question.created_at
+                    question.is_active
                 ))
                 question_id = cur.fetchone()[0]
                 return str(question_id)
