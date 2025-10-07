@@ -73,8 +73,8 @@ class DatabaseManager:
                     INSERT INTO books (
                         id, title, author, description, age_range, reading_level,
                         genre, total_chapters, estimated_reading_time_minutes,
-                        cover_image_url, isbn, publication_year, content_rating,
-                        tags, is_active
+                        cover_image_url, isbn, publication_year,
+                        is_active, content_rating, tags
                     ) VALUES (
                         %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
@@ -92,9 +92,9 @@ class DatabaseManager:
                     book.cover_image_url,
                     book.isbn,
                     book.publication_year,
+                    book.is_active,
                     book.content_rating,
-                    Json(book.tags),
-                    book.is_active
+                    Json(book.tags)
                 ))
                 book_id = cur.fetchone()[0]
                 logger.info(f"Inserted book: {book.title} (ID: {book_id})")
