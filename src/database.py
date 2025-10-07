@@ -4,7 +4,7 @@ import psycopg2
 import json
 from typing import Optional, List, Tuple
 import logging
-from contextmanager import contextmanager
+from contextlib import contextmanager
 
 from .config import settings
 from .models import ProcessedBook, Book, Chapter, Question
@@ -80,7 +80,7 @@ class DatabaseManager:
                     )
                     RETURNING id
                 """, (
-                    book.id,
+                    str(book.id),
                     book.title,
                     book.author,
                     book.description,
@@ -94,7 +94,7 @@ class DatabaseManager:
                     book.publication_year,
                     book.is_active,
                     book.content_rating,
-                    Json(book.tags)
+                    json.dumps(book.tags)
                 ))
                 book_id = cur.fetchone()[0]
                 logger.info(f"Inserted book: {book.title} (ID: {book_id})")
@@ -114,14 +114,14 @@ class DatabaseManager:
                     )
                     RETURNING id
                 """, (
-                    chapter.id,
-                    chapter.book_id,
+                    str(chapter.id),
+                    str(chapter.book_id),
                     chapter.chapter_number,
                     chapter.title,
                     chapter.content,
                     chapter.word_count,
                     chapter.estimated_reading_time_minutes,
-                    Json(chapter.vocabulary_words)
+                    json.dumps(chapter.vocabulary_words)
                 ))
                 chapter_id = cur.fetchone()[0]
                 return str(chapter_id)
@@ -140,13 +140,13 @@ class DatabaseManager:
                     )
                     RETURNING id
                 """, (
-                    question.id,
-                    question.book_id,
-                    question.chapter_id,
+                    str(question.id),
+                    str(question.book_id),
+                    str(question.chapter_id),
                     question.question_text,
                     question.question_type,
                     question.difficulty_level,
-                    Json(question.expected_keywords),
+                    json.dumps(question.expected_keywords),
                     question.min_word_count,
                     question.max_word_count,
                     question.order_index,
