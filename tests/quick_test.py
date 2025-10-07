@@ -178,26 +178,44 @@ def quick_test():
         
         console.print(f"[green]✓[/green] Created {len(chapters)} chapters, {len(questions)} questions\n")
         
-        # 8. Insert to database
+        # 8. Insert to database (using the complete pipeline method)
         console.print("[bold]💾 Inserting into database...[/bold]")
         
         processed_book = ProcessedBook(book=book, chapters=chapters, questions=questions)
         
         db = DatabaseManager()
         
-        # Check for duplicates
-        existing = db.check_duplicate(book.title, book.author)
-        if existing:
-            console.print(f"[yellow]⚠[/yellow] Similar book exists (ID: {existing})")
-            if input("Continue anyway? (y/N): ").lower() != 'y':
-                console.print("[yellow]Cancelled.[/yellow]\n")
+        try:
+            # Use the complete pipeline insertion method
+            book_id, num_chapters, num_questions = db.insert_processed_book(processed_book)
+            
+            console.print(f"[green]✓[/green] Book inserted: {book_id}")
+            console.print(f"[green]✓[/green] {num_chapters} chapters inserted")
+            console.print(f"[green]✓[/green] {num_questions} questions inserted\n")
+            
+        except ValueError as e:
+            # This handles duplicate detection
+            console.print(f"[yellow]⚠[/yellow] {e}")
+            if "[TEST]" in book.title and input("Delete existing test book and retry? (y/N): ").lower() == 'y':
+                # Find and delete the existing test book
+                existing_id = db.check_duplicate(book.title, book.author)
+                if existing_id:
+                    import psycopg2
+                    conn = psycopg2.connect(db.database_url)
+                    with conn.cursor() as cur:
+                        cur.execute("DELETE FROM books WHERE id = %s", (existing_id,))
+                    conn.commit()
+                    conn.close()
+                    console.print("[green]✓[/green] Deleted old test book, retrying...\n")
+                    
+                    # Retry insertion
+                    book_id, num_chapters, num_questions = db.insert_processed_book(processed_book)
+                    console.print(f"[green]✓[/green] Book inserted: {book_id}")
+                    console.print(f"[green]✓[/green] {num_chapters} chapters inserted")
+                    console.print(f"[green]✓[/green] {num_questions} questions inserted\n")
+            else:
+                console.print("[yellow]Skipped insertion.[/yellow]\n")
                 return
-        
-        book_id, num_chapters, num_questions = db.insert_processed_book(processed_book)
-        
-        console.print(f"[green]✓[/green] Book inserted: {book_id}")
-        console.print(f"[green]✓[/green] {num_chapters} chapters inserted")
-        console.print(f"[green]✓[/green] {num_questions} questions inserted\n")
         
         # Summary
         console.print("[bold green]✨ Quick test complete![/bold green]\n")
