@@ -181,9 +181,7 @@ select:focus {
 }
 
 .editor-container {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    display: block;
     margin: 20px 0;
 }
 
@@ -192,6 +190,8 @@ select:focus {
     border: 2px solid #e0e0e0;
     border-radius: 8px;
     padding: 20px;
+    width: 100%;
+    margin-bottom: 20px;
 }
 
 .text-display h3,
