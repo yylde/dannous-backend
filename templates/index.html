@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Chapter Splitter - Admin UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📚 Manual Chapter Splitter</h1>
+            <p>Download books from Project Gutenberg and manually create chapters</p>
+        </header>
+
+        <section id="download-section">
+            <div class="card">
+                <h2>1. Download Book</h2>
+                <div class="form-group">
+                    <label for="gutenberg-id">Project Gutenberg Book ID:</label>
+                    <input type="number" id="gutenberg-id" placeholder="e.g., 11115 (Alice in Wonderland)">
+                    <button onclick="downloadBook()" class="btn btn-primary">Download Book</button>
+                </div>
+                <div id="download-status"></div>
+            </div>
+        </section>
+
+        <section id="book-section" style="display: none;">
+            <div class="card">
+                <div id="book-info"></div>
+                
+                <div class="controls">
+                    <h2>2. Configure Settings</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="age-range">Age Range:</label>
+                            <select id="age-range">
+                                <option value="6-8">6-8 years</option>
+                                <option value="8-12" selected>8-12 years</option>
+                                <option value="12-16">12-16 years</option>
+                                <option value="14+">14+ years</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="reading-level">Reading Level:</label>
+                            <select id="reading-level" onchange="updateDifficultyRange()">
+                                <option value="beginner">Beginner</option>
+                                <option value="intermediate" selected>Intermediate</option>
+                                <option value="advanced">Advanced</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="genre">Genre:</label>
+                            <input type="text" id="genre" value="fiction" placeholder="e.g., fiction, adventure">
+                        </div>
+                    </div>
+                    <div id="difficulty-info" class="difficulty-info"></div>
+                </div>
+
+                <h2>3. Split into Chapters</h2>
+                <div class="page-navigation">
+                    <button onclick="prevPage()" id="prev-btn" class="btn" disabled>← Previous Page</button>
+                    <span id="page-info">Page 1 of 1</span>
+                    <button onclick="nextPage()" id="next-btn" class="btn">Next Page →</button>
+                </div>
+
+                <div class="editor-container">
+                    <div class="text-display">
+                        <h3>Book Text</h3>
+                        <div id="current-page" class="page-content"></div>
+                    </div>
+
+                    <div class="chapter-builder">
+                        <h3>Current Chapter</h3>
+                        <div class="form-group">
+                            <label for="chapter-title">Chapter Title:</label>
+                            <input type="text" id="chapter-title" placeholder="Chapter 1">
+                        </div>
+                        <div id="current-chapter-content" class="chapter-content"></div>
+                        <div id="chapter-stats" class="stats"></div>
+                        <div class="chapter-actions">
+                            <button onclick="addCurrentPageToChapter()" class="btn btn-primary">Add Current Page to Chapter</button>
+                            <button onclick="finishChapter()" class="btn btn-success">Finish Chapter</button>
+                            <button onclick="clearChapter()" class="btn btn-secondary">Clear Chapter</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapters-list">
+                    <h3>Completed Chapters (<span id="chapter-count">0</span>)</h3>
+                    <div id="chapters-container"></div>
+                </div>
+
+                <div class="save-section">
+                    <button onclick="saveChapters()" class="btn btn-primary btn-large">
+                        💾 Save Book & Generate Questions
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
