@@ -109,8 +109,9 @@ function showPage(index) {
 function formatPageWithHighlights(pageText, pageIndex) {
     const paragraphs = pageText.split('\n\n').filter(p => p.trim());
     return paragraphs.map(para => {
-        const highlighted = highlightTextIfSelected(para.trim(), pageIndex);
-        return `<p>${highlighted}</p>`;
+        const trimmedPara = para.trim();
+        const highlighted = highlightTextIfSelected(trimmedPara, pageIndex);
+        return `<p style="margin-bottom: 1.5em;">${highlighted}</p>`;
     }).join('');
 }
 
@@ -210,7 +211,9 @@ function addCurrentPageToChapter() {
 }
 
 function updateChapterDisplay() {
-    document.getElementById('current-chapter-content').textContent = currentChapter.content;
+    const contentDiv = document.getElementById('current-chapter-content');
+    const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
+    contentDiv.innerHTML = paragraphs.map(p => `<p style="margin-bottom: 1em;">${p.trim()}</p>`).join('');
 }
 
 function updateChapterStats() {

@@ -177,8 +177,8 @@ select:focus {
     min-height: 400px;
     max-height: 500px;
     overflow-y: auto;
-    white-space: pre-wrap;
-    line-height: 2;
+    white-space: pre-line;
+    line-height: 1.8;
     font-family: Georgia, serif;
     font-size: 1.05rem;
     user-select: text;
@@ -187,6 +187,8 @@ select:focus {
 
 .page-content p {
     margin-bottom: 1.5em;
+    line-height: 1.8;
+    text-align: justify;
 }
 
 .page-content::selection {
@@ -237,10 +239,11 @@ select:focus {
     min-height: 250px;
     max-height: 350px;
     overflow-y: auto;
-    white-space: pre-wrap;
+    white-space: pre-line;
     line-height: 1.8;
     font-family: Georgia, serif;
     margin-bottom: 15px;
+    text-align: justify;
 }
 
 .stats {

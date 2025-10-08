@@ -229,17 +229,13 @@ Respond with ONLY the title, nothing else. Do not include quotes or "Chapter X:"
         return jsonify({'error': str(e)}), 500
 
 def split_into_pages(text, words_per_page=500):
-    """Split text into pages for easier navigation."""
-    paragraphs = re.split(r'\n\n+', text)
+    """Split text into pages for easier navigation, preserving paragraph structure."""
+    paragraphs = [p.strip() for p in re.split(r'\n\n+', text) if p.strip()]
     pages = []
     current_page = []
     current_word_count = 0
     
     for para in paragraphs:
-        para = para.strip()
-        if not para:
-            continue
-        
         para_words = len(para.split())
         
         if current_word_count + para_words > words_per_page and current_page:
@@ -253,7 +249,7 @@ def split_into_pages(text, words_per_page=500):
     if current_page:
         pages.append('\n\n'.join(current_page))
     
-    return pages
+    return pages if pages else [text]
 
 def extract_description(text, max_length=500):
     """Extract description from text."""
