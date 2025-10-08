@@ -6,6 +6,17 @@ This is an EPUB processing pipeline for a kids reading platform. It downloads bo
 
 ## Recent Changes (October 8, 2025)
 
+### README Documentation Added
+
+Created comprehensive README.md with local setup instructions:
+- Prerequisites (Python 3.11+, PostgreSQL, Ollama)
+- Step-by-step installation guide
+- Environment variable configuration
+- Database setup instructions
+- Troubleshooting section
+- Popular Gutenberg books for testing
+- Feature explanations (automatic text selection, prominent headers, infinite scroll)
+
 ### Infinite Scroll Book Display
 
 Redesigned the book view for better usability:

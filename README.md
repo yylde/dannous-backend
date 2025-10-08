@@ -1,416 +1,250 @@
-# EPUB Processing Pipeline for Kids Reading Platform
+# Kids Reading Platform - EPUB Processing Pipeline
 
-A CLI tool to process Project Gutenberg EPUB files and insert them into the reading platform database.
-
-## Overview
-
-This pipeline downloads EPUB files from Project Gutenberg, extracts and cleans text content, splits books into age-appropriate chapters, generates comprehension questions using a local Ollama LLM, and inserts everything into the PostgreSQL database.
+A web-based tool for downloading books from Project Gutenberg, splitting them into chapters, and generating comprehension questions for kids using AI.
 
 ## Features
 
-- ✅ Download EPUBs from Project Gutenberg or process local files
-- ✅ Extract and clean text (remove PG boilerplate)
-- ✅ Intelligent chapter splitting based on reading level
-- ✅ AI-generated comprehension questions (3 per chapter, open-ended)
-- ✅ Direct database insertion matching existing schema
-- ✅ CLI-only interface (no frontend)
-- ✅ Robust error handling and logging
+- 📚 **Download books** from Project Gutenberg by ID
+- 📄 **Infinite scroll** book view with preserved EPUB formatting and prominent headers
+- ✂️ **Manual chapter splitting** with automatic text selection
+- 📊 **Word count validation** based on difficulty levels (Beginner/Intermediate/Advanced)
+- 🤖 **AI-powered question generation** using Ollama LLM
+- 💾 **PostgreSQL database** for storing books, chapters, and questions
+- 🎨 **Clean, responsive web UI** for easy book processing
 
 ## Prerequisites
 
-### Required Software
-- **Python 3.9+**
-- **PostgreSQL** (from main reading platform)
-- **Ollama** (local LLM server)
+Before setting up the project locally, ensure you have the following installed:
 
-### Install Ollama
+- **Python 3.11** or higher
+- **PostgreSQL** (version 12 or higher)
+- **Ollama** (for AI question generation)
+  - Install from [ollama.ai](https://ollama.ai)
+  - Pull the llama3.2 model: `ollama pull llama3.2`
 
-**Linux/macOS:**
+## Local Setup Instructions
+
+### 1. Clone the Repository
+
 ```bash
-curl -fsSL https://ollama.com/install.sh | sh
+git clone <repository-url>
+cd <project-directory>
 ```
 
-**Windows:**
-Download from https://ollama.com/download
+### 2. Set Up Python Virtual Environment
 
-**Start and pull model:**
 ```bash
-# Start Ollama service (runs on port 11434)
+# Create virtual environment
+python -m venv venv
+
+# Activate it
+# On macOS/Linux:
+source venv/bin/activate
+# On Windows:
+venv\Scripts\activate
+```
+
+### 3. Install Dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Set Up PostgreSQL Database
+
+Create a new PostgreSQL database:
+
+```bash
+# Log into PostgreSQL
+psql -U postgres
+
+# Create database
+CREATE DATABASE kids_reading_db;
+
+# Exit psql
+\q
+```
+
+Run the schema setup:
+
+```bash
+psql -U postgres -d kids_reading_db -f schema.sql
+```
+
+### 5. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
+```bash
+# Database Configuration
+DATABASE_URL=postgresql://postgres:your_password@localhost:5432/kids_reading_db
+PGHOST=localhost
+PGPORT=5432
+PGUSER=postgres
+PGPASSWORD=your_password
+PGDATABASE=kids_reading_db
+
+# Ollama Configuration (optional, defaults shown)
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.2
+```
+
+**Important:** Replace `your_password` with your PostgreSQL password.
+
+### 6. Verify Ollama is Running
+
+Make sure Ollama is running in the background:
+
+```bash
+# Check if Ollama is running
+ollama list
+
+# If not running, start it
 ollama serve
 
-# In another terminal, pull recommended model
+# Pull the model (if not already installed)
 ollama pull llama3.2
 ```
 
-## Installation
+### 7. Run the Application
 
 ```bash
-# Clone this repository
-git clone <your-epub-pipeline-repo>
-cd epub-processing-pipeline
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Copy environment template
-cp .env.example .env
-
-# Edit .env with your database credentials
-nano .env
+python app.py
 ```
 
-## Configuration
-
-Edit `.env` file:
-
-```env
-# Database (same as main reading platform)
-DATABASE_URL=postgresql://user:pass@localhost:5432/reading_platform
-
-# Ollama
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2
-
-# Processing defaults
-DEFAULT_AGE_RANGE=8-12
-DEFAULT_READING_LEVEL=intermediate
-MAX_CHAPTER_WORDS=1500
-```
-
-## Database Schema Reference
-
-The pipeline inserts into these tables from your existing schema:
-
-### books
-```sql
-- id: UUID (primary key, auto-generated)
-- title: VARCHAR(500)
-- author: VARCHAR(300)
-- description: TEXT
-- age_range: VARCHAR(20) - e.g., "8-12"
-- reading_level: VARCHAR(20) - e.g., "intermediate"
-- genre: VARCHAR(100)
-- total_chapters: INTEGER
-- estimated_reading_time_minutes: INTEGER
-- cover_image_url: VARCHAR(500)
-- isbn: VARCHAR(20)
-- publication_year: INTEGER
-- content_rating: VARCHAR(20)
-- tags: JSONB (default '[]')
-- is_active: BOOLEAN (default true)
-- created_at: TIMESTAMP (default NOW())
-```
-
-### chapters
-```sql
-- id: UUID (primary key, auto-generated)
-- book_id: UUID (references books.id, CASCADE DELETE)
-- chapter_number: INTEGER
-- title: VARCHAR(300)
-- content: TEXT
-- word_count: INTEGER
-- estimated_reading_time_minutes: INTEGER
-- vocabulary_words: JSONB (default '[]')
-- created_at: TIMESTAMP (default NOW())
-- UNIQUE(book_id, chapter_number)
-```
-
-### questions
-```sql
-- id: UUID (primary key, auto-generated)
-- book_id: UUID (references books.id, CASCADE DELETE)
-- chapter_id: UUID (references chapters.id, CASCADE DELETE)
-- question_text: TEXT
-- question_type: VARCHAR(50) (default 'comprehension')
-- difficulty_level: VARCHAR(20) (default 'medium')
-- expected_keywords: JSONB (default '[]')
-- min_word_count: INTEGER (default 20)
-- max_word_count: INTEGER (default 200)
-- order_index: INTEGER
-- is_active: BOOLEAN (default true)
-- created_at: TIMESTAMP (default NOW())
-```
+The application will be available at `http://localhost:5000`
 
 ## Usage
 
-### Process a Local EPUB File
+### Web Interface (Recommended)
+
+1. Open your browser to `http://localhost:5000`
+2. Enter a Project Gutenberg book ID (e.g., `11115` for Alice in Wonderland)
+3. Click **Download Book**
+4. Configure settings:
+   - Age Range (e.g., 8-12)
+   - Reading Level (Beginner/Intermediate/Advanced)
+   - Genre
+5. **Scroll through the book** - headers and chapter titles are highlighted in purple
+6. **Select text** with your mouse to automatically add it to your chapter (no button needed!)
+7. Enter a chapter title
+8. Monitor the word count (green = valid range, red = out of range)
+9. Click **Finish Chapter** when complete
+10. Repeat for all chapters
+11. Click **Save Book & Generate Questions** to process everything
+
+### Difficulty Level Ranges
+
+- **Beginner**: 300-800 words per chapter
+- **Intermediate**: 800-1,500 words per chapter
+- **Advanced**: 1,500-2,500 words per chapter
+
+### Command Line Interface (Legacy)
 
 ```bash
-python cli.py process-file path/to/book.epub \
-    --age-range "8-12" \
-    --reading-level "intermediate" \
-    --genre "adventure"
-```
+# Process a book from Gutenberg
+python cli.py process-gutenberg 11115 --age-range "8-12" --reading-level "beginner"
 
-### Download from Project Gutenberg
-
-```bash
-# Alice's Adventures in Wonderland
-python cli.py process-gutenberg 11115 \
-    --age-range "8-12" \
-    --reading-level "beginner"
-
-# With custom settings
-python cli.py process-gutenberg 1342 \
-    --age-range "12-16" \
-    --reading-level "advanced" \
-    --max-words 2500 \
-    --questions 5
-```
-
-### Batch Processing
-
-```bash
-python cli.py batch books.json
-```
-
-Example `books.json`:
-```json
-[
-  {
-    "gutenberg_id": 11115,
-    "age_range": "8-12",
-    "reading_level": "beginner",
-    "genre": "fantasy"
-  },
-  {
-    "gutenberg_id": 76,
-    "age_range": "10-14",
-    "reading_level": "intermediate",
-    "genre": "adventure"
-  }
-]
-```
-
-### List Processed Books
-
-```bash
-python cli.py list-books
-```
-
-### Test Database Connection
-
-```bash
+# Test database connection
 python cli.py test-db
-```
 
-## CLI Options
-
-### `process-file` Command
-```
-Arguments:
-  filepath              Path to .epub file
-
-Options:
-  --age-range TEXT      Target age range (e.g., "8-12") [default: 8-12]
-  --reading-level TEXT  Reading level: beginner/intermediate/advanced [default: intermediate]
-  --genre TEXT          Book genre [default: fiction]
-  --max-words INT       Max words per chapter [default: 1500]
-  --questions INT       Questions per chapter [default: 3]
-  --dry-run            Preview without inserting to database
-```
-
-### `process-gutenberg` Command
-```
-Arguments:
-  gutenberg_id          Project Gutenberg book ID
-
-Options:
-  (same as process-file)
+# List books
+python cli.py list-books
 ```
 
 ## Project Structure
 
 ```
-epub-processing-pipeline/
+.
+├── app.py                     # Flask web application
+├── cli.py                     # Command-line interface (legacy)
+├── requirements.txt           # Python dependencies
+├── schema.sql                 # Database schema
 ├── src/
-│   ├── __init__.py
-│   ├── config.py              # Configuration and environment variables
-│   ├── database.py            # PostgreSQL connection and queries
-│   ├── epub_parser.py         # EPUB extraction logic
-│   ├── text_cleaner.py        # Gutenberg boilerplate removal
-│   ├── chapter_splitter.py    # Intelligent chapter splitting
-│   ├── question_generator.py  # Ollama integration
-│   └── models.py              # Data models (Book, Chapter, Question)
-├── prompts/
-│   └── question_generation.txt  # LLM prompt template
-├── tests/
-│   ├── test_epub_parser.py
-│   ├── test_text_cleaner.py
-│   └── test_question_generator.py
-├── cli.py                     # Main CLI interface
-├── requirements.txt
-├── .env.example
-└── README.md
+│   ├── epub_parser.py         # EPUB download and parsing
+│   ├── question_generator.py  # AI question generation
+│   ├── database.py            # Database operations
+│   ├── models.py              # Data models
+│   └── config.py              # Configuration
+├── templates/
+│   └── index.html             # Admin UI template
+├── static/
+│   ├── css/style.css          # Styling
+│   └── js/app.js              # Frontend logic
+└── downloads/                 # Downloaded EPUB files (auto-created)
 ```
+
+## Database Schema
+
+### Tables
+
+- **books** - Book metadata (title, author, age range, reading level, genre)
+  - CASCADE DELETE to chapters and questions
+- **chapters** - Chapter content and metadata (linked to books)
+  - CASCADE DELETE to questions
+- **questions** - Comprehension questions with expected keywords (linked to chapters)
+
+All tables have CASCADE delete for data integrity.
 
 ## How It Works
 
-### 1. EPUB Extraction (`epub_parser.py`)
-- Uses `ebooklib` to parse EPUB structure
-- Extracts metadata (title, author, language, publisher)
-- Reads all XHTML content files in reading order
-- Converts HTML to clean text using BeautifulSoup
+### 1. EPUB Download & Parsing
+- Downloads EPUB from Project Gutenberg by ID
+- Extracts metadata (title, author)
+- Parses HTML content preserving headings (h1-h6) and paragraph structure
+- Cleans and formats text for display
 
-### 2. Text Cleaning (`text_cleaner.py`)
-- Detects and removes Project Gutenberg license boilerplate
-- Identifies header/footer patterns:
-  - "*** START OF THE PROJECT GUTENBERG EBOOK..."
-  - "*** END OF THE PROJECT GUTENBERG EBOOK..."
-  - License sections, donation info, etc.
-- Normalizes whitespace and encoding
-- Preserves chapter markers
+### 2. Manual Chapter Building (Web UI)
+- Display book in infinite scroll view
+- Headers/chapter titles styled prominently (purple, bold, larger font)
+- User selects text → automatically added to current chapter
+- Real-time word count validation with color indicators
+- Visual highlighting shows what text has been added
 
-### 3. Chapter Splitting (`chapter_splitter.py`)
-- Detects chapter boundaries using patterns:
-  - "CHAPTER I", "Chapter 1", "Chapter One"
-  - "SECTION", "PART", etc.
-- Calculates word count per chapter
-- Splits long chapters if they exceed max words:
-  - Finds paragraph or scene boundaries
-  - Maintains narrative flow
-  - Creates sub-chapters (e.g., "Chapter 1 - Part 1")
-- Calculates reading time (200 WPM)
-
-### 4. Question Generation (`question_generator.py`)
-- Sends chapter text to Ollama with structured prompt
-- Generates 3 open-ended questions per chapter
-- Question types: Why, How, Inference, Analysis
+### 3. AI Question Generation
+- Uses Ollama LLM (llama3.2) to generate comprehension questions
+- 3 open-ended questions per chapter
 - Extracts expected keywords for answer validation
-- Sanitizes LLM output to prevent hallucinations
-- Retries on failure with exponential backoff
+- Adjusts difficulty based on reading level
 
-### 5. Database Insertion (`database.py`)
-- Uses `psycopg2` for PostgreSQL connection
-- Transaction-based insertion (rollback on error)
-- Inserts book → chapters → questions in order
-- Checks for duplicates (by title + author)
-- Returns inserted book ID and statistics
-
-## Prompt Template
-
-Located in `prompts/question_generation.txt`:
-
-```
-You are an expert educator creating comprehension questions for children.
-
-Book: {title} by {author}
-Chapter {chapter_number}: {chapter_title}
-Reading Level: {reading_level}
-Age Range: {age_range}
-
-Chapter Text:
-{chapter_text}
-
-Generate exactly {num_questions} open-ended comprehension questions that:
-1. Are NOT multiple choice or yes/no questions
-2. Start with "Why" or "How" to encourage critical thinking
-3. Require 20-100 word thoughtful answers
-4. Test understanding beyond simple recall
-5. Are appropriate for {age_range} year olds
-6. Focus on themes, character motivation, or cause-effect
-
-For each question, provide 3-5 expected keywords that would appear in a good answer.
-
-Respond ONLY with valid JSON (no markdown):
-{{
-  "questions": [
-    {{
-      "text": "Why did the character...",
-      "keywords": ["motivation", "decision", "consequence"],
-      "difficulty": "medium"
-    }}
-  ]
-}}
-```
-
-## Example Processing Output
-
-```bash
-$ python cli.py process-gutenberg 11115
-
-🔍 Fetching metadata for Gutenberg ID 11115...
-📚 Found: "Alice's Adventures in Wonderland" by Lewis Carroll
-
-📥 Downloading EPUB...
-✅ Downloaded 145KB
-
-📖 Extracting text...
-✅ Extracted 26,432 words from 12 sections
-
-🧹 Cleaning text...
-✅ Removed 2,847 words of boilerplate
-✅ Cleaned text: 23,585 words
-
-📑 Splitting chapters...
-✅ Detected 12 natural chapters
-✅ Split Chapter 7 into 2 sections (too long)
-✅ Final: 13 chapters, avg 1,814 words each
-
-🤖 Generating questions with Ollama...
-✅ Chapter 1: 3 questions generated
-✅ Chapter 2: 3 questions generated
-...
-✅ Chapter 13: 3 questions generated
-✅ Total: 39 questions
-
-💾 Inserting into database...
-✅ Book inserted: 550e8400-e29b-41d4-a716-446655440000
-✅ 13 chapters inserted
-✅ 39 questions inserted
-
-📊 Summary:
-   Title: Alice's Adventures in Wonderland
-   Author: Lewis Carroll
-   Chapters: 13
-   Questions: 39
-   Total Words: 23,585
-   Est. Reading Time: 118 minutes
-   Database ID: 550e8400-e29b-41d4-a716-446655440000
-
-✨ Processing complete!
-```
+### 4. Database Storage
+- Stores book metadata, chapters, and questions
+- Transaction-based insertion with rollback on error
+- Automatic reading time estimation (200 WPM)
 
 ## Troubleshooting
 
-### Database Connection Error
+### Database Connection Issues
+
+If you get database connection errors:
+
+1. Check PostgreSQL is running: `pg_ctl status`
+2. Verify your `.env` file has correct credentials
+3. Test connection: `python cli.py test-db`
+
+### Ollama Not Working
+
+If question generation fails:
+
+1. Check Ollama is running: `ollama list`
+2. Verify model is installed: `ollama pull llama3.2`
+3. Check the `OLLAMA_BASE_URL` in `.env` points to `http://localhost:11434`
+
+### Port 5000 Already in Use
+
+If port 5000 is occupied:
+
 ```bash
-# Test connection
-python cli.py test-db
-
-# Check PostgreSQL is running
-pg_isready
-
-# Verify credentials
-psql $DATABASE_URL -c "SELECT version();"
+# Change port in app.py (last line)
+app.run(host='0.0.0.0', port=5001, debug=True)
 ```
 
-### Ollama Not Running
-```bash
-# Check if Ollama is running
-curl http://localhost:11434/api/tags
+### Text Not Displaying Properly
 
-# Start Ollama
-ollama serve
-
-# Pull model if not available
-ollama pull llama3.2
-```
-
-### Question Generation Fails
-- Try smaller model: `ollama pull phi3`
-- Reduce chapter size: `--max-words 1000`
-- Check Ollama logs for errors
-- Increase timeout in `.env`: `OLLAMA_TIMEOUT=180`
-
-### Duplicate Book Error
-```sql
--- Check existing books
-psql $DATABASE_URL -c "SELECT id, title, author FROM books;"
-
--- Delete if needed (cascades to chapters/questions)
-psql $DATABASE_URL -c "DELETE FROM books WHERE id='<uuid>';"
-```
+If EPUB formatting looks wrong:
+1. Check browser console for JavaScript errors
+2. Verify the book downloaded successfully (check `downloads/` folder)
+3. Try a different Gutenberg book ID
 
 ## Popular Gutenberg Books for Testing
 
@@ -424,24 +258,43 @@ psql $DATABASE_URL -c "DELETE FROM books WHERE id='<uuid>';"
 
 ## Development
 
-### Run Tests
+### Running Tests
+
 ```bash
-pytest tests/ -v
+pytest
+pytest --cov  # with coverage
 ```
 
-### Add New Question Template
-Edit `prompts/question_generation.txt` and adjust the prompt structure.
+### Adding New Features
 
-### Customize Chapter Splitting
-Edit `src/chapter_splitter.py` - modify regex patterns or split logic.
+1. Update database schema in `schema.sql`
+2. Update models in `src/models.py`
+3. Update database operations in `src/database.py`
+4. Update Flask routes in `app.py`
+5. Update UI in `templates/index.html` and `static/`
+
+## Key Features Explained
+
+### Automatic Text Selection
+- Just select text in the book view with your mouse
+- Text is automatically added to the current chapter (10+ characters)
+- No "Add Text" button needed - streamlined workflow
+
+### Prominent Headers
+- Chapter titles and headers from the EPUB are preserved
+- Styled with larger font, purple color, and bold weight
+- H1/H2 headers have underline borders
+- Clear visual hierarchy for easy navigation
+
+### Infinite Scroll
+- All book content in one scrollable view
+- No page-by-page navigation needed
+- Smooth reading experience
 
 ## License
 
-This tool processes public domain books from Project Gutenberg. Ensure compliance with Project Gutenberg's terms when distributing processed content.
+This project is for educational purposes.
 
-## Support
+## Contributing
 
-For issues:
-- Check existing GitHub issues
-- Review Ollama docs: https://ollama.com/docs
-- Project Gutenberg: https://www.gutenberg.org
+Contributions are welcome! Please feel free to submit a Pull Request.
