@@ -6,6 +6,15 @@ This is an EPUB processing pipeline for a kids reading platform. It downloads bo
 
 ## Recent Changes (October 8, 2025)
 
+### Text Formatting Improvements
+
+Updated text display formatting for better readability:
+- **Reduced font size** from 1.05rem to 0.95rem for cleaner appearance
+- **Improved paragraph spacing** with proper margins between paragraphs
+- **Enhanced text flow** with justified alignment and optimized line height (1.7)
+- **Fixed EPUB parsing** to better handle paragraph structure and remove weird line breaks
+- Applied improvements to both book view and chapter preview areas
+
 ### Admin UI for Manual Chapter Splitting
 
 Replaced the AI-based chapter splitter with a manual admin UI because the AI wasn't doing a great job. The new UI allows administrators to:

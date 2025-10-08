@@ -177,18 +177,19 @@ select:focus {
     min-height: 400px;
     max-height: 500px;
     overflow-y: auto;
-    white-space: pre-line;
-    line-height: 1.8;
+    white-space: normal;
+    line-height: 1.7;
     font-family: Georgia, serif;
-    font-size: 1.05rem;
+    font-size: 0.95rem;
     user-select: text;
     cursor: text;
 }
 
 .page-content p {
-    margin-bottom: 1.5em;
-    line-height: 1.8;
+    margin-bottom: 1.2em;
+    line-height: 1.7;
     text-align: justify;
+    text-indent: 0;
 }
 
 .page-content::selection {
@@ -239,11 +240,17 @@ select:focus {
     min-height: 250px;
     max-height: 350px;
     overflow-y: auto;
-    white-space: pre-line;
-    line-height: 1.8;
+    white-space: normal;
+    line-height: 1.7;
     font-family: Georgia, serif;
+    font-size: 0.95rem;
     margin-bottom: 15px;
     text-align: justify;
+}
+
+.chapter-content p {
+    margin-bottom: 1.2em;
+    line-height: 1.7;
 }
 
 .stats {

@@ -109,13 +109,34 @@ class EPUBParser:
                 for script in soup(["script", "style", "nav"]):
                     script.decompose()
                 
-                # Get text
+                # Extract text from EPUB HTML, preserving paragraph structure
+                # Get all text and clean it up
                 text = soup.get_text()
                 
-                # Clean up whitespace
-                lines = (line.strip() for line in text.splitlines())
-                chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
-                text = '\n'.join(chunk for chunk in chunks if chunk)
+                # Clean up: replace multiple spaces/newlines with single space
+                # Then split on actual paragraph breaks (blank lines)
+                lines = text.splitlines()
+                paragraphs = []
+                current_para_lines = []
+                
+                for line in lines:
+                    line = line.strip()
+                    if line:
+                        # Non-empty line: add to current paragraph
+                        current_para_lines.append(line)
+                    elif current_para_lines:
+                        # Empty line and we have content: end current paragraph
+                        para_text = ' '.join(current_para_lines)
+                        paragraphs.append(para_text)
+                        current_para_lines = []
+                
+                # Don't forget the last paragraph
+                if current_para_lines:
+                    para_text = ' '.join(current_para_lines)
+                    paragraphs.append(para_text)
+                
+                # Join paragraphs with double newlines
+                text = '\n\n'.join(paragraphs) if paragraphs else text.strip()
                 
                 if text.strip():
                     text_sections.append(text.strip())

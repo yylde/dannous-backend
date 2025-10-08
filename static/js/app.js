@@ -111,7 +111,7 @@ function formatPageWithHighlights(pageText, pageIndex) {
     return paragraphs.map(para => {
         const trimmedPara = para.trim();
         const highlighted = highlightTextIfSelected(trimmedPara, pageIndex);
-        return `<p style="margin-bottom: 1.5em;">${highlighted}</p>`;
+        return `<p>${highlighted}</p>`;
     }).join('');
 }
 
@@ -213,7 +213,7 @@ function addCurrentPageToChapter() {
 function updateChapterDisplay() {
     const contentDiv = document.getElementById('current-chapter-content');
     const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
-    contentDiv.innerHTML = paragraphs.map(p => `<p style="margin-bottom: 1em;">${p.trim()}</p>`).join('');
+    contentDiv.innerHTML = paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
 }
 
 function updateChapterStats() {
