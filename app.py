@@ -61,6 +61,7 @@ def download_book():
             'book_id': gutenberg_id,
             'title': epub_data['metadata']['title'],
             'author': epub_data['metadata']['author'],
+            'full_text': text,
             'pages': pages,
             'total_pages': len(pages),
             'metadata': epub_data['metadata']
