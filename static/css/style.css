@@ -315,6 +315,20 @@ select:focus {
     font-size: 0.95rem;
     margin-bottom: 15px;
     text-align: justify;
+    border: 2px solid #cbd5e0;
+    cursor: text;
+}
+
+.chapter-content:focus {
+    outline: none;
+    border-color: #667eea;
+    background: #ffffff;
+}
+
+.chapter-content:empty:before {
+    content: "Selected text will appear here (editable)...";
+    color: #a0aec0;
+    font-style: italic;
 }
 
 .chapter-content p {

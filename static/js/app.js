@@ -29,6 +29,14 @@ document.addEventListener('DOMContentLoaded', () => {
             }, 100);
         }
     });
+    
+    // Listen for manual edits to chapter content
+    const chapterContent = document.getElementById('current-chapter-content');
+    if (chapterContent) {
+        chapterContent.addEventListener('input', () => {
+            updateChapterFromEditable();
+        });
+    }
 });
 
 async function loadDifficultyRanges() {
@@ -49,6 +57,9 @@ function updateDifficultyRange() {
         <strong>${level.charAt(0).toUpperCase() + level.slice(1)} Level:</strong> 
         Recommended chapter word count: ${range.min} - ${range.max} words
     `;
+    
+    // Update chapter stats to reflect new target range
+    updateChapterStats();
 }
 
 async function downloadBook() {
@@ -189,6 +200,16 @@ function updateChapterDisplay() {
     const contentDiv = document.getElementById('current-chapter-content');
     const paragraphs = currentChapter.content.split('\n\n').filter(p => p.trim());
     contentDiv.innerHTML = paragraphs.map(p => `<p>${p.trim()}</p>`).join('');
+}
+
+function updateChapterFromEditable() {
+    const contentDiv = document.getElementById('current-chapter-content');
+    const editedText = contentDiv.innerText.trim();
+    
+    currentChapter.content = editedText;
+    currentChapter.word_count = editedText ? editedText.split(/\s+/).filter(w => w.length > 0).length : 0;
+    
+    updateChapterStats();
 }
 
 function updateChapterStats() {

@@ -24,6 +24,8 @@ Redesigned the book view for better usability:
 - **Reorganized layout** - Settings and chapter builder moved to top, book text in scrollable container below
 - **Streamlined workflow** - Select text from full book view, add to chapter, and continue scrolling
 - **Improved UX** - No more clicking through pages; all book content accessible in one view
+- **Editable chapter content** - Click into the chapter field to edit, delete, or correct text
+- **Dynamic target range** - Word count targets update automatically when reading level is changed
 
 ### Text Formatting Improvements
 
