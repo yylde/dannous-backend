@@ -110,12 +110,21 @@ function displayFullBook() {
     if (!bookData || !bookData.full_text) return;
     
     const scrollDiv = document.getElementById('book-text-scroll');
-    const paragraphs = bookData.full_text.split('\n\n').filter(p => p.trim());
+    const parts = bookData.full_text.split('\n\n').filter(p => p.trim());
     
-    scrollDiv.innerHTML = paragraphs.map((para, idx) => {
-        const trimmedPara = para.trim();
-        const highlighted = highlightTextIfSelected(trimmedPara);
-        return `<p data-para-index="${idx}">${highlighted}</p>`;
+    scrollDiv.innerHTML = parts.map((part, idx) => {
+        const trimmedPart = part.trim();
+        
+        // Check if this is a heading tag
+        if (trimmedPart.startsWith('<h') && trimmedPart.includes('>')) {
+            // It's already a heading, just add highlighting
+            const highlighted = highlightTextIfSelected(trimmedPart);
+            return highlighted;
+        } else {
+            // It's a paragraph
+            const highlighted = highlightTextIfSelected(trimmedPart);
+            return `<p data-para-index="${idx}">${highlighted}</p>`;
+        }
     }).join('');
 }
 

@@ -109,34 +109,29 @@ class EPUBParser:
                 for script in soup(["script", "style", "nav"]):
                     script.decompose()
                 
-                # Extract text from EPUB HTML, preserving paragraph structure
-                # Get all text and clean it up
-                text = soup.get_text()
+                # Extract text from EPUB HTML, preserving headings and paragraph structure
+                html_parts = []
                 
-                # Clean up: replace multiple spaces/newlines with single space
-                # Then split on actual paragraph breaks (blank lines)
-                lines = text.splitlines()
-                paragraphs = []
-                current_para_lines = []
+                # Extract headings and paragraphs in order
+                for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p']):
+                    tag_name = element.name
+                    element_text = element.get_text(separator=' ', strip=True)
+                    element_text = ' '.join(element_text.split())  # Clean whitespace
+                    
+                    if element_text:
+                        if tag_name.startswith('h'):
+                            # Preserve heading tags
+                            html_parts.append(f'<{tag_name}>{element_text}</{tag_name}>')
+                        else:
+                            # Regular paragraph
+                            html_parts.append(element_text)
                 
-                for line in lines:
-                    line = line.strip()
-                    if line:
-                        # Non-empty line: add to current paragraph
-                        current_para_lines.append(line)
-                    elif current_para_lines:
-                        # Empty line and we have content: end current paragraph
-                        para_text = ' '.join(current_para_lines)
-                        paragraphs.append(para_text)
-                        current_para_lines = []
-                
-                # Don't forget the last paragraph
-                if current_para_lines:
-                    para_text = ' '.join(current_para_lines)
-                    paragraphs.append(para_text)
-                
-                # Join paragraphs with double newlines
-                text = '\n\n'.join(paragraphs) if paragraphs else text.strip()
+                # If no structured content found, fall back to plain text
+                if not html_parts:
+                    text = soup.get_text()
+                    text = ' '.join(text.split())
+                else:
+                    text = '\n\n'.join(html_parts)
                 
                 if text.strip():
                     text_sections.append(text.strip())

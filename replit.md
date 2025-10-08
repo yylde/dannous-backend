@@ -20,7 +20,12 @@ Updated text display formatting for better readability:
 - **Reduced font size** from 1.05rem to 0.95rem for cleaner appearance
 - **Improved paragraph spacing** with proper margins between paragraphs
 - **Enhanced text flow** with justified alignment and optimized line height (1.7)
-- **Fixed EPUB parsing** to better handle paragraph structure and remove weird line breaks
+- **Prominent chapter headers** - Headings (h1-h6) preserved from EPUB and styled with:
+  - Purple color (#667eea) and bold font weight
+  - Larger font sizes (1.8rem for h1 down to 1rem for h5/h6)
+  - Underline borders for h1 and h2
+  - Extra spacing above/below for clear section breaks
+- **Fixed EPUB parsing** to preserve heading tags from original EPUB files
 - Applied improvements to both book view and chapter preview areas
 
 ### Admin UI for Manual Chapter Splitting

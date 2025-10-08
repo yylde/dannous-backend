@@ -175,6 +175,45 @@ select:focus {
     text-indent: 0;
 }
 
+.book-scroll-content h1,
+.book-scroll-content h2,
+.book-scroll-content h3,
+.book-scroll-content h4,
+.book-scroll-content h5,
+.book-scroll-content h6 {
+    color: #667eea;
+    font-weight: 700;
+    margin-top: 2em;
+    margin-bottom: 1em;
+    line-height: 1.3;
+}
+
+.book-scroll-content h1 {
+    font-size: 1.8rem;
+    border-bottom: 3px solid #667eea;
+    padding-bottom: 0.5em;
+}
+
+.book-scroll-content h2 {
+    font-size: 1.5rem;
+    border-bottom: 2px solid #a0aec0;
+    padding-bottom: 0.4em;
+}
+
+.book-scroll-content h3 {
+    font-size: 1.3rem;
+}
+
+.book-scroll-content h4 {
+    font-size: 1.1rem;
+}
+
+.book-scroll-content h5,
+.book-scroll-content h6 {
+    font-size: 1rem;
+    font-style: italic;
+}
+
 .book-scroll-content::selection {
     background: #667eea;
     color: white;
