@@ -3,10 +3,13 @@ let currentPageIndex = 0;
 let currentChapter = {
     title: '',
     content: '',
-    word_count: 0
+    word_count: 0,
+    segments: []
 };
 let chapters = [];
 let difficultyRanges = {};
+let selectedTextSegments = [];
+let lastSelectedText = '';
 
 document.addEventListener('DOMContentLoaded', () => {
     loadDifficultyRanges();
@@ -60,7 +63,8 @@ async function downloadBook() {
         bookData = data;
         currentPageIndex = 0;
         chapters = [];
-        currentChapter = { title: '', content: '', word_count: 0 };
+        selectedTextSegments = [];
+        currentChapter = { title: '', content: '', word_count: 0, segments: [] };
         
         showBookInfo(data);
         showPage(0);
@@ -94,11 +98,73 @@ function showPage(index) {
     currentPageIndex = index;
     const page = bookData.pages[index];
     
-    document.getElementById('current-page').textContent = page;
-    document.getElementById('page-info').textContent = `Page ${index + 1} of ${bookData.pages.length}`;
+    const pageDiv = document.getElementById('current-page');
+    pageDiv.innerHTML = formatPageWithHighlights(page, index);
     
+    document.getElementById('page-info').textContent = `Page ${index + 1} of ${bookData.pages.length}`;
     document.getElementById('prev-btn').disabled = index === 0;
     document.getElementById('next-btn').disabled = index === bookData.pages.length - 1;
+}
+
+function formatPageWithHighlights(pageText, pageIndex) {
+    const paragraphs = pageText.split('\n\n').filter(p => p.trim());
+    return paragraphs.map(para => {
+        const highlighted = highlightTextIfSelected(para.trim(), pageIndex);
+        return `<p>${highlighted}</p>`;
+    }).join('');
+}
+
+function highlightTextIfSelected(text, pageIndex) {
+    let result = text;
+    
+    selectedTextSegments.forEach((segment) => {
+        if (segment.pageIndex === pageIndex && text.includes(segment.text)) {
+            const colorClass = segment.isFinished 
+                ? `highlight-chapter-${segment.chapterIndex % 5}` 
+                : 'highlight-current';
+            result = result.replace(
+                segment.text, 
+                `<span class="highlighted ${colorClass}">${segment.text}</span>`
+            );
+        }
+    });
+    
+    return result;
+}
+
+function addSelectedText() {
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    
+    if (!selectedText) {
+        alert('Please select some text first!');
+        return;
+    }
+    
+    lastSelectedText = selectedText;
+    
+    if (currentChapter.content) {
+        currentChapter.content += '\n\n' + selectedText;
+    } else {
+        currentChapter.content = selectedText;
+    }
+    
+    selectedTextSegments.push({
+        text: selectedText,
+        pageIndex: currentPageIndex,
+        isFinished: false,
+        chapterIndex: chapters.length
+    });
+    
+    currentChapter.word_count = currentChapter.content.split(/\s+/).filter(w => w.length > 0).length;
+    currentChapter.segments = selectedTextSegments.filter(s => !s.isFinished);
+    
+    updateChapterDisplay();
+    updateChapterStats();
+    showPage(currentPageIndex);
+    
+    selection.removeAllRanges();
+    showStatus(`Added ${selectedText.split(/\s+/).length} words to chapter`, 'success');
 }
 
 function nextPage() {
@@ -124,10 +190,19 @@ function addCurrentPageToChapter() {
         currentChapter.content = currentPage;
     }
     
+    selectedTextSegments.push({
+        text: currentPage,
+        pageIndex: currentPageIndex,
+        isFinished: false,
+        chapterIndex: chapters.length
+    });
+    
     currentChapter.word_count = currentChapter.content.split(/\s+/).filter(w => w.length > 0).length;
+    currentChapter.segments = selectedTextSegments.filter(s => !s.isFinished);
     
     updateChapterDisplay();
     updateChapterStats();
+    showPage(currentPageIndex);
     
     if (currentPageIndex < bookData.pages.length - 1) {
         nextPage();
@@ -141,9 +216,10 @@ function updateChapterDisplay() {
 function updateChapterStats() {
     const level = document.getElementById('reading-level').value;
     const range = difficultyRanges[level] || { min: 500, max: 1500 };
+    const ignoreCount = document.getElementById('ignore-word-count')?.checked || false;
     
     const wordCount = currentChapter.word_count;
-    const isValid = wordCount >= range.min && wordCount <= range.max;
+    const isValid = ignoreCount || (wordCount >= range.min && wordCount <= range.max);
     const validClass = isValid ? 'valid' : 'invalid';
     
     const stats = document.getElementById('chapter-stats');
@@ -153,11 +229,11 @@ function updateChapterStats() {
             <span class="stat-label">Words</span>
         </div>
         <div class="stat-item">
-            <span class="stat-value">${range.min} - ${range.max}</span>
+            <span class="stat-value">${ignoreCount ? 'N/A' : `${range.min} - ${range.max}`}</span>
             <span class="stat-label">Target Range</span>
         </div>
         <div class="stat-item">
-            <span class="stat-value ${validClass}">${isValid ? '✓ Valid' : '✗ Out of Range'}</span>
+            <span class="stat-value ${validClass}">${ignoreCount ? '✓ Ignored' : (isValid ? '✓ Valid' : '✗ Out of Range')}</span>
             <span class="stat-label">Status</span>
         </div>
     `;
@@ -170,19 +246,30 @@ function finishChapter() {
     }
     
     const title = document.getElementById('chapter-title').value || `Chapter ${chapters.length + 1}`;
+    const ignoreCount = document.getElementById('ignore-word-count')?.checked || false;
     
     chapters.push({
         title: title,
         content: currentChapter.content,
-        word_count: currentChapter.word_count
+        word_count: currentChapter.word_count,
+        ignore_validation: ignoreCount
     });
     
-    currentChapter = { title: '', content: '', word_count: 0 };
+    selectedTextSegments.forEach(seg => {
+        if (!seg.isFinished) {
+            seg.isFinished = true;
+            seg.chapterIndex = chapters.length - 1;
+        }
+    });
+    
+    currentChapter = { title: '', content: '', word_count: 0, segments: [] };
     document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
+    document.getElementById('ignore-word-count').checked = false;
     
     updateChapterDisplay();
     updateChapterStats();
     updateChaptersList();
+    showPage(currentPageIndex);
     
     showStatus(`Chapter "${title}" saved!`, 'success');
 }
@@ -192,9 +279,12 @@ function clearChapter() {
         return;
     }
     
-    currentChapter = { title: '', content: '', word_count: 0 };
+    selectedTextSegments = selectedTextSegments.filter(s => s.isFinished);
+    
+    currentChapter = { title: '', content: '', word_count: 0, segments: [] };
     updateChapterDisplay();
     updateChapterStats();
+    showPage(currentPageIndex);
 }
 
 function updateChaptersList() {
@@ -209,22 +299,28 @@ function updateChaptersList() {
     container.innerHTML = chapters.map((chapter, index) => {
         const level = document.getElementById('reading-level').value;
         const range = difficultyRanges[level] || { min: 500, max: 1500 };
-        const isValid = chapter.word_count >= range.min && chapter.word_count <= range.max;
+        const isValid = chapter.ignore_validation || (chapter.word_count >= range.min && chapter.word_count <= range.max);
         const statusColor = isValid ? '#48bb78' : '#f56565';
+        const colorClass = `highlight-chapter-${index % 5}`;
         
         return `
-            <div class="chapter-item">
+            <div class="chapter-item" style="border-left: 4px solid ${getColorForChapter(index)};">
                 <div class="chapter-header">
                     <span class="chapter-title">${chapter.title}</span>
                     <button onclick="deleteChapter(${index})" class="delete-btn">Delete</button>
                 </div>
                 <div class="chapter-stats">
                     <span style="color: ${statusColor};">${chapter.word_count} words</span>
-                    <span>${isValid ? '✓ Valid' : '✗ Out of range'}</span>
+                    <span>${chapter.ignore_validation ? '✓ Validation ignored' : (isValid ? '✓ Valid' : '✗ Out of range')}</span>
                 </div>
             </div>
         `;
     }).join('');
+}
+
+function getColorForChapter(index) {
+    const colors = ['#667eea', '#48bb78', '#ed8936', '#9f7aea', '#38a169'];
+    return colors[index % colors.length];
 }
 
 function deleteChapter(index) {
@@ -232,6 +328,37 @@ function deleteChapter(index) {
         chapters.splice(index, 1);
         updateChaptersList();
         showStatus('Chapter deleted', 'info');
+    }
+}
+
+async function generateAITitle() {
+    if (!currentChapter.content) {
+        alert('Add some content to the chapter first!');
+        return;
+    }
+    
+    showLoading(true);
+    
+    try {
+        const response = await fetch('/api/generate-title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: currentChapter.content })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Title generation failed');
+        }
+        
+        document.getElementById('chapter-title').value = data.title;
+        showStatus(`AI generated title: "${data.title}"`, 'success');
+        
+    } catch (error) {
+        showStatus(`Error generating title: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
     }
 }
 

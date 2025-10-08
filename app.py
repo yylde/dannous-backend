@@ -179,6 +179,55 @@ def get_difficulty_ranges():
     """Get word count ranges for each difficulty level."""
     return jsonify(DIFFICULTY_RANGES)
 
+@app.route('/api/generate-title', methods=['POST'])
+def generate_title():
+    """Generate chapter title using AI."""
+    try:
+        data = request.json
+        content = data.get('content', '')
+        
+        if not content:
+            return jsonify({'error': 'Content is required'}), 400
+        
+        logger.info("Generating AI title for chapter content")
+        
+        import ollama
+        
+        preview = ' '.join(content.split()[:200])
+        
+        prompt = f"""Based on this excerpt from a children's book, create a short, engaging chapter title (maximum 6 words).
+
+The title should:
+- Be appropriate for children
+- Hint at what happens in this section
+- Be intriguing but not a spoiler
+- Be in title case
+
+Excerpt:
+{preview}
+
+Respond with ONLY the title, nothing else. Do not include quotes or "Chapter X:" prefix."""
+
+        response = ollama.generate(
+            model=settings.ollama_model,
+            prompt=prompt,
+            options={'temperature': 0.7, 'num_predict': 20}
+        )
+        
+        title = response['response'].strip()
+        title = re.sub(r'^["\'`]+|["\'`]+$', '', title)
+        title = re.sub(r'^(Chapter|Section)\s+\d+:?\s*', '', title, flags=re.IGNORECASE)
+        
+        words = title.split()
+        if len(words) > 6:
+            title = ' '.join(words[:6])
+        
+        return jsonify({'success': True, 'title': title})
+    
+    except Exception as e:
+        logger.exception("Title generation failed")
+        return jsonify({'error': str(e)}), 500
+
 def split_into_pages(text, words_per_page=500):
     """Split text into pages for easier navigation."""
     paragraphs = re.split(r'\n\n+', text)
