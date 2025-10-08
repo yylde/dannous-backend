@@ -6,6 +6,14 @@ This is an EPUB processing pipeline for a kids reading platform. It downloads bo
 
 ## Recent Changes (October 8, 2025)
 
+### Infinite Scroll Book Display
+
+Redesigned the book view for better usability:
+- **Removed pagination** - Book text now displays as infinite vertical scroll instead of page-by-page navigation
+- **Reorganized layout** - Settings and chapter builder moved to top, book text in scrollable container below
+- **Streamlined workflow** - Select text from full book view, add to chapter, and continue scrolling
+- **Improved UX** - No more clicking through pages; all book content accessible in one view
+
 ### Text Formatting Improvements
 
 Updated text display formatting for better readability:
