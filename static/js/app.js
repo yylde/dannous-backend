@@ -12,6 +12,23 @@ let lastSelectedText = '';
 document.addEventListener('DOMContentLoaded', () => {
     loadDifficultyRanges();
     updateDifficultyRange();
+    
+    // Auto-add selected text from book
+    document.addEventListener('mouseup', (e) => {
+        // Only auto-add if selection is from the book text area
+        const bookTextArea = document.getElementById('book-text-scroll');
+        if (bookTextArea && bookTextArea.contains(e.target)) {
+            setTimeout(() => {
+                const selection = window.getSelection();
+                const selectedText = selection.toString().trim();
+                
+                if (selectedText && selectedText.length > 10) { // Only add if meaningful text
+                    autoAddSelectedText(selectedText);
+                    selection.removeAllRanges();
+                }
+            }, 100);
+        }
+    });
 });
 
 async function loadDifficultyRanges() {
@@ -120,14 +137,8 @@ function highlightTextIfSelected(text) {
     return result;
 }
 
-function addSelectedText() {
-    const selection = window.getSelection();
-    const selectedText = selection.toString().trim();
-    
-    if (!selectedText) {
-        alert('Please select some text first!');
-        return;
-    }
+function autoAddSelectedText(selectedText) {
+    if (!bookData) return;
     
     lastSelectedText = selectedText;
     
@@ -149,8 +160,20 @@ function addSelectedText() {
     updateChapterStats();
     displayFullBook();
     
-    selection.removeAllRanges();
     showStatus(`Added ${selectedText.split(/\s+/).length} words to chapter`, 'success');
+}
+
+function addSelectedText() {
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    
+    if (!selectedText) {
+        alert('Please select some text first!');
+        return;
+    }
+    
+    autoAddSelectedText(selectedText);
+    selection.removeAllRanges();
 }
 
 function updateChapterDisplay() {
