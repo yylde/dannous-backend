@@ -1,10 +1,8 @@
 let bookData = null;
-let currentPageIndex = 0;
 let currentChapter = {
     title: '',
     content: '',
-    word_count: 0,
-    segments: []
+    word_count: 0
 };
 let chapters = [];
 let difficultyRanges = {};
@@ -61,13 +59,12 @@ async function downloadBook() {
         }
         
         bookData = data;
-        currentPageIndex = 0;
         chapters = [];
         selectedTextSegments = [];
-        currentChapter = { title: '', content: '', word_count: 0, segments: [] };
+        currentChapter = { title: '', content: '', word_count: 0 };
         
         showBookInfo(data);
-        showPage(0);
+        displayFullBook();
         updateChapterStats();
         updateChaptersList();
         
@@ -87,39 +84,29 @@ function showBookInfo(data) {
         <div style="background: #f7fafc; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
             <h2 style="color: #667eea; margin-bottom: 10px;">${data.title}</h2>
             <p style="color: #718096; margin-bottom: 5px;"><strong>Author:</strong> ${data.author}</p>
-            <p style="color: #718096;"><strong>Total Pages:</strong> ${data.total_pages}</p>
+            <p style="color: #718096;"><strong>Total Words:</strong> ~${Math.floor(data.full_text.split(' ').length)}</p>
         </div>
     `;
 }
 
-function showPage(index) {
-    if (!bookData || !bookData.pages) return;
+function displayFullBook() {
+    if (!bookData || !bookData.full_text) return;
     
-    currentPageIndex = index;
-    const page = bookData.pages[index];
+    const scrollDiv = document.getElementById('book-text-scroll');
+    const paragraphs = bookData.full_text.split('\n\n').filter(p => p.trim());
     
-    const pageDiv = document.getElementById('current-page');
-    pageDiv.innerHTML = formatPageWithHighlights(page, index);
-    
-    document.getElementById('page-info').textContent = `Page ${index + 1} of ${bookData.pages.length}`;
-    document.getElementById('prev-btn').disabled = index === 0;
-    document.getElementById('next-btn').disabled = index === bookData.pages.length - 1;
-}
-
-function formatPageWithHighlights(pageText, pageIndex) {
-    const paragraphs = pageText.split('\n\n').filter(p => p.trim());
-    return paragraphs.map(para => {
+    scrollDiv.innerHTML = paragraphs.map((para, idx) => {
         const trimmedPara = para.trim();
-        const highlighted = highlightTextIfSelected(trimmedPara, pageIndex);
-        return `<p>${highlighted}</p>`;
+        const highlighted = highlightTextIfSelected(trimmedPara);
+        return `<p data-para-index="${idx}">${highlighted}</p>`;
     }).join('');
 }
 
-function highlightTextIfSelected(text, pageIndex) {
+function highlightTextIfSelected(text) {
     let result = text;
     
     selectedTextSegments.forEach((segment) => {
-        if (segment.pageIndex === pageIndex && text.includes(segment.text)) {
+        if (text.includes(segment.text)) {
             const colorClass = segment.isFinished 
                 ? `highlight-chapter-${segment.chapterIndex % 5}` 
                 : 'highlight-current';
@@ -152,62 +139,18 @@ function addSelectedText() {
     
     selectedTextSegments.push({
         text: selectedText,
-        pageIndex: currentPageIndex,
         isFinished: false,
         chapterIndex: chapters.length
     });
     
     currentChapter.word_count = currentChapter.content.split(/\s+/).filter(w => w.length > 0).length;
-    currentChapter.segments = selectedTextSegments.filter(s => !s.isFinished);
     
     updateChapterDisplay();
     updateChapterStats();
-    showPage(currentPageIndex);
+    displayFullBook();
     
     selection.removeAllRanges();
     showStatus(`Added ${selectedText.split(/\s+/).length} words to chapter`, 'success');
-}
-
-function nextPage() {
-    if (currentPageIndex < bookData.pages.length - 1) {
-        showPage(currentPageIndex + 1);
-    }
-}
-
-function prevPage() {
-    if (currentPageIndex > 0) {
-        showPage(currentPageIndex - 1);
-    }
-}
-
-function addCurrentPageToChapter() {
-    if (!bookData) return;
-    
-    const currentPage = bookData.pages[currentPageIndex];
-    
-    if (currentChapter.content) {
-        currentChapter.content += '\n\n' + currentPage;
-    } else {
-        currentChapter.content = currentPage;
-    }
-    
-    selectedTextSegments.push({
-        text: currentPage,
-        pageIndex: currentPageIndex,
-        isFinished: false,
-        chapterIndex: chapters.length
-    });
-    
-    currentChapter.word_count = currentChapter.content.split(/\s+/).filter(w => w.length > 0).length;
-    currentChapter.segments = selectedTextSegments.filter(s => !s.isFinished);
-    
-    updateChapterDisplay();
-    updateChapterStats();
-    showPage(currentPageIndex);
-    
-    if (currentPageIndex < bookData.pages.length - 1) {
-        nextPage();
-    }
 }
 
 function updateChapterDisplay() {
@@ -265,14 +208,14 @@ function finishChapter() {
         }
     });
     
-    currentChapter = { title: '', content: '', word_count: 0, segments: [] };
+    currentChapter = { title: '', content: '', word_count: 0 };
     document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
     document.getElementById('ignore-word-count').checked = false;
     
     updateChapterDisplay();
     updateChapterStats();
     updateChaptersList();
-    showPage(currentPageIndex);
+    displayFullBook();
     
     showStatus(`Chapter "${title}" saved!`, 'success');
 }
@@ -284,10 +227,10 @@ function clearChapter() {
     
     selectedTextSegments = selectedTextSegments.filter(s => s.isFinished);
     
-    currentChapter = { title: '', content: '', word_count: 0, segments: [] };
+    currentChapter = { title: '', content: '', word_count: 0 };
     updateChapterDisplay();
     updateChapterStats();
-    showPage(currentPageIndex);
+    displayFullBook();
 }
 
 function updateChaptersList() {

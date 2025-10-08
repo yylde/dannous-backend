@@ -150,6 +150,36 @@ select:focus {
     color: #667eea;
 }
 
+.text-display-full {
+    width: 100%;
+}
+
+.book-scroll-content {
+    background: #f7fafc;
+    padding: 30px;
+    border-radius: 8px;
+    max-height: 600px;
+    overflow-y: auto;
+    white-space: normal;
+    line-height: 1.7;
+    font-family: Georgia, serif;
+    font-size: 0.95rem;
+    user-select: text;
+    cursor: text;
+}
+
+.book-scroll-content p {
+    margin-bottom: 1.2em;
+    line-height: 1.7;
+    text-align: justify;
+    text-indent: 0;
+}
+
+.book-scroll-content::selection {
+    background: #667eea;
+    color: white;
+}
+
 .editor-container {
     display: grid;
     grid-template-columns: 1fr 1fr;

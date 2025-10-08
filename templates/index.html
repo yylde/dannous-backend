@@ -57,19 +57,9 @@
                     <div id="difficulty-info" class="difficulty-info"></div>
                 </div>
 
-                <h2>3. Split into Chapters</h2>
-                <div class="page-navigation">
-                    <button onclick="prevPage()" id="prev-btn" class="btn" disabled>← Previous Page</button>
-                    <span id="page-info">Page 1 of 1</span>
-                    <button onclick="nextPage()" id="next-btn" class="btn">Next Page →</button>
-                </div>
+                <h2>3. Chapter Builder</h2>
 
                 <div class="editor-container">
-                    <div class="text-display">
-                        <h3>Book Text <span style="font-size: 0.9rem; color: #718096;">(Select text to add to chapter)</span></h3>
-                        <div id="current-page" class="page-content"></div>
-                    </div>
-
                     <div class="chapter-builder">
                         <h3>Current Chapter</h3>
                         <div class="form-group">
@@ -89,11 +79,18 @@
                         <div id="chapter-stats" class="stats"></div>
                         <div class="chapter-actions">
                             <button onclick="addSelectedText()" class="btn btn-primary">Add Selected Text</button>
-                            <button onclick="addCurrentPageToChapter()" class="btn btn-primary">Add Full Page</button>
-                            <button onclick="finishChapter()" class="btn btn-success">Finish Chapter</button>
                             <button onclick="clearChapter()" class="btn btn-secondary">Clear Chapter</button>
+                            <button onclick="finishChapter()" class="btn btn-success">Finish Chapter</button>
                         </div>
                     </div>
+                </div>
+
+                <h2>4. Book Text <span style="font-size: 0.9rem; color: #718096; font-weight: normal;">(Select text to add to chapter)</span></h2>
+                <div class="editor-container">
+                    <div class="text-display-full">
+                        <div id="book-text-scroll" class="book-scroll-content"></div>
+                    </div>
+
                 </div>
 
                 <div class="chapters-list">
