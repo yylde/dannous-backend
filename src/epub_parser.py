@@ -3,7 +3,7 @@
 import ebooklib
 from ebooklib import epub
 from bs4 import BeautifulSoup
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 import logging
 import re
 
@@ -31,18 +31,23 @@ class EPUBParser:
             # Extract metadata
             self.metadata = self._extract_metadata()
             
-            # Extract text content
-            self.chapters_raw = self._extract_text()
+            # Extract text content - now returns both HTML and plain text
+            html_sections, text_sections = self._extract_text()
+            
+            # Store for backward compatibility
+            self.chapters_raw = text_sections
             
             logger.info(
-                f"Extracted {len(self.chapters_raw)} sections, "
-                f"~{sum(len(c.split()) for c in self.chapters_raw)} words"
+                f"Extracted {len(text_sections)} sections, "
+                f"~{sum(len(c.split()) for c in text_sections)} words"
             )
             
             return {
                 "metadata": self.metadata,
-                "raw_text": "\n\n".join(self.chapters_raw),
-                "sections": self.chapters_raw
+                "raw_text": "\n\n".join(text_sections),
+                "raw_html": "\n\n".join(html_sections),
+                "sections": text_sections,
+                "html_sections": html_sections
             }
             
         except Exception as e:
@@ -92,8 +97,15 @@ class EPUBParser:
         logger.info(f"Metadata: {metadata['title']} by {metadata['author']}")
         return metadata
     
-    def _extract_text(self) -> List[str]:
-        """Extract text content from all document items, preserving HTML structure."""
+    def _extract_text(self) -> Tuple[List[str], List[str]]:
+        """Extract text content from all document items.
+        
+        Returns:
+            Tuple of (html_sections, text_sections)
+            - html_sections: HTML with structure preserved
+            - text_sections: Plain text only
+        """
+        html_sections = []
         text_sections = []
         
         # Get all document items in reading order
@@ -111,6 +123,7 @@ class EPUBParser:
                 
                 # Extract HTML content, preserving structure and formatting
                 html_parts = []
+                text_parts = []
                 
                 # Extract headings and paragraphs in order, preserving HTML tags
                 for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p']):
@@ -122,11 +135,17 @@ class EPUBParser:
                         element_text = ' '.join(element_text.split())
                         if element_text:
                             html_parts.append(f'<{tag_name}>{element_text}</{tag_name}>')
+                            text_parts.append(element_text)
                     else:
                         # For paragraphs, preserve inner HTML with formatting tags
                         inner_html = self._extract_formatted_html(element)
                         if inner_html.strip():
                             html_parts.append(f'<p>{inner_html}</p>')
+                            # Also extract plain text version
+                            plain_text = element.get_text(separator=' ', strip=True)
+                            plain_text = ' '.join(plain_text.split())
+                            if plain_text:
+                                text_parts.append(plain_text)
                 
                 # If no structured content found, fall back to plain text wrapped in paragraph
                 if not html_parts:
@@ -134,17 +153,20 @@ class EPUBParser:
                     text = ' '.join(text.split())
                     if text:
                         html_parts.append(f'<p>{text}</p>')
+                        text_parts.append(text)
                 
                 if html_parts:
                     html_content = '\n\n'.join(html_parts)
+                    text_content = '\n\n'.join(text_parts)
                     if html_content.strip():
-                        text_sections.append(html_content.strip())
+                        html_sections.append(html_content.strip())
+                        text_sections.append(text_content.strip())
                     
             except Exception as e:
                 logger.warning(f"Failed to extract text from item: {e}")
                 continue
         
-        return text_sections
+        return html_sections, text_sections
     
     def _extract_formatted_html(self, element) -> str:
         """Extract HTML from element, preserving formatting tags like em, strong, i, b."""

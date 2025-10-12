@@ -330,7 +330,13 @@ class DatabaseManager:
                 
                 columns = [desc[0] for desc in cur.description]
                 draft = dict(zip(columns, result))
-                draft['metadata'] = json.loads(draft['metadata']) if draft['metadata'] else {}
+                
+                # metadata is JSONB - already parsed by psycopg2
+                if isinstance(draft['metadata'], str):
+                    draft['metadata'] = json.loads(draft['metadata'])
+                elif draft['metadata'] is None:
+                    draft['metadata'] = {}
+                
                 return draft
     
     def save_draft_chapter(self, draft_id: str, chapter_number: int, title: str, 

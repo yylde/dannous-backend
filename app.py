@@ -53,7 +53,9 @@ def download_book():
         parser = EPUBParser(filepath)
         epub_data = parser.parse()
         
+        # Use plain text for UI display and word counting
         text = epub_data['raw_text']
+        html = epub_data['raw_html']
         pages = split_into_pages(text)
         
         return jsonify({
@@ -62,6 +64,7 @@ def download_book():
             'title': epub_data['metadata']['title'],
             'author': epub_data['metadata']['author'],
             'full_text': text,
+            'full_html': html,
             'pages': pages,
             'total_pages': len(pages),
             'metadata': epub_data['metadata']
