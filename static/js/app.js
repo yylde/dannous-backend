@@ -13,6 +13,7 @@ let bookTextParts = []; // Store plain text parts for display
 let bookHtmlParts = []; // Store HTML parts for storage
 let deletedIndices = new Set(); // Track which indices have been deleted
 let currentDraftId = null; // Track current draft
+let statusPollingInterval = null; // Track polling interval for chapter status updates
 
 document.addEventListener('DOMContentLoaded', () => {
     loadDifficultyRanges();
@@ -164,32 +165,67 @@ function updateDifficultyRange() {
     updateChapterStats();
 }
 
-function updateChapterLegend() {
-    const legendItems = document.getElementById('legend-items');
-    if (!legendItems) return;
+// ==================== STATUS POLLING FUNCTIONS ====================
 
-    const colors = [
-        { color: '#667eea', label: 'Purple' },
-        { color: '#48bb78', label: 'Green' },
-        { color: '#ed8936', label: 'Orange' },
-        { color: '#9f7aea', label: 'Violet' },
-        { color: '#38a169', label: 'Teal' }
-    ];
+function startStatusPolling() {
+    // Clear any existing interval
+    stopStatusPolling();
+    
+    if (!currentDraftId) return;
+    
+    // Set up polling every 3 seconds
+    statusPollingInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/draft-chapters/${currentDraftId}`);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                console.error('Failed to fetch chapter statuses:', data.error);
+                return;
+            }
+            
+            // Check if any status has changed
+            let hasChanges = false;
+            let allComplete = true;
+            
+            data.chapters.forEach(serverChapter => {
+                const localChapter = chapters.find(ch => ch.id === serverChapter.id);
+                if (localChapter && localChapter.question_status !== serverChapter.question_status) {
+                    hasChanges = true;
+                    localChapter.question_status = serverChapter.question_status;
+                }
+                
+                // Check if any chapter is still generating
+                if (serverChapter.question_status === 'generating' || serverChapter.question_status === 'pending') {
+                    allComplete = false;
+                }
+            });
+            
+            // Update UI if there were changes
+            if (hasChanges) {
+                updateChaptersList();
+            }
+            
+            // Stop polling if all chapters are complete (ready or error)
+            if (allComplete && data.chapters.length > 0) {
+                stopStatusPolling();
+                console.log('All chapters complete, stopped polling');
+            }
+            
+        } catch (error) {
+            console.error('Error polling chapter status:', error);
+        }
+    }, 3000);
+    
+    console.log('Started status polling');
+}
 
-    if (chapters.length === 0) {
-        legendItems.innerHTML = '<p style="color: #a0aec0; font-size: 12px; font-style: italic; margin: 0;">No chapters yet</p>';
-        return;
+function stopStatusPolling() {
+    if (statusPollingInterval) {
+        clearInterval(statusPollingInterval);
+        statusPollingInterval = null;
+        console.log('Stopped status polling');
     }
-
-    legendItems.innerHTML = chapters.map((chapter, idx) => {
-        const colorInfo = colors[idx % 5];
-        return `
-            <div class="chapter-legend-item">
-                <div class="chapter-legend-color" style="background: ${colorInfo.color}; border-left: 3px solid ${colorInfo.color};"></div>
-                <span class="chapter-legend-label">Ch ${idx + 1}: ${chapter.title.substring(0, 12)}${chapter.title.length > 12 ? '...' : ''}</span>
-            </div>
-        `;
-    }).join('');
 }
 
 async function downloadBook() {
@@ -216,6 +252,9 @@ async function downloadBook() {
             throw new Error(data.error || 'Download failed');
         }
 
+        // Stop any existing polling when loading a new book
+        stopStatusPolling();
+        
         bookData = data;
         chapters = [];
         currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
@@ -239,7 +278,6 @@ async function downloadBook() {
         displayFullBook();
         updateChapterStats();
         updateChaptersList();
-        updateChapterLegend();
         updateUndoButton();
         
         // Refresh sidebar to show new draft
@@ -466,8 +504,10 @@ async function finishChapter() {
     updateChapterDisplay();
     updateChapterStats();
     updateChaptersList();
-    updateChapterLegend();
     updateUndoButton();
+    
+    // Start polling to track question generation progress
+    startStatusPolling();
 
     showStatus(`Chapter "${title}" saved! Questions generating...`, 'success');
 }
@@ -609,7 +649,6 @@ function deleteChapter(index) {
         chapters.splice(index, 1);
 
         updateChaptersList();
-        updateChapterLegend();
         displayFullBook();
         updateUndoButton();
         showStatus('Chapter deleted and text restored to book', 'info');
@@ -827,12 +866,14 @@ async function loadDraft(draftId) {
         displayFullBook();
         updateChaptersList();
         updateChapterStats();
-        updateChapterLegend();
         
         document.getElementById('book-section').style.display = 'block';
         
         // Refresh sidebar to show active draft
         loadDraftsInSidebar();
+        
+        // Start polling for chapter status updates
+        startStatusPolling();
         
         showStatus(`Loaded draft: ${draft.title}`, 'success');
         
@@ -1017,6 +1058,9 @@ async function finalizeBook() {
     if (!confirm('Are you ready to finalize this book? This will move it to the main books table.')) {
         return;
     }
+    
+    // Stop polling before finalizing
+    stopStatusPolling();
     
     try {
         showLoading(true);

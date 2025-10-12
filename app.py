@@ -347,6 +347,27 @@ def save_draft_chapter():
         logger.exception("Failed to save draft chapter")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/draft-chapters/<draft_id>', methods=['GET'])
+def get_draft_chapters_status(draft_id):
+    """Get all chapters for a draft with their current status (for polling)."""
+    try:
+        db = DatabaseManager()
+        chapters = db.get_draft_chapters(draft_id)
+        
+        # Return only the data needed for status polling
+        chapter_statuses = [
+            {
+                'id': ch['id'],
+                'question_status': ch.get('question_status', 'pending')
+            }
+            for ch in chapters
+        ]
+        
+        return jsonify({'success': True, 'chapters': chapter_statuses})
+    except Exception as e:
+        logger.exception("Failed to get draft chapters status")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/draft-chapter/<chapter_id>', methods=['GET'])
 def get_draft_chapter_detail(chapter_id):
     """Get chapter details with questions and vocabulary."""

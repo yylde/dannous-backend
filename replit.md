@@ -26,6 +26,9 @@ Implemented a complete draft system that allows incremental book processing with
 - Click any draft to load it immediately
 - "+ New" button scrolls to download section and focuses input
 - Sidebar automatically refreshes when drafts are created or loaded
+- Removed "Chapter Colors" legend (no longer needed)
+- Added automatic status polling to keep chapter status in sync (polls every 3 seconds)
+- Status badges update in real-time when questions finish generating
 
 **EPUB HTML Preservation with Vocabulary Tooltips (October 12, 2025):**
 - System now preserves original EPUB HTML formatting (paragraphs, headings, emphasis, etc.)
