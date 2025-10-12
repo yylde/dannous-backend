@@ -252,18 +252,19 @@ class DatabaseManager:
     
     def create_draft(self, gutenberg_id: Optional[int], title: str, author: str, 
                      full_text: str, age_range: str, reading_level: str, 
-                     genre: str, metadata: dict, full_html: str = None) -> str:
+                     genre: str, metadata: dict, full_html: str = None, 
+                     cover_image_url: str = None) -> str:
         """Create a new book draft. Returns draft_id."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO book_drafts (
                         gutenberg_id, title, author, full_text, full_html, age_range, 
-                        reading_level, genre, metadata
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        reading_level, genre, cover_image_url, metadata
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (gutenberg_id, title, author, full_text, full_html, age_range, 
-                      reading_level, genre, json.dumps(metadata)))
+                      reading_level, genre, cover_image_url, json.dumps(metadata)))
                 draft_id = cur.fetchone()[0]
                 logger.info(f"Created draft: {title} (ID: {draft_id})")
                 return str(draft_id)
@@ -276,6 +277,8 @@ class DatabaseManager:
                 set_clauses = []
                 values = []
                 for key, value in kwargs.items():
+                    if key == 'cover_image_url' and (value is None or value == ''):
+                        continue
                     if key == 'metadata':
                         set_clauses.append(f"{key} = %s")
                         values.append(json.dumps(value))
@@ -319,7 +322,7 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
-                           age_range, reading_level, genre, metadata, 
+                           age_range, reading_level, genre, cover_image_url, metadata, 
                            created_at, updated_at
                     FROM book_drafts
                     WHERE id = %s
@@ -502,14 +505,14 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 # Get draft data
                 cur.execute("""
-                    SELECT title, author, age_range, reading_level, genre, metadata
+                    SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata
                     FROM book_drafts WHERE id = %s
                 """, (draft_id,))
                 draft = cur.fetchone()
                 if not draft:
                     raise ValueError(f"Draft {draft_id} not found")
                 
-                title, author, age_range, reading_level, genre, metadata = draft
+                title, author, age_range, reading_level, genre, cover_image_url, metadata = draft
                 # JSONB fields are already parsed by psycopg2
                 if isinstance(metadata, str):
                     metadata = json.loads(metadata)
@@ -531,10 +534,10 @@ class DatabaseManager:
                 cur.execute("""
                     INSERT INTO books (
                         id, title, author, age_range, reading_level, genre,
-                        total_chapters, isbn, publication_year
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        total_chapters, cover_image_url, isbn, publication_year
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (book_id, title, author, age_range, reading_level, genre,
-                      total_chapters, metadata.get('isbn'), metadata.get('publication_year')))
+                      total_chapters, cover_image_url, metadata.get('isbn'), metadata.get('publication_year')))
                 
                 # Copy chapters
                 chapter_id_map = {}

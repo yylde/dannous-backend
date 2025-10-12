@@ -278,7 +278,7 @@ def create_or_update_draft():
         if draft_id:
             # Update existing draft
             update_fields = {}
-            for field in ['age_range', 'reading_level', 'genre']:
+            for field in ['age_range', 'reading_level', 'genre', 'cover_image_url']:
                 if field in data:
                     update_fields[field] = data[field]
             if update_fields:
@@ -294,6 +294,7 @@ def create_or_update_draft():
                 age_range=data.get('age_range', settings.default_age_range),
                 reading_level=data.get('reading_level', settings.default_reading_level),
                 genre=data.get('genre', settings.default_genre),
+                cover_image_url=data.get('cover_image_url'),
                 metadata=data.get('metadata', {}),
                 full_html=data.get('full_html')
             )

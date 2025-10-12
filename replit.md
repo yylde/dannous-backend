@@ -46,8 +46,14 @@ Implemented a complete draft system that allows incremental book processing with
 - `inject_vocabulary_abbr()` function wraps vocabulary words in HTML only
 - CSS styling for abbr tags: purple dotted underline, hover effects
 
+**Book Cover URL Feature (October 12, 2025):**
+- Added optional book cover URL input in Configure Settings section
+- Cover image URL saved with draft and transferred to production books
+- If URL is provided, it updates; if empty, it's ignored (doesn't overwrite existing)
+- Input has URL validation for proper format
+
 **Database Schema:**
-- **book_drafts** - Tracks books in progress with metadata
+- **book_drafts** - Tracks books in progress with metadata (includes cover_image_url)
 - **draft_chapters** - Stores chapters with question generation status (pending, generating, ready, error)
 - **draft_questions** - Comprehension questions for draft chapters
 - **draft_vocabulary** - Vocabulary words and definitions for draft chapters

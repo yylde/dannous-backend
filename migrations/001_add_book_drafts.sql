@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS book_drafts (
     gutenberg_id INTEGER,
     title VARCHAR(500) NOT NULL,
     author VARCHAR(300) NOT NULL,
+    cover_image_url VARCHAR(500),
     full_text TEXT NOT NULL,
     full_html TEXT,  -- Stores original EPUB HTML for vocabulary tooltip injection
     age_range VARCHAR(20),

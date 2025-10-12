@@ -856,6 +856,7 @@ async function loadDraft(draftId) {
         document.getElementById('age-range').value = draft.age_range || '8-12';
         document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
         document.getElementById('genre').value = draft.genre || 'fiction';
+        document.getElementById('cover-image-url').value = draft.cover_image_url || '';
         
         // Show draft info
         document.getElementById('draft-title').textContent = `${draft.title} by ${draft.author}`;
@@ -891,6 +892,7 @@ async function saveDraft() {
         const ageRange = document.getElementById('age-range').value;
         const readingLevel = document.getElementById('reading-level').value;
         const genre = document.getElementById('genre').value;
+        const coverImageUrl = document.getElementById('cover-image-url').value;
         
         const response = await fetch('/api/draft', {
             method: 'POST',
@@ -905,6 +907,7 @@ async function saveDraft() {
                 age_range: ageRange,
                 reading_level: readingLevel,
                 genre: genre,
+                cover_image_url: coverImageUrl,
                 metadata: bookData.metadata
             })
         });
