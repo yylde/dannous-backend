@@ -294,7 +294,8 @@ def create_or_update_draft():
                 age_range=data.get('age_range', settings.default_age_range),
                 reading_level=data.get('reading_level', settings.default_reading_level),
                 genre=data.get('genre', settings.default_genre),
-                metadata=data.get('metadata', {})
+                metadata=data.get('metadata', {}),
+                full_html=data.get('full_html')
             )
             return jsonify({'success': True, 'draft_id': draft_id})
     
@@ -311,6 +312,7 @@ def save_draft_chapter():
         chapter_number = data.get('chapter_number')
         title = data.get('title')
         content = data.get('content')
+        html_content = data.get('html_content')
         word_count = data.get('word_count')
         
         if not all([draft_id, chapter_number, title, content]):
@@ -322,14 +324,15 @@ def save_draft_chapter():
             chapter_number=chapter_number,
             title=title,
             content=content,
-            word_count=word_count
+            word_count=word_count,
+            html_formatting=html_content
         )
         
         # Trigger async question generation
         import threading
         thread = threading.Thread(
             target=generate_questions_async,
-            args=(chapter_id, draft_id, title, content, data.get('age_range'), data.get('reading_level'))
+            args=(chapter_id, draft_id, title, content, html_content, data.get('age_range'), data.get('reading_level'))
         )
         thread.daemon = True
         thread.start()
@@ -393,7 +396,7 @@ def finalize_draft(draft_id):
         logger.exception("Failed to finalize draft")
         return jsonify({'error': str(e)}), 500
 
-def generate_questions_async(chapter_id, draft_id, title, content, age_range, reading_level):
+def generate_questions_async(chapter_id, draft_id, title, content, html_content, age_range, reading_level):
     """Generate questions asynchronously in background."""
     try:
         db = DatabaseManager()
@@ -413,7 +416,8 @@ def generate_questions_async(chapter_id, draft_id, title, content, age_range, re
         
         db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data)
         
-        html_with_abbr = inject_vocabulary_abbr(content, vocabulary_data)
+        # Apply vocabulary abbr tags to HTML content (not plain text)
+        html_with_abbr = inject_vocabulary_abbr(html_content or content, vocabulary_data)
         
         with db.get_connection() as conn:
             with conn.cursor() as cur:

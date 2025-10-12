@@ -252,17 +252,17 @@ class DatabaseManager:
     
     def create_draft(self, gutenberg_id: Optional[int], title: str, author: str, 
                      full_text: str, age_range: str, reading_level: str, 
-                     genre: str, metadata: dict) -> str:
+                     genre: str, metadata: dict, full_html: str = None) -> str:
         """Create a new book draft. Returns draft_id."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO book_drafts (
-                        gutenberg_id, title, author, full_text, age_range, 
+                        gutenberg_id, title, author, full_text, full_html, age_range, 
                         reading_level, genre, metadata
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
-                """, (gutenberg_id, title, author, full_text, age_range, 
+                """, (gutenberg_id, title, author, full_text, full_html, age_range, 
                       reading_level, genre, json.dumps(metadata)))
                 draft_id = cur.fetchone()[0]
                 logger.info(f"Created draft: {title} (ID: {draft_id})")
@@ -318,7 +318,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    SELECT id, gutenberg_id, title, author, full_text, 
+                    SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, metadata, 
                            created_at, updated_at
                     FROM book_drafts

@@ -2,13 +2,15 @@ let bookData = null;
 let currentChapter = {
     title: '',
     content: '',
+    html_content: '',
     word_count: 0,
-    textChunks: [] // Array of {text, originalIndices}
+    textChunks: [] // Array of {text, html, originalIndices}
 };
 let chapters = [];
 let difficultyRanges = {};
 let undoStack = [];
-let bookTextParts = []; // Store the book text parts separately
+let bookTextParts = []; // Store plain text parts for display
+let bookHtmlParts = []; // Store HTML parts for storage
 let deletedIndices = new Set(); // Track which indices have been deleted
 let currentDraftId = null; // Track current draft
 
@@ -105,8 +107,11 @@ function handleChapterTextDeletion(oldText, newText) {
 function rebuildBookTextParts() {
     if (!bookData) return;
 
-    const originalParts = bookData.full_text.split('\n\n').filter(p => p.trim());
-    bookTextParts = originalParts.filter((part, idx) => !deletedIndices.has(idx));
+    const originalTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
+    const originalHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
+    
+    bookTextParts = originalTextParts.filter((part, idx) => !deletedIndices.has(idx));
+    bookHtmlParts = originalHtmlParts.filter((part, idx) => !deletedIndices.has(idx));
 }
 
 // NEW FUNCTION: Get the indices of selected paragraphs
@@ -213,12 +218,15 @@ async function downloadBook() {
 
         bookData = data;
         chapters = [];
-        currentChapter = { title: '', content: '', word_count: 0, textChunks: [] };
+        currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
         undoStack = [];
         deletedIndices = new Set();
 
-        // Initialize book text parts
+        // Initialize book text parts (plain text for display)
         bookTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
+        
+        // Initialize book HTML parts (HTML for storage)
+        bookHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
 
         // Auto-save as draft
         await saveDraft();
@@ -283,31 +291,50 @@ function displayFullBook() {
     }).join('');
 }
 
-// IMPROVED FUNCTION: Now stores metadata about original indices
+// IMPROVED FUNCTION: Now stores metadata about original indices and HTML
 function autoAddSelectedText(selectedText, selectedIndices) {
     if (!bookData) return;
 
     // Save state for undo
     undoStack.push({
         bookTextParts: [...bookTextParts],
+        bookHtmlParts: [...bookHtmlParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
         deletedIndices: new Set(deletedIndices),
         action: 'add_text'
     });
 
-    // Create a chunk with text and original indices
+    // Get corresponding HTML parts for the selected indices
+    const originalHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
+    const selectedHtmlParts = [];
+    selectedIndices.forEach(idx => {
+        if (idx < originalHtmlParts.length) {
+            selectedHtmlParts.push(originalHtmlParts[idx]);
+        }
+    });
+    const selectedHtml = selectedHtmlParts.join('\n\n');
+
+    // Create a chunk with text, HTML, and original indices
     const chunk = {
         text: selectedText,
+        html: selectedHtml,
         originalIndices: Array.from(selectedIndices)
     };
 
     currentChapter.textChunks.push(chunk);
 
-    // Add to current chapter content
+    // Add to current chapter content (plain text)
     if (currentChapter.content) {
         currentChapter.content += '\n\n' + selectedText;
     } else {
         currentChapter.content = selectedText;
+    }
+
+    // Add to current chapter HTML content
+    if (currentChapter.html_content) {
+        currentChapter.html_content += '\n\n' + selectedHtml;
+    } else {
+        currentChapter.html_content = selectedHtml;
     }
 
     // Mark these indices as deleted
@@ -332,6 +359,7 @@ function undo() {
     const previousState = undoStack.pop();
 
     bookTextParts = previousState.bookTextParts;
+    bookHtmlParts = previousState.bookHtmlParts || bookTextParts; // Fallback for old state
     currentChapter = previousState.currentChapter;
     deletedIndices = previousState.deletedIndices;
 
@@ -410,10 +438,11 @@ async function finishChapter() {
         action: 'finish_chapter'
     });
 
-    // Prepare chapter data
+    // Prepare chapter data with both plain text and HTML
     const chapterData = {
         title: title,
         content: currentChapter.content,
+        html_content: currentChapter.html_content,
         word_count: currentChapter.word_count,
         ignore_validation: ignoreCount,
         textChunks: currentChapter.textChunks,
@@ -430,7 +459,7 @@ async function finishChapter() {
     chapters.push(chapterData);
 
     // Reset for next chapter
-    currentChapter = { title: '', content: '', word_count: 0, textChunks: [] };
+    currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
     document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
     document.getElementById('ignore-word-count').checked = false;
 
@@ -456,6 +485,7 @@ function discardChapter() {
     // Save state for undo
     undoStack.push({
         bookTextParts: [...bookTextParts],
+        bookHtmlParts: [...bookHtmlParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
         deletedIndices: new Set(deletedIndices),
         action: 'discard_chapter'
@@ -469,7 +499,7 @@ function discardChapter() {
     });
 
     // Clear the current chapter
-    currentChapter = { title: '', content: '', word_count: 0, textChunks: [] };
+    currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
     document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
     document.getElementById('ignore-word-count').checked = false;
 
@@ -489,6 +519,7 @@ function clearChapter() {
     // Save state for undo
     undoStack.push({
         bookTextParts: [...bookTextParts],
+        bookHtmlParts: [...bookHtmlParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
         deletedIndices: new Set(deletedIndices),
         action: 'clear_chapter'
@@ -501,7 +532,7 @@ function clearChapter() {
         });
     });
 
-    currentChapter = { title: '', content: '', word_count: 0, textChunks: [] };
+    currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
     updateChapterDisplay();
     updateChapterStats();
     displayFullBook();
@@ -557,6 +588,7 @@ function deleteChapter(index) {
         // Save state for undo
         undoStack.push({
             bookTextParts: [...bookTextParts],
+            bookHtmlParts: [...bookHtmlParts],
             currentChapter: JSON.parse(JSON.stringify(currentChapter)),
             chapters: JSON.parse(JSON.stringify(chapters)),
             deletedIndices: new Set(deletedIndices),
@@ -751,11 +783,15 @@ async function loadDraft(draftId) {
             title: draft.title,
             author: draft.author,
             full_text: draft.full_text,
+            full_html: draft.full_html || draft.full_text,
             metadata: draft.metadata
         };
         
-        // Initialize book text parts
+        // Initialize book text parts (plain text for display)
         bookTextParts = draft.full_text.split('\n\n').filter(p => p.trim());
+        
+        // Initialize book HTML parts (HTML for storage)
+        bookHtmlParts = (draft.full_html || draft.full_text).split('\n\n').filter(p => p.trim());
         
         // Load chapters
         chapters = draft.chapters.map(ch => ({
@@ -824,6 +860,7 @@ async function saveDraft() {
                 title: bookData.title,
                 author: bookData.author,
                 full_text: bookData.full_text,
+                full_html: bookData.full_html,
                 age_range: ageRange,
                 reading_level: readingLevel,
                 genre: genre,
@@ -867,6 +904,7 @@ async function saveDraftChapter(chapterData) {
                 chapter_number: chapters.length + 1,
                 title: chapterData.title,
                 content: chapterData.content,
+                html_content: chapterData.html_content,
                 word_count: chapterData.word_count,
                 age_range: ageRange,
                 reading_level: readingLevel
