@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS book_drafts (
     title VARCHAR(500) NOT NULL,
     author VARCHAR(300) NOT NULL,
     full_text TEXT NOT NULL,
+    full_html TEXT,  -- Stores original EPUB HTML for vocabulary tooltip injection
     age_range VARCHAR(20),
     reading_level VARCHAR(20),
     genre VARCHAR(100),
