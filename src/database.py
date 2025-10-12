@@ -561,14 +561,18 @@ class DatabaseManager:
                         FROM draft_questions WHERE chapter_id = %s
                     """, (old_chapter_id,))
                     for q in cur.fetchall():
+                        # expected_keywords is already parsed as a list by psycopg2
+                        # Convert back to JSON for insertion
+                        keywords = q[3] if isinstance(q[3], str) else json.dumps(q[3]) if q[3] else json.dumps([])
+                        
                         cur.execute("""
                             INSERT INTO questions (
                                 id, book_id, chapter_id, question_text, question_type,
                                 difficulty_level, expected_keywords, min_word_count,
                                 max_word_count, order_index
-                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s::jsonb, %s, %s, %s)
                         """, (str(uuid4()), book_id, new_chapter_id, q[0], q[1], q[2],
-                              q[3], q[4], q[5], q[6]))
+                              keywords, q[4], q[5], q[6]))
                         question_count += 1
                 
                 # Mark draft as completed
