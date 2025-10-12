@@ -781,3 +781,59 @@ select:focus {
     background: #c6f6d5;
     color: #22543d;
 }
+
+/* Abbr tag styling for vocabulary tooltips */
+abbr {
+    text-decoration: underline dotted #667eea;
+    text-decoration-thickness: 2px;
+    cursor: help;
+    color: #667eea;
+    font-weight: 500;
+    position: relative;
+}
+
+abbr:hover {
+    color: #5568d3;
+    text-decoration-color: #5568d3;
+}
+
+/* Enhanced tooltip using title attribute (browser default) */
+abbr[title] {
+    border-bottom: none;
+}
+
+/* Chapter HTML content styling */
+.chapter-html-content {
+    background: #f7fafc;
+    padding: 20px;
+    border-radius: 8px;
+    line-height: 1.8;
+    font-family: Georgia, serif;
+}
+
+.chapter-html-content p {
+    margin-bottom: 1em;
+    text-align: justify;
+}
+
+.chapter-html-content em,
+.chapter-html-content i {
+    font-style: italic;
+}
+
+.chapter-html-content strong,
+.chapter-html-content b {
+    font-weight: bold;
+}
+
+.chapter-html-content h1,
+.chapter-html-content h2,
+.chapter-html-content h3,
+.chapter-html-content h4,
+.chapter-html-content h5,
+.chapter-html-content h6 {
+    color: #667eea;
+    margin-top: 1.5em;
+    margin-bottom: 0.5em;
+    font-weight: 600;
+}

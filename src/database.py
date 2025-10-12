@@ -8,6 +8,8 @@ from contextlib import contextmanager
 
 from .config import settings
 from .models import ProcessedBook, Book, Chapter, Question
+import re
+import html
 
 logger = logging.getLogger(__name__)
 
@@ -585,3 +587,64 @@ class DatabaseManager:
                            f"{total_chapters} chapters, {question_count} questions")
                 
                 return book_id, total_chapters, question_count
+
+
+def inject_vocabulary_abbr(html_content: str, vocabulary_list: List[dict]) -> str:
+    """
+    Inject vocabulary <abbr> tags into HTML content.
+    
+    Args:
+        html_content: HTML string with paragraph and formatting tags
+        vocabulary_list: List of dicts with 'word' and 'definition' keys
+    
+    Returns:
+        HTML string with vocabulary words wrapped in <abbr> tags
+    """
+    if not vocabulary_list or not html_content:
+        return html_content
+    
+    result = html_content
+    
+    # Process each vocabulary word
+    for vocab in vocabulary_list:
+        word = vocab.get('word', '').strip()
+        definition = vocab.get('definition', '').strip()
+        
+        if not word or not definition:
+            continue
+        
+        # Escape definition for HTML attribute
+        escaped_definition = html.escape(definition, quote=True)
+        
+        # Create regex pattern for whole word matching (case-insensitive)
+        # \b ensures word boundaries
+        pattern = r'\b(' + re.escape(word) + r')\b'
+        
+        # Function to check if match is inside HTML tag
+        def replace_if_not_in_tag(match):
+            # Get the matched word
+            matched_word = match.group(1)
+            
+            # Get context around match to check if it's inside a tag
+            start_pos = match.start()
+            
+            # Check if we're inside an HTML tag by looking backwards
+            before_match = result[:start_pos]
+            last_open = before_match.rfind('<')
+            last_close = before_match.rfind('>')
+            
+            # If last '<' is after last '>', we're inside a tag
+            if last_open > last_close:
+                return matched_word
+            
+            # Check if already wrapped in abbr
+            if '<abbr' in before_match[-50:]:  # Check recent context
+                return matched_word
+            
+            # Return abbr-wrapped version
+            return f'<abbr title="{escaped_definition}">{matched_word}</abbr>'
+        
+        # Replace only the first occurrence
+        result = re.sub(pattern, replace_if_not_in_tag, result, count=1, flags=re.IGNORECASE)
+    
+    return result

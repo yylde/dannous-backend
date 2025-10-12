@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from src.epub_parser import download_gutenberg_epub, EPUBParser
 from src.question_generator import QuestionGenerator
-from src.database import DatabaseManager
+from src.database import DatabaseManager, inject_vocabulary_abbr
 from src.models import Book, Chapter, Question, ProcessedBook
 from src.config import settings
 from src.chapter_splitter import calculate_reading_time
@@ -136,6 +136,8 @@ def save_chapters():
                 num_questions=settings.questions_per_chapter
             )
             chapter.vocabulary_words = vocabulary_data
+            
+            chapter.html_formatting = inject_vocabulary_abbr(chapter.content, vocabulary_data)
             
             # UPDATED: Loop through questions (not questions_data directly)
             for j, q_data in enumerate(questions_data, 1):
@@ -407,7 +409,18 @@ def generate_questions_async(chapter_id, draft_id, title, content, age_range, re
         )
         
         db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data)
-        logger.info(f"Generated {len(questions_data)} questions for chapter {chapter_id}")
+        
+        html_with_abbr = inject_vocabulary_abbr(content, vocabulary_data)
+        
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_chapters 
+                    SET html_formatting = %s
+                    WHERE id = %s
+                """, (html_with_abbr, chapter_id))
+        
+        logger.info(f"Generated {len(questions_data)} questions and {len(vocabulary_data)} vocabulary for chapter {chapter_id}")
         
     except Exception as e:
         logger.exception(f"Failed to generate questions for chapter {chapter_id}")

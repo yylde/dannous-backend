@@ -93,7 +93,7 @@ class EPUBParser:
         return metadata
     
     def _extract_text(self) -> List[str]:
-        """Extract text content from all document items."""
+        """Extract text content from all document items, preserving HTML structure."""
         text_sections = []
         
         # Get all document items in reading order
@@ -109,38 +109,78 @@ class EPUBParser:
                 for script in soup(["script", "style", "nav"]):
                     script.decompose()
                 
-                # Extract text from EPUB HTML, preserving headings and paragraph structure
+                # Extract HTML content, preserving structure and formatting
                 html_parts = []
                 
-                # Extract headings and paragraphs in order
+                # Extract headings and paragraphs in order, preserving HTML tags
                 for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p']):
                     tag_name = element.name
-                    element_text = element.get_text(separator=' ', strip=True)
-                    element_text = ' '.join(element_text.split())  # Clean whitespace
                     
-                    if element_text:
-                        if tag_name.startswith('h'):
-                            # Preserve heading tags
+                    if tag_name.startswith('h'):
+                        # Preserve heading tags with text
+                        element_text = element.get_text(separator=' ', strip=True)
+                        element_text = ' '.join(element_text.split())
+                        if element_text:
                             html_parts.append(f'<{tag_name}>{element_text}</{tag_name}>')
-                        else:
-                            # Regular paragraph
-                            html_parts.append(element_text)
+                    else:
+                        # For paragraphs, preserve inner HTML with formatting tags
+                        inner_html = self._extract_formatted_html(element)
+                        if inner_html.strip():
+                            html_parts.append(f'<p>{inner_html}</p>')
                 
-                # If no structured content found, fall back to plain text
+                # If no structured content found, fall back to plain text wrapped in paragraph
                 if not html_parts:
                     text = soup.get_text()
                     text = ' '.join(text.split())
-                else:
-                    text = '\n\n'.join(html_parts)
+                    if text:
+                        html_parts.append(f'<p>{text}</p>')
                 
-                if text.strip():
-                    text_sections.append(text.strip())
+                if html_parts:
+                    html_content = '\n\n'.join(html_parts)
+                    if html_content.strip():
+                        text_sections.append(html_content.strip())
                     
             except Exception as e:
                 logger.warning(f"Failed to extract text from item: {e}")
                 continue
         
         return text_sections
+    
+    def _extract_formatted_html(self, element) -> str:
+        """Extract HTML from element, preserving formatting tags like em, strong, i, b."""
+        # Clone the element to avoid modifying the original
+        import copy
+        elem = copy.copy(element)
+        
+        # Build HTML string preserving formatting tags
+        result = []
+        for content in elem.children:
+            if isinstance(content, str):
+                # Plain text - clean whitespace
+                text = ' '.join(content.split())
+                if text:
+                    result.append(text)
+            else:
+                # HTML element - check if it's a formatting tag
+                if content.name in ['em', 'i', 'strong', 'b', 'u', 'span', 'a']:
+                    # Preserve the formatting tag
+                    inner_text = content.get_text(separator=' ', strip=True)
+                    inner_text = ' '.join(inner_text.split())
+                    if inner_text:
+                        # For simple formatting tags, preserve them
+                        if content.name in ['em', 'i', 'strong', 'b', 'u']:
+                            result.append(f'<{content.name}>{inner_text}</{content.name}>')
+                        else:
+                            # For span and anchor, just extract text
+                            result.append(inner_text)
+                else:
+                    # For other tags, just extract text
+                    text = content.get_text(separator=' ', strip=True)
+                    text = ' '.join(text.split())
+                    if text:
+                        result.append(text)
+        
+        return ' '.join(result)
 
 
 def download_gutenberg_epub(gutenberg_id: int, output_path: str) -> str:

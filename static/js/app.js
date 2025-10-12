@@ -908,6 +908,14 @@ async function viewChapter(chapterId) {
             <hr style="margin: 20px 0;">
         `;
         
+        if (chapter.html_formatting) {
+            modalHTML += `
+                <h3>Chapter Content</h3>
+                <div class="chapter-html-content">${chapter.html_formatting}</div>
+                <hr style="margin: 20px 0;">
+            `;
+        }
+        
         if (chapter.question_status === 'pending' || chapter.question_status === 'generating') {
             modalHTML += `<p style="color: #718096;">Questions are being generated...</p>`;
         } else if (chapter.question_status === 'error') {
