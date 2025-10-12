@@ -449,8 +449,13 @@ select:focus {
 }
 
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
 .loading p {
@@ -487,4 +492,57 @@ select:focus {
     .editor-container {
         grid-template-columns: 1fr;
     }
+}
+
+.chapter-legend {
+    position: fixed;
+    right: 20px;
+    top: 100px;
+    background: white;
+    padding: 15px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    max-width: 200px;
+}
+
+.chapter-legend h4 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    color: #667eea;
+    font-weight: 600;
+}
+
+.chapter-legend-item {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.chapter-legend-color {
+    width: 20px;
+    height: 20px;
+    opacity: 0.3;
+    margin-right: 8px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+.chapter-legend-label {
+    font-size: 13px;
+    color: #4a5568;
+}
+
+.btn-danger {
+    background: #f56565;
+    color: white;
+}
+
+.btn-danger:hover {
+    background: #e53e3e;
+}
+
+.btn-danger:disabled {
+    background: #fc8181;
+    cursor: not-allowed;
 }

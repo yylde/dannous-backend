@@ -18,6 +18,7 @@ from src.chapter_splitter import ChapterSplitter, calculate_reading_time
 from src.question_generator import QuestionGenerator, save_prompt_template
 from src.database import DatabaseManager
 from src.models import Book, Chapter, Question, ProcessedBook
+from src.html_formatter import format_chapter_html
 
 console = Console()
 
@@ -367,17 +368,31 @@ def _process_epub(
                 all_questions.append([])  # Empty list for metadata chapters
                 continue
             
-            questions_data = generator.generate_questions(
-                title=metadata['title'],
-                author=metadata['author'],
-                chapter_number=chapter_data['number'],
+            questions_data, vocabulary_data = generator.generate_questions(
+                chapter_content=chapter_data['content'],
                 chapter_title=chapter_data['title'],
-                chapter_text=chapter_data['content'],
-                reading_level=reading_level,
                 age_range=age_range,
-                num_questions=num_questions
+                reading_level=reading_level,
+                book_title=metadata['title'],
+                num_questions=settings.questions_per_chapter
             )
-            all_questions.append(questions_data)
+            html_content = format_chapter_html(
+                content=chapter_data['content'],
+                vocabulary=vocabulary_data,
+                age_range=age_range,
+                reading_level=reading_level
+            )
+            chapter = Chapter(
+                book_id=book.id,
+                chapter_number=chapter_data['number'],
+                title=chapter_data['title'],
+                content=chapter_data['content'],
+                word_count=chapter_data['word_count'],
+                estimated_reading_time_minutes=calculate_reading_time(chapter_data['word_count']),
+                vocabulary_words=vocabulary_data,  # Now contains full vocab objects
+                html_formatting=html_content  # Add formatted HTML
+            )
+            all_questions.append(chapter)
             progress.update(task, advance=1)
     
     total_questions = sum(len(q) for q in all_questions)

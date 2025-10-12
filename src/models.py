@@ -35,10 +35,10 @@ class Chapter(BaseModel):
     content: str
     word_count: int
     estimated_reading_time_minutes: int
-    vocabulary_words: List[str] = Field(default_factory=list)
+    vocabulary_words: List[dict] = Field(default_factory=list)  # List of vocab dicts
+    html_formatting: Optional[str] = None  # HTML formatted content
     created_at: datetime = Field(default_factory=datetime.now)
-
-
+    
 class Question(BaseModel):
     """Question model matching database schema."""
     id: UUID = Field(default_factory=uuid4)

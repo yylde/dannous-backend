@@ -1,12 +1,22 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Book Chapter Splitter - Admin UI</title>
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
+
 <body>
+    <!-- Chapter Legend - Fixed position at top right -->
+    <div class="chapter-legend">
+        <h4>Chapter Colors</h4>
+        <div id="legend-items">
+            <p style="color: #a0aec0; font-size: 12px; font-style: italic; margin: 0;">No chapters yet</p>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>📚 Manual Chapter Splitter</h1>
@@ -28,7 +38,14 @@
         <section id="book-section" style="display: none;">
             <div class="card">
                 <div id="book-info"></div>
-                
+
+                <!-- Undo Button -->
+                <div style="margin-bottom: 20px;">
+                    <button id="undo-btn" onclick="undo()" class="btn btn-secondary" disabled>
+                        ↶ Undo
+                    </button>
+                </div>
+
                 <div class="controls">
                     <h2>2. Configure Settings</h2>
                     <div class="form-row">
@@ -58,7 +75,6 @@
                 </div>
 
                 <h2>3. Chapter Builder</h2>
-
                 <div class="editor-container">
                     <div class="chapter-builder">
                         <h3>Current Chapter</h3>
@@ -66,7 +82,8 @@
                             <label for="chapter-title">Chapter Title:</label>
                             <div style="display: flex; gap: 10px;">
                                 <input type="text" id="chapter-title" placeholder="Chapter 1" style="flex: 1;">
-                                <button onclick="generateAITitle()" class="btn btn-secondary" title="Generate title with AI">✨ AI Title</button>
+                                <button onclick="generateAITitle()" class="btn btn-secondary"
+                                    title="Generate title with AI">✨ AI Title</button>
                             </div>
                         </div>
                         <div class="form-group">
@@ -78,18 +95,19 @@
                         <div id="current-chapter-content" class="chapter-content" contenteditable="true"></div>
                         <div id="chapter-stats" class="stats"></div>
                         <div class="chapter-actions">
+                            <button onclick="discardChapter()" class="btn btn-danger">🗑️ Discard Chapter</button>
                             <button onclick="clearChapter()" class="btn btn-secondary">Clear Chapter</button>
-                            <button onclick="finishChapter()" class="btn btn-success">Finish Chapter</button>
+                            <button onclick="finishChapter()" class="btn btn-success">✓ Save Chapter</button>
                         </div>
                     </div>
                 </div>
 
-                <h2>4. Book Text <span style="font-size: 0.9rem; color: #718096; font-weight: normal;">(Select text to auto-add to chapter)</span></h2>
+                <h2>4. Book Text <span style="font-size: 0.9rem; color: #718096; font-weight: normal;">(Select text to
+                        add to chapter - selected text will be removed from here)</span></h2>
                 <div class="editor-container">
                     <div class="text-display-full">
                         <div id="book-text-scroll" class="book-scroll-content"></div>
                     </div>
-
                 </div>
 
                 <div class="chapters-list">
@@ -113,4 +131,5 @@
 
     <script src="/static/js/app.js"></script>
 </body>
+
 </html>

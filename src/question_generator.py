@@ -3,7 +3,7 @@
 import json
 import logging
 import time
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import ollama
 from .config import settings
 
@@ -26,35 +26,114 @@ class QuestionGenerator:
         """Load question generation prompt template."""
         return """You are an expert educator creating reading comprehension questions for children.
 
-Book: "{title}" by {author}
-Chapter {chapter_number}: {chapter_title}
-Reading Level: {reading_level}
-Age Range: {age_range}
+        Book: "{title}" by {author}
+        Chapter {chapter_number}: {chapter_title}
+        Reading Level: {reading_level}
+        Age Range: {age_range}
 
-Chapter Text:
-{chapter_text}
+        Chapter Text:
+        {chapter_text}
 
-Generate exactly {num_questions} open-ended comprehension questions that:
-1. Are NOT multiple choice or yes/no questions
-2. Start with "Why" or "How" to encourage critical thinking
-3. Require {min_words}-{max_words} word thoughtful answers
-4. Test understanding beyond simple recall
-5. Are appropriate for {age_range} year old children
-6. Focus on themes, character motivation, cause-and-effect, or inference
+        Generate exactly {num_questions} open-ended comprehension questions that:
+        1. Are NOT multiple choice or yes/no questions
+        2. Start with "Why" or "How" to encourage critical thinking
+        3. Require {min_words}-{max_words} word thoughtful answers
+        4. Test understanding beyond simple recall
+        5. Are appropriate for {age_range} year old children
+        6. Focus on themes, character motivation, cause-and-effect, or inference
 
-For each question, provide 3-5 expected keywords that would appear in a good answer.
+        Additionally, identify 5-8 words that might be difficult for a child at reading level "{reading_level}" and age range "{age_range}". For each word, provide:
+        - word: the difficult word (must appear in the chapter text)
+        - definition: a child-friendly definition
+        - example: a simple example sentence using the word in context
 
-Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
-{{
-  "questions": [
-    {{
-      "text": "Why did [character/event]...",
-      "keywords": ["keyword1", "keyword2", "keyword3"],
-      "difficulty": "medium"
-    }}
-  ]
-}}"""
-    
+        CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no explanations.
+        Use this EXACT format:
+
+        {{"questions":[{{"text":"Why did...","keywords":["word1","word2"],"difficulty":"medium"}}],"vocabulary":[{{"word":"example","definition":"simple meaning","example":"Sample sentence."}}]}}
+
+        Your response must start with {{ and end with }}"""
+
+    def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Parse JSON response from LLM with robust error handling.
+        
+        Returns:
+            Tuple of (questions, vocabulary)
+        """
+        try:
+            # Clean up response
+            response = response.strip()
+            
+            # Remove markdown code blocks if present
+            if '```json' in response:
+                response = response.split('```json')[1].split('```')[0].strip()
+            elif '```' in response:
+                # Handle generic code blocks
+                parts = response.split('```')
+                for part in parts:
+                    part = part.strip()
+                    if part.startswith('{') and part.endswith('}'):
+                        response = part
+                        break
+            
+            # Try to find JSON object if wrapped in text
+            if not response.startswith('{'):
+                start_idx = response.find('{')
+                if start_idx != -1:
+                    response = response[start_idx:]
+            
+            if not response.endswith('}'):
+                end_idx = response.rfind('}')
+                if end_idx != -1:
+                    response = response[:end_idx + 1]
+            
+            # Parse JSON
+            data = json.loads(response)
+            
+            if 'questions' not in data:
+                logger.warning("No 'questions' key in response")
+                return [], []
+            
+            # Parse questions
+            questions = []
+            for i, q in enumerate(data['questions'][:expected_count]):
+                # Validate question structure
+                if 'text' not in q:
+                    logger.warning(f"Question {i} missing 'text' field")
+                    continue
+                
+                questions.append({
+                    'text': q['text'].strip(),
+                    'keywords': q.get('keywords', []),
+                    'difficulty': q.get('difficulty', 'medium')
+                })
+            
+            # Parse vocabulary with more lenient validation
+            vocabulary = []
+            if 'vocabulary' in data and isinstance(data['vocabulary'], list):
+                for i, v in enumerate(data['vocabulary']):
+                    # More flexible validation
+                    if isinstance(v, dict) and 'word' in v and 'definition' in v:
+                        vocabulary.append({
+                            'word': str(v['word']).strip(),
+                            'definition': str(v['definition']).strip(),
+                            'example': str(v.get('example', '')).strip()
+                        })
+                    else:
+                        logger.warning(f"Vocabulary item {i} has invalid structure: {v}")
+            
+            logger.info(f"Successfully parsed {len(questions)} questions and {len(vocabulary)} vocabulary words")
+            return questions, vocabulary
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {e}")
+            logger.debug(f"Response was: {response[:500]}")
+            return [], []
+        except Exception as e:
+            logger.error(f"Error parsing response: {e}")
+            logger.debug(f"Response was: {response[:500]}")
+            return [], []
     def generate_questions(
         self,
         title: str,
@@ -65,13 +144,18 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
         reading_level: str,
         age_range: str,
         num_questions: int = None
-    ) -> List[Dict[str, any]]:
-        """Generate questions for a chapter."""
+    ) -> Tuple[List[Dict[str, any]], List[Dict[str, str]]]:
+        """
+        Generate questions and vocabulary for a chapter.
+        
+        Returns:
+            Tuple of (questions_list, vocabulary_list)
+        """
         if num_questions is None:
             num_questions = settings.questions_per_chapter
         
         logger.info(
-            f"Generating {num_questions} questions for "
+            f"Generating {num_questions} questions and vocabulary for "
             f"Chapter {chapter_number}: {chapter_title}"
         )
         
@@ -101,23 +185,23 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
         for attempt in range(max_retries):
             try:
                 response = self._call_ollama(prompt)
-                questions = self._parse_response(response, num_questions)
+                questions, vocabulary = self._parse_response(response, num_questions)
                 
                 if questions:
-                    logger.info(f"✓ Generated {len(questions)} questions")
-                    return questions
+                    logger.info(f"✓ Generated {len(questions)} questions and {len(vocabulary)} vocabulary words")
+                    return questions, vocabulary
                 
             except Exception as e:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
         
-        # Fallback: generate generic questions
+        # Fallback: generate generic questions and empty vocabulary
         logger.warning("Using fallback questions")
-        return self._generate_fallback_questions(chapter_title, num_questions)
+        return self._generate_fallback_questions(chapter_title, num_questions), []
     
     def _call_ollama(self, prompt: str) -> str:
-        """Call Ollama API."""
+        """Call Ollama API with improved settings."""
         try:
             response = ollama.generate(
                 model=self.model,
@@ -125,15 +209,25 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
                 options={
                     'temperature': 0.7,
                     'top_p': 0.9,
-                }
+                    'hidethinking': True,
+                    'num_predict': 4000, 
+                     "think": False # Ensure enough tokens for response
+                },
+                format='json'  # Request JSON format
             )
+            print(response['response'])
             return response['response']
         except Exception as e:
             logger.error(f"Ollama API call failed: {e}")
             raise
     
-    def _parse_response(self, response: str, expected_count: int) -> List[Dict]:
-        """Parse JSON response from LLM."""
+    def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict]]:
+        """
+        Parse JSON response from LLM.
+        
+        Returns:
+            Tuple of (questions, vocabulary)
+        """
         try:
             # Remove markdown code blocks if present
             response = response.strip()
@@ -148,6 +242,7 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
             if 'questions' not in data:
                 raise ValueError("No 'questions' key in response")
             
+            # Parse questions
             questions = []
             for i, q in enumerate(data['questions'][:expected_count]):
                 # Validate question structure
@@ -161,15 +256,30 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
                     'difficulty': q.get('difficulty', 'medium')
                 })
             
-            return questions
+            # Parse vocabulary
+            vocabulary = []
+            if 'vocabulary' in data:
+                for i, v in enumerate(data['vocabulary']):
+                    # Validate vocabulary structure
+                    if 'word' not in v or 'definition' not in v:
+                        logger.warning(f"Vocabulary item {i} missing required fields")
+                        continue
+                    
+                    vocabulary.append({
+                        'word': v['word'].strip(),
+                        'definition': v['definition'].strip(),
+                        'example': v.get('example', '').strip()
+                    })
+            
+            return questions, vocabulary
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON: {e}")
             logger.debug(f"Response was: {response[:200]}")
-            return []
+            return [], []
         except Exception as e:
             logger.error(f"Error parsing response: {e}")
-            return []
+            return [], []
     
     def _generate_fallback_questions(
         self,

@@ -101,18 +101,17 @@ class DatabaseManager:
                 return str(book_id)
     
     def insert_chapter(self, chapter: Chapter) -> str:
-        """Insert chapter record. Returns chapter_id."""
+        """Insert a chapter. Returns chapter_id."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO chapters (
                         id, book_id, chapter_number, title, content,
                         word_count, estimated_reading_time_minutes,
-                        vocabulary_words
+                        vocabulary_words, html_formatting, created_at
                     ) VALUES (
-                        %s, %s, %s, %s, %s, %s, %s, %s
+                        %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
                     )
-                    RETURNING id
                 """, (
                     str(chapter.id),
                     str(chapter.book_id),
@@ -121,11 +120,12 @@ class DatabaseManager:
                     chapter.content,
                     chapter.word_count,
                     chapter.estimated_reading_time_minutes,
-                    json.dumps(chapter.vocabulary_words)
+                    json.dumps(chapter.vocabulary_words),
+                    chapter.html_formatting,
+                    chapter.created_at
                 ))
-                chapter_id = cur.fetchone()[0]
-                return str(chapter_id)
-    
+                # Don't fetch, just return the ID we already have
+                return str(chapter.id)
     def insert_question(self, question: Question) -> str:
         """Insert question record. Returns question_id."""
         with self.get_connection() as conn:

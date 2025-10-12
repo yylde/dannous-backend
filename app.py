@@ -125,7 +125,7 @@ def save_chapters():
             chapters.append(chapter)
             
             logger.info(f"Generating questions for chapter {i}")
-            questions_data = generator.generate_questions(
+            questions_data, vocabulary_data = generator.generate_questions(
                 title=book.title,
                 author=book.author,
                 chapter_number=i,
@@ -135,7 +135,9 @@ def save_chapters():
                 age_range=age_range,
                 num_questions=settings.questions_per_chapter
             )
+            chapter.vocabulary_words = vocabulary_data
             
+            # UPDATED: Loop through questions (not questions_data directly)
             for j, q_data in enumerate(questions_data, 1):
                 question = Question(
                     id=uuid4(),
@@ -266,4 +268,4 @@ def extract_description(text, max_length=500):
     return "No description available."
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5002, debug=True)

@@ -11,7 +11,8 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=False
+        case_sensitive=False,
+        extra='ignore'  # ADD THIS LINE - ignores extra fields in .env
     )
     
     # Database
