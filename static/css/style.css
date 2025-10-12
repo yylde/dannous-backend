@@ -546,3 +546,143 @@ select:focus {
     background: #fc8181;
     cursor: not-allowed;
 }
+
+/* Modal Styles */
+.modal {
+    position: fixed;
+    z-index: 2000;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-content {
+    background-color: white;
+    padding: 30px;
+    border-radius: 12px;
+    max-width: 600px;
+    width: 90%;
+    max-height: 80vh;
+    overflow-y: auto;
+    position: relative;
+}
+
+.close {
+    position: absolute;
+    top: 15px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: bold;
+    color: #aaa;
+    cursor: pointer;
+}
+
+.close:hover {
+    color: #000;
+}
+
+.draft-options {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin: 20px 0;
+}
+
+.draft-item {
+    padding: 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.draft-item:hover {
+    border-color: #667eea;
+    background-color: #f7fafc;
+}
+
+.draft-item h4 {
+    margin: 0 0 5px 0;
+    color: #2d3748;
+}
+
+.draft-item p {
+    margin: 3px 0;
+    font-size: 14px;
+    color: #718096;
+}
+
+.chapter-item-clickable {
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.chapter-item-clickable:hover {
+    background-color: #f7fafc;
+}
+
+.status-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    margin-left: 8px;
+}
+
+.status-pending {
+    background: #edf2f7;
+    color: #4a5568;
+}
+
+.status-generating {
+    background: #bee3f8;
+    color: #2c5282;
+}
+
+.status-ready {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.status-error {
+    background: #fed7d7;
+    color: #742a2a;
+}
+
+.question-item {
+    background: #f7fafc;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.vocab-item {
+    background: #fffaf0;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+}
+
+.vocab-word {
+    font-weight: 600;
+    color: #744210;
+}
+
+.vocab-definition {
+    margin: 5px 0;
+    color: #553c0a;
+}
+
+.vocab-example {
+    font-style: italic;
+    color: #975a16;
+    font-size: 14px;
+}

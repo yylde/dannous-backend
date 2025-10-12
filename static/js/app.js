@@ -10,10 +10,14 @@ let difficultyRanges = {};
 let undoStack = [];
 let bookTextParts = []; // Store the book text parts separately
 let deletedIndices = new Set(); // Track which indices have been deleted
+let currentDraftId = null; // Track current draft
 
 document.addEventListener('DOMContentLoaded', () => {
     loadDifficultyRanges();
     updateDifficultyRange();
+    
+    // Show draft selection modal on page load
+    showDraftModal();
 
     // Auto-add selected text from book
     document.addEventListener('mouseup', (e) => {
@@ -216,6 +220,13 @@ async function downloadBook() {
         // Initialize book text parts
         bookTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
 
+        // Auto-save as draft
+        await saveDraft();
+        
+        // Show draft info
+        document.getElementById('draft-title').textContent = `${data.title} by ${data.author}`;
+        document.getElementById('current-draft-info').style.display = 'block';
+
         showBookInfo(data);
         displayFullBook();
         updateChapterStats();
@@ -224,7 +235,7 @@ async function downloadBook() {
         updateUndoButton();
 
         document.getElementById('book-section').style.display = 'block';
-        showStatus(`Book loaded: ${data.title} by ${data.author}`, 'success');
+        showStatus(`Book loaded and saved as draft: ${data.title} by ${data.author}`, 'success');
 
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
@@ -378,7 +389,7 @@ function updateChapterStats() {
     `;
 }
 
-function finishChapter() {
+async function finishChapter() {
     if (!currentChapter.content) {
         alert('Chapter is empty! Add some content first.');
         return;
@@ -396,14 +407,24 @@ function finishChapter() {
         action: 'finish_chapter'
     });
 
-    // Save chapter (with metadata)
-    chapters.push({
+    // Prepare chapter data
+    const chapterData = {
         title: title,
         content: currentChapter.content,
         word_count: currentChapter.word_count,
         ignore_validation: ignoreCount,
-        textChunks: currentChapter.textChunks // Save the chunks metadata
-    });
+        textChunks: currentChapter.textChunks,
+        question_status: 'generating'
+    };
+    
+    // Save to draft and trigger async question generation
+    const chapterId = await saveDraftChapter(chapterData);
+    if (chapterId) {
+        chapterData.id = chapterId;
+    }
+
+    // Save chapter (with metadata)
+    chapters.push(chapterData);
 
     // Reset for next chapter
     currentChapter = { title: '', content: '', word_count: 0, textChunks: [] };
@@ -416,7 +437,7 @@ function finishChapter() {
     updateChapterLegend();
     updateUndoButton();
 
-    showStatus(`Chapter "${title}" saved!`, 'success');
+    showStatus(`Chapter "${title}" saved! Questions generating...`, 'success');
 }
 
 function discardChapter() {
@@ -498,17 +519,26 @@ function updateChaptersList() {
         const range = difficultyRanges[level] || { min: 500, max: 1500 };
         const isValid = chapter.ignore_validation || (chapter.word_count >= range.min && chapter.word_count <= range.max);
         const statusColor = isValid ? '#48bb78' : '#f56565';
+        
+        // Question status badge
+        const questionStatus = chapter.question_status || 'pending';
+        const statusBadge = `<span class="status-badge status-${questionStatus}">${questionStatus.toUpperCase()}</span>`;
+        
+        // Make clickable if has ID (saved to draft)
+        const clickHandler = chapter.id ? `onclick="viewChapter('${chapter.id}')" class="chapter-item-clickable"` : '';
 
         return `
-            <div class="chapter-item" style="border-left: 4px solid ${getColorForChapter(index)};">
+            <div class="chapter-item" style="border-left: 4px solid ${getColorForChapter(index)};" ${clickHandler}>
                 <div class="chapter-header">
                     <span class="chapter-title">${chapter.title}</span>
-                    <button onclick="deleteChapter(${index})" class="delete-btn">Delete</button>
+                    ${statusBadge}
+                    <button onclick="event.stopPropagation(); deleteChapter(${index})" class="delete-btn">Delete</button>
                 </div>
                 <div class="chapter-stats">
                     <span style="color: ${statusColor};">${chapter.word_count} words</span>
                     <span>${chapter.ignore_validation ? '✓ Validation ignored' : (isValid ? '✓ Valid' : '✗ Out of range')}</span>
                 </div>
+                ${chapter.id ? '<div style="font-size: 11px; color: #718096; margin-top: 4px;">Click to view questions</div>' : ''}
             </div>
         `;
     }).join('');
@@ -653,5 +683,322 @@ function showStatus(message, type = 'info') {
         setTimeout(() => {
             statusDiv.innerHTML = '';
         }, 5000);
+    }
+}
+
+// ==================== DRAFT FUNCTIONS ====================
+
+function showDraftModal() {
+    document.getElementById('draft-modal').style.display = 'flex';
+}
+
+function closeDraftModal() {
+    document.getElementById('draft-modal').style.display = 'none';
+}
+
+function showNewBookForm() {
+    closeDraftModal();
+    document.getElementById('download-section').scrollIntoView({ behavior: 'smooth' });
+}
+
+async function loadDrafts() {
+    try {
+        const response = await fetch('/api/drafts');
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to load drafts');
+        }
+        
+        const container = document.getElementById('drafts-container');
+        const listDiv = document.getElementById('drafts-list');
+        
+        if (data.drafts.length === 0) {
+            container.innerHTML = '<p style="color: #718096;">No drafts found. Start a new book!</p>';
+        } else {
+            container.innerHTML = data.drafts.map(draft => `
+                <div class="draft-item" onclick="loadDraft('${draft.id}')">
+                    <h4>${draft.title}</h4>
+                    <p><strong>Author:</strong> ${draft.author}</p>
+                    <p><strong>Chapters:</strong> ${draft.chapter_count || 0}</p>
+                    <p><strong>Last updated:</strong> ${new Date(draft.updated_at).toLocaleString()}</p>
+                </div>
+            `).join('');
+        }
+        
+        listDiv.style.display = 'block';
+    } catch (error) {
+        showStatus(`Error loading drafts: ${error.message}`, 'error');
+    }
+}
+
+async function loadDraft(draftId) {
+    try {
+        showLoading(true);
+        
+        const response = await fetch(`/api/draft/${draftId}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to load draft');
+        }
+        
+        // Set current draft
+        currentDraftId = draftId;
+        const draft = data.draft;
+        
+        // Set book data
+        bookData = {
+            book_id: draft.gutenberg_id,
+            title: draft.title,
+            author: draft.author,
+            full_text: draft.full_text,
+            metadata: draft.metadata
+        };
+        
+        // Initialize book text parts
+        bookTextParts = draft.full_text.split('\n\n').filter(p => p.trim());
+        
+        // Load chapters
+        chapters = draft.chapters.map(ch => ({
+            id: ch.id,
+            title: ch.title,
+            content: ch.content,
+            word_count: ch.word_count,
+            question_status: ch.question_status
+        }));
+        
+        // Mark deleted indices based on chapters
+        deletedIndices = new Set();
+        chapters.forEach(ch => {
+            const content = ch.content;
+            bookTextParts.forEach((part, idx) => {
+                if (content.includes(part)) {
+                    deletedIndices.add(idx);
+                }
+            });
+        });
+        
+        // Set form values
+        document.getElementById('age-range').value = draft.age_range || '8-12';
+        document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
+        document.getElementById('genre').value = draft.genre || 'fiction';
+        
+        // Show draft info
+        document.getElementById('draft-title').textContent = `${draft.title} by ${draft.author}`;
+        document.getElementById('current-draft-info').style.display = 'block';
+        
+        // Update UI
+        showBookInfo(bookData);
+        displayFullBook();
+        updateChaptersList();
+        updateChapterStats();
+        updateChapterLegend();
+        
+        document.getElementById('book-section').style.display = 'block';
+        closeDraftModal();
+        showStatus(`Loaded draft: ${draft.title}`, 'success');
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function saveDraft() {
+    if (!bookData) return null;
+    
+    try {
+        const ageRange = document.getElementById('age-range').value;
+        const readingLevel = document.getElementById('reading-level').value;
+        const genre = document.getElementById('genre').value;
+        
+        const response = await fetch('/api/draft', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                draft_id: currentDraftId,
+                gutenberg_id: bookData.book_id,
+                title: bookData.title,
+                author: bookData.author,
+                full_text: bookData.full_text,
+                age_range: ageRange,
+                reading_level: readingLevel,
+                genre: genre,
+                metadata: bookData.metadata
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to save draft');
+        }
+        
+        currentDraftId = data.draft_id;
+        return currentDraftId;
+        
+    } catch (error) {
+        console.error('Error saving draft:', error);
+        return null;
+    }
+}
+
+async function saveDraftChapter(chapterData) {
+    if (!currentDraftId) {
+        await saveDraft();
+    }
+    
+    if (!currentDraftId) {
+        showStatus('Failed to save draft', 'error');
+        return null;
+    }
+    
+    try {
+        const ageRange = document.getElementById('age-range').value;
+        const readingLevel = document.getElementById('reading-level').value;
+        
+        const response = await fetch('/api/draft-chapter', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                draft_id: currentDraftId,
+                chapter_number: chapters.length + 1,
+                title: chapterData.title,
+                content: chapterData.content,
+                word_count: chapterData.word_count,
+                age_range: ageRange,
+                reading_level: readingLevel
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to save chapter');
+        }
+        
+        return data.chapter_id;
+        
+    } catch (error) {
+        console.error('Error saving draft chapter:', error);
+        showStatus(`Error: ${error.message}`, 'error');
+        return null;
+    }
+}
+
+async function viewChapter(chapterId) {
+    try {
+        showLoading(true);
+        
+        const response = await fetch(`/api/draft-chapter/${chapterId}`);
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to load chapter');
+        }
+        
+        const chapter = data.chapter;
+        
+        // Build modal content
+        let modalHTML = `
+            <h2>${chapter.title}</h2>
+            <p><strong>Word Count:</strong> ${chapter.word_count}</p>
+            <p><strong>Status:</strong> <span class="status-badge status-${chapter.question_status}">${chapter.question_status.toUpperCase()}</span></p>
+            <hr style="margin: 20px 0;">
+        `;
+        
+        if (chapter.question_status === 'pending' || chapter.question_status === 'generating') {
+            modalHTML += `<p style="color: #718096;">Questions are being generated...</p>`;
+        } else if (chapter.question_status === 'error') {
+            modalHTML += `<p style="color: #e53e3e;">Error generating questions. Please try again.</p>`;
+        } else if (chapter.question_status === 'ready') {
+            // Show vocabulary
+            if (chapter.vocabulary && chapter.vocabulary.length > 0) {
+                modalHTML += `<h3>Vocabulary</h3>`;
+                chapter.vocabulary.forEach(v => {
+                    modalHTML += `
+                        <div class="vocab-item">
+                            <div class="vocab-word">${v.word}</div>
+                            <div class="vocab-definition">${v.definition}</div>
+                            ${v.example ? `<div class="vocab-example">"${v.example}"</div>` : ''}
+                        </div>
+                    `;
+                });
+            }
+            
+            // Show questions
+            if (chapter.questions && chapter.questions.length > 0) {
+                modalHTML += `<h3>Questions</h3>`;
+                chapter.questions.forEach((q, i) => {
+                    modalHTML += `
+                        <div class="question-item">
+                            <strong>Q${i + 1}:</strong> ${q.question_text}
+                            <div style="margin-top: 5px; font-size: 12px; color: #718096;">
+                                <em>Difficulty: ${q.difficulty_level}</em>
+                            </div>
+                        </div>
+                    `;
+                });
+            }
+        }
+        
+        document.getElementById('chapter-detail-content').innerHTML = modalHTML;
+        document.getElementById('chapter-modal').style.display = 'flex';
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function closeChapterModal() {
+    document.getElementById('chapter-modal').style.display = 'none';
+}
+
+async function finalizeBook() {
+    if (!currentDraftId) {
+        showStatus('No draft to finalize', 'error');
+        return;
+    }
+    
+    if (chapters.length === 0) {
+        showStatus('Please add at least one chapter before finalizing', 'error');
+        return;
+    }
+    
+    if (!confirm('Are you ready to finalize this book? This will move it to the main books table.')) {
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        showStatus('Finalizing book...', 'info');
+        
+        const response = await fetch(`/api/finalize-draft/${currentDraftId}`, {
+            method: 'POST'
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Finalization failed');
+        }
+        
+        showStatus(
+            `Success! Book finalized with ${data.chapters} chapters and ${data.questions} questions. Book ID: ${data.book_id}`,
+            'success'
+        );
+        
+        setTimeout(() => {
+            if (confirm('Book finalized successfully! Do you want to process another book?')) {
+                location.reload();
+            }
+        }, 2000);
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
     }
 }

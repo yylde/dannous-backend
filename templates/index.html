@@ -17,10 +17,40 @@
         </div>
     </div>
 
+    <!-- Draft Selection Modal -->
+    <div id="draft-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>Choose an Option</h2>
+            <div class="draft-options">
+                <button onclick="showNewBookForm()" class="btn btn-primary btn-large" style="margin: 10px;">
+                    📥 Download New Book
+                </button>
+                <button onclick="loadDrafts()" class="btn btn-secondary btn-large" style="margin: 10px;">
+                    📝 Continue Existing Draft
+                </button>
+            </div>
+            <div id="drafts-list" style="display: none; margin-top: 20px;">
+                <h3>Your Drafts</h3>
+                <div id="drafts-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chapter Detail Modal -->
+    <div id="chapter-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeChapterModal()">&times;</span>
+            <div id="chapter-detail-content"></div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>📚 Manual Chapter Splitter</h1>
             <p>Download books from Project Gutenberg and manually create chapters</p>
+            <div id="current-draft-info" style="display: none; margin-top: 10px; padding: 10px; background: #e6f7ff; border-radius: 5px;">
+                <strong>Current Draft:</strong> <span id="draft-title"></span>
+            </div>
         </header>
 
         <section id="download-section">
@@ -116,8 +146,8 @@
                 </div>
 
                 <div class="save-section">
-                    <button onclick="saveChapters()" class="btn btn-primary btn-large">
-                        💾 Save Book & Generate Questions
+                    <button onclick="finalizeBook()" class="btn btn-primary btn-large">
+                        ✅ Finalize Book
                     </button>
                 </div>
             </div>
