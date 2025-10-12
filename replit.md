@@ -10,8 +10,10 @@ This is an EPUB processing pipeline for a kids reading platform. It downloads bo
 
 Implemented a complete draft system that allows incremental book processing with the ability to save work and continue later:
 
-**Bug Fixes (Latest):**
-- Fixed JSONB parsing error in database - `expected_keywords` and `metadata` fields properly handled as parsed objects
+**Bug Fixes (Latest - October 12, 2025):**
+- Fixed JSONB parsing errors in database operations:
+  - `expected_keywords` properly handled with ::jsonb cast during finalization
+  - `metadata` field in get_draft() checks type before parsing
 - Fixed finalization error when moving drafts to production books table
 - Improved Ollama prompt to prevent nested questions arrays
 - Enhanced response parsing to auto-flatten nested structures and accept flexible field names
@@ -24,6 +26,22 @@ Implemented a complete draft system that allows incremental book processing with
 - Click any draft to load it immediately
 - "+ New" button scrolls to download section and focuses input
 - Sidebar automatically refreshes when drafts are created or loaded
+
+**EPUB HTML Preservation with Vocabulary Tooltips (October 12, 2025):**
+- System now preserves original EPUB HTML formatting (paragraphs, headings, emphasis, etc.)
+- EPUB parser extracts BOTH plain text (for UI/word counting) and HTML (for storage)
+- Vocabulary words are wrapped with `<abbr title="definition">word</abbr>` tags
+- Hovering over vocabulary words shows definition tooltips
+- Plain text used for selection and word counting (no HTML tag interference)
+- HTML with vocabulary tags stored in `html_formatting` column for display
+- Maintains backward compatibility with existing drafts
+
+**Technical Implementation:**
+- EPUB parser returns dual output: `raw_text` (plain) and `raw_html` (formatted)
+- Frontend tracks both `bookTextParts` and `bookHtmlParts` with index mapping
+- User selects plain text, system maps to corresponding HTML parts
+- `inject_vocabulary_abbr()` function wraps vocabulary words in HTML only
+- CSS styling for abbr tags: purple dotted underline, hover effects
 
 **Database Schema:**
 - **book_drafts** - Tracks books in progress with metadata
