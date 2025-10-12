@@ -267,6 +267,12 @@ async function downloadBook() {
         // Initialize book HTML parts (HTML for storage)
         bookHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
 
+        // Clear form values for new book
+        document.getElementById('age-range').value = '8-12';
+        document.getElementById('reading-level').value = 'intermediate';
+        document.getElementById('genre').value = 'fiction';
+        document.getElementById('cover-image-url').value = '';  // Clear cover URL for new book
+        
         // Auto-save as draft
         await saveDraft();
         
@@ -892,7 +898,19 @@ async function saveDraft() {
         const ageRange = document.getElementById('age-range').value;
         const readingLevel = document.getElementById('reading-level').value;
         const genre = document.getElementById('genre').value;
-        const coverImageUrl = document.getElementById('cover-image-url').value;
+        let coverImageUrl = document.getElementById('cover-image-url').value.trim();
+        
+        // If cover URL is empty and we're creating a new draft, ask user
+        if (!coverImageUrl && !currentDraftId) {
+            const addCover = confirm('Would you like to add a book cover URL?\n\nClick OK to add one now, or Cancel to skip.');
+            if (addCover) {
+                const url = prompt('Enter the book cover image URL:');
+                if (url && url.trim()) {
+                    coverImageUrl = url.trim();
+                    document.getElementById('cover-image-url').value = coverImageUrl;
+                }
+            }
+        }
         
         const response = await fetch('/api/draft', {
             method: 'POST',
