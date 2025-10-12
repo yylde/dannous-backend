@@ -245,3 +245,331 @@ class DatabaseManager:
                         "total_questions": result[4]
                     }
                 return None
+    
+    # ==================== DRAFT METHODS ====================
+    
+    def create_draft(self, gutenberg_id: Optional[int], title: str, author: str, 
+                     full_text: str, age_range: str, reading_level: str, 
+                     genre: str, metadata: dict) -> str:
+        """Create a new book draft. Returns draft_id."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO book_drafts (
+                        gutenberg_id, title, author, full_text, age_range, 
+                        reading_level, genre, metadata
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (gutenberg_id, title, author, full_text, age_range, 
+                      reading_level, genre, json.dumps(metadata)))
+                draft_id = cur.fetchone()[0]
+                logger.info(f"Created draft: {title} (ID: {draft_id})")
+                return str(draft_id)
+    
+    def update_draft(self, draft_id: str, **kwargs) -> None:
+        """Update draft metadata."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Build dynamic update query
+                set_clauses = []
+                values = []
+                for key, value in kwargs.items():
+                    if key == 'metadata':
+                        set_clauses.append(f"{key} = %s")
+                        values.append(json.dumps(value))
+                    else:
+                        set_clauses.append(f"{key} = %s")
+                        values.append(value)
+                
+                if set_clauses:
+                    set_clauses.append("updated_at = NOW()")
+                    values.append(draft_id)
+                    query = f"UPDATE book_drafts SET {', '.join(set_clauses)} WHERE id = %s"
+                    cur.execute(query, values)
+    
+    def get_all_drafts(self) -> List[dict]:
+        """Get all incomplete drafts."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 
+                        bd.id,
+                        bd.title,
+                        bd.author,
+                        bd.gutenberg_id,
+                        bd.age_range,
+                        bd.reading_level,
+                        bd.created_at,
+                        bd.updated_at,
+                        COUNT(dc.id) as chapter_count
+                    FROM book_drafts bd
+                    LEFT JOIN draft_chapters dc ON bd.id = dc.draft_id
+                    WHERE bd.is_completed = false
+                    GROUP BY bd.id
+                    ORDER BY bd.updated_at DESC
+                """)
+                columns = [desc[0] for desc in cur.description]
+                return [dict(zip(columns, row)) for row in cur.fetchall()]
+    
+    def get_draft(self, draft_id: str) -> Optional[dict]:
+        """Get a specific draft with all its data."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, gutenberg_id, title, author, full_text, 
+                           age_range, reading_level, genre, metadata, 
+                           created_at, updated_at
+                    FROM book_drafts
+                    WHERE id = %s
+                """, (draft_id,))
+                result = cur.fetchone()
+                if not result:
+                    return None
+                
+                columns = [desc[0] for desc in cur.description]
+                draft = dict(zip(columns, result))
+                draft['metadata'] = json.loads(draft['metadata']) if draft['metadata'] else {}
+                return draft
+    
+    def save_draft_chapter(self, draft_id: str, chapter_number: int, title: str, 
+                          content: str, word_count: int, html_formatting: str = None) -> str:
+        """Save a chapter to a draft. Returns chapter_id."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO draft_chapters (
+                        draft_id, chapter_number, title, content, 
+                        word_count, html_formatting, question_status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+                    ON CONFLICT (draft_id, chapter_number) 
+                    DO UPDATE SET 
+                        title = EXCLUDED.title,
+                        content = EXCLUDED.content,
+                        word_count = EXCLUDED.word_count,
+                        html_formatting = EXCLUDED.html_formatting
+                    RETURNING id
+                """, (draft_id, chapter_number, title, content, word_count, html_formatting))
+                chapter_id = cur.fetchone()[0]
+                
+                # Update draft timestamp
+                cur.execute("UPDATE book_drafts SET updated_at = NOW() WHERE id = %s", (draft_id,))
+                return str(chapter_id)
+    
+    def get_draft_chapters(self, draft_id: str) -> List[dict]:
+        """Get all chapters for a draft."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, chapter_number, title, content, word_count, 
+                           html_formatting, has_questions, question_status, created_at
+                    FROM draft_chapters
+                    WHERE draft_id = %s
+                    ORDER BY chapter_number
+                """, (draft_id,))
+                columns = [desc[0] for desc in cur.description]
+                return [dict(zip(columns, row)) for row in cur.fetchall()]
+    
+    def get_draft_chapter(self, chapter_id: str) -> Optional[dict]:
+        """Get a specific draft chapter with questions and vocabulary."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Get chapter
+                cur.execute("""
+                    SELECT id, draft_id, chapter_number, title, content, 
+                           word_count, html_formatting, has_questions, question_status
+                    FROM draft_chapters
+                    WHERE id = %s
+                """, (chapter_id,))
+                result = cur.fetchone()
+                if not result:
+                    return None
+                
+                columns = [desc[0] for desc in cur.description]
+                chapter = dict(zip(columns, result))
+                
+                # Get questions
+                cur.execute("""
+                    SELECT id, question_text, question_type, difficulty_level, 
+                           expected_keywords, min_word_count, max_word_count, order_index
+                    FROM draft_questions
+                    WHERE chapter_id = %s
+                    ORDER BY order_index
+                """, (chapter_id,))
+                columns = [desc[0] for desc in cur.description]
+                questions = [dict(zip(columns, row)) for row in cur.fetchall()]
+                for q in questions:
+                    q['expected_keywords'] = json.loads(q['expected_keywords']) if q['expected_keywords'] else []
+                chapter['questions'] = questions
+                
+                # Get vocabulary
+                cur.execute("""
+                    SELECT id, word, definition, example
+                    FROM draft_vocabulary
+                    WHERE chapter_id = %s
+                """, (chapter_id,))
+                columns = [desc[0] for desc in cur.description]
+                chapter['vocabulary'] = [dict(zip(columns, row)) for row in cur.fetchall()]
+                
+                return chapter
+    
+    def update_chapter_question_status(self, chapter_id: str, status: str) -> None:
+        """Update question generation status for a chapter."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_chapters 
+                    SET question_status = %s,
+                        has_questions = CASE WHEN %s = 'ready' THEN true ELSE has_questions END
+                    WHERE id = %s
+                """, (status, status, chapter_id))
+    
+    def save_draft_questions(self, chapter_id: str, draft_id: str, 
+                            questions: List[dict], vocabulary: List[dict]) -> None:
+        """Save generated questions and vocabulary for a draft chapter."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Delete existing questions and vocabulary
+                cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s", (chapter_id,))
+                cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s", (chapter_id,))
+                
+                # Insert questions
+                for i, q in enumerate(questions, 1):
+                    cur.execute("""
+                        INSERT INTO draft_questions (
+                            draft_id, chapter_id, question_text, question_type,
+                            difficulty_level, expected_keywords, min_word_count,
+                            max_word_count, order_index
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (
+                        draft_id, chapter_id, q['text'], q.get('type', 'comprehension'),
+                        q.get('difficulty', 'medium'), json.dumps(q.get('keywords', [])),
+                        q.get('min_words', 20), q.get('max_words', 200), i
+                    ))
+                
+                # Insert vocabulary
+                for v in vocabulary:
+                    cur.execute("""
+                        INSERT INTO draft_vocabulary (chapter_id, word, definition, example)
+                        VALUES (%s, %s, %s, %s)
+                    """, (chapter_id, v['word'], v['definition'], v.get('example', '')))
+                
+                # Update chapter status
+                cur.execute("""
+                    UPDATE draft_chapters 
+                    SET has_questions = true, question_status = 'ready'
+                    WHERE id = %s
+                """, (chapter_id,))
+    
+    def delete_draft_chapter(self, chapter_id: str) -> Optional[dict]:
+        """Delete a draft chapter and return its content for restoration."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Get chapter content before deletion
+                cur.execute("""
+                    SELECT content, chapter_number, draft_id
+                    FROM draft_chapters
+                    WHERE id = %s
+                """, (chapter_id,))
+                result = cur.fetchone()
+                if not result:
+                    return None
+                
+                content, chapter_number, draft_id = result
+                
+                # Delete chapter (cascade will delete questions/vocab)
+                cur.execute("DELETE FROM draft_chapters WHERE id = %s", (chapter_id,))
+                
+                # Update draft timestamp
+                cur.execute("UPDATE book_drafts SET updated_at = NOW() WHERE id = %s", (draft_id,))
+                
+                return {'content': content, 'chapter_number': chapter_number}
+    
+    def finalize_draft(self, draft_id: str) -> Tuple[str, int, int]:
+        """Move draft to main books table. Returns (book_id, chapters, questions)."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Get draft data
+                cur.execute("""
+                    SELECT title, author, age_range, reading_level, genre, metadata
+                    FROM book_drafts WHERE id = %s
+                """, (draft_id,))
+                draft = cur.fetchone()
+                if not draft:
+                    raise ValueError(f"Draft {draft_id} not found")
+                
+                title, author, age_range, reading_level, genre, metadata = draft
+                metadata = json.loads(metadata) if metadata else {}
+                
+                # Get chapters
+                cur.execute("""
+                    SELECT id, chapter_number, title, content, word_count, html_formatting
+                    FROM draft_chapters WHERE draft_id = %s ORDER BY chapter_number
+                """, (draft_id,))
+                draft_chapters = cur.fetchall()
+                
+                # Create book
+                from uuid import uuid4
+                book_id = str(uuid4())
+                total_chapters = len(draft_chapters)
+                
+                cur.execute("""
+                    INSERT INTO books (
+                        id, title, author, age_range, reading_level, genre,
+                        total_chapters, isbn, publication_year
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (book_id, title, author, age_range, reading_level, genre,
+                      total_chapters, metadata.get('isbn'), metadata.get('publication_year')))
+                
+                # Copy chapters
+                chapter_id_map = {}
+                for dc in draft_chapters:
+                    old_id, num, ch_title, content, word_count, html = dc
+                    new_id = str(uuid4())
+                    chapter_id_map[str(old_id)] = new_id
+                    
+                    # Get vocabulary for this chapter
+                    cur.execute("""
+                        SELECT word, definition, example
+                        FROM draft_vocabulary WHERE chapter_id = %s
+                    """, (str(old_id),))
+                    vocab = [{'word': r[0], 'definition': r[1], 'example': r[2]} 
+                            for r in cur.fetchall()]
+                    
+                    cur.execute("""
+                        INSERT INTO chapters (
+                            id, book_id, chapter_number, title, content,
+                            word_count, estimated_reading_time_minutes,
+                            vocabulary_words, html_formatting
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (new_id, book_id, num, ch_title, content, word_count,
+                          word_count // 200, json.dumps(vocab), html))
+                
+                # Copy questions
+                question_count = 0
+                for old_chapter_id, new_chapter_id in chapter_id_map.items():
+                    cur.execute("""
+                        SELECT question_text, question_type, difficulty_level,
+                               expected_keywords, min_word_count, max_word_count, order_index
+                        FROM draft_questions WHERE chapter_id = %s
+                    """, (old_chapter_id,))
+                    for q in cur.fetchall():
+                        cur.execute("""
+                            INSERT INTO questions (
+                                id, book_id, chapter_id, question_text, question_type,
+                                difficulty_level, expected_keywords, min_word_count,
+                                max_word_count, order_index
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """, (str(uuid4()), book_id, new_chapter_id, q[0], q[1], q[2],
+                              q[3], q[4], q[5], q[6]))
+                        question_count += 1
+                
+                # Mark draft as completed
+                cur.execute("""
+                    UPDATE book_drafts SET is_completed = true, updated_at = NOW()
+                    WHERE id = %s
+                """, (draft_id,))
+                
+                logger.info(f"Finalized draft {draft_id} to book {book_id}: "
+                           f"{total_chapters} chapters, {question_count} questions")
+                
+                return book_id, total_chapters, question_count

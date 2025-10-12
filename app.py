@@ -231,6 +231,189 @@ Respond with ONLY the title, nothing else. Do not include quotes or "Chapter X:"
         logger.exception("Title generation failed")
         return jsonify({'error': str(e)}), 500
 
+# ==================== DRAFT ENDPOINTS ====================
+
+@app.route('/api/drafts', methods=['GET'])
+def get_drafts():
+    """Get all incomplete drafts."""
+    try:
+        db = DatabaseManager()
+        drafts = db.get_all_drafts()
+        return jsonify({'success': True, 'drafts': drafts})
+    except Exception as e:
+        logger.exception("Failed to get drafts")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft/<draft_id>', methods=['GET'])
+def get_draft(draft_id):
+    """Get a specific draft with chapters."""
+    try:
+        db = DatabaseManager()
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        chapters = db.get_draft_chapters(draft_id)
+        draft['chapters'] = chapters
+        
+        return jsonify({'success': True, 'draft': draft})
+    except Exception as e:
+        logger.exception("Failed to get draft")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft', methods=['POST'])
+def create_or_update_draft():
+    """Create or update a draft."""
+    try:
+        data = request.json
+        draft_id = data.get('draft_id')
+        
+        db = DatabaseManager()
+        
+        if draft_id:
+            # Update existing draft
+            update_fields = {}
+            for field in ['age_range', 'reading_level', 'genre']:
+                if field in data:
+                    update_fields[field] = data[field]
+            if update_fields:
+                db.update_draft(draft_id, **update_fields)
+            return jsonify({'success': True, 'draft_id': draft_id})
+        else:
+            # Create new draft
+            draft_id = db.create_draft(
+                gutenberg_id=data.get('gutenberg_id'),
+                title=data.get('title'),
+                author=data.get('author'),
+                full_text=data.get('full_text'),
+                age_range=data.get('age_range', settings.default_age_range),
+                reading_level=data.get('reading_level', settings.default_reading_level),
+                genre=data.get('genre', settings.default_genre),
+                metadata=data.get('metadata', {})
+            )
+            return jsonify({'success': True, 'draft_id': draft_id})
+    
+    except Exception as e:
+        logger.exception("Failed to save draft")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft-chapter', methods=['POST'])
+def save_draft_chapter():
+    """Save a chapter to draft and trigger async question generation."""
+    try:
+        data = request.json
+        draft_id = data.get('draft_id')
+        chapter_number = data.get('chapter_number')
+        title = data.get('title')
+        content = data.get('content')
+        word_count = data.get('word_count')
+        
+        if not all([draft_id, chapter_number, title, content]):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        db = DatabaseManager()
+        chapter_id = db.save_draft_chapter(
+            draft_id=draft_id,
+            chapter_number=chapter_number,
+            title=title,
+            content=content,
+            word_count=word_count
+        )
+        
+        # Trigger async question generation
+        import threading
+        thread = threading.Thread(
+            target=generate_questions_async,
+            args=(chapter_id, draft_id, title, content, data.get('age_range'), data.get('reading_level'))
+        )
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'chapter_id': chapter_id,
+            'status': 'generating'
+        })
+    
+    except Exception as e:
+        logger.exception("Failed to save draft chapter")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft-chapter/<chapter_id>', methods=['GET'])
+def get_draft_chapter_detail(chapter_id):
+    """Get chapter details with questions and vocabulary."""
+    try:
+        db = DatabaseManager()
+        chapter = db.get_draft_chapter(chapter_id)
+        if not chapter:
+            return jsonify({'error': 'Chapter not found'}), 404
+        
+        return jsonify({'success': True, 'chapter': chapter})
+    except Exception as e:
+        logger.exception("Failed to get chapter details")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft-chapter/<chapter_id>', methods=['DELETE'])
+def delete_draft_chapter(chapter_id):
+    """Delete a draft chapter."""
+    try:
+        db = DatabaseManager()
+        deleted_data = db.delete_draft_chapter(chapter_id)
+        if not deleted_data:
+            return jsonify({'error': 'Chapter not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'content': deleted_data['content'],
+            'chapter_number': deleted_data['chapter_number']
+        })
+    except Exception as e:
+        logger.exception("Failed to delete chapter")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/finalize-draft/<draft_id>', methods=['POST'])
+def finalize_draft(draft_id):
+    """Finalize draft and move to main books table."""
+    try:
+        db = DatabaseManager()
+        book_id, chapters, questions = db.finalize_draft(draft_id)
+        
+        return jsonify({
+            'success': True,
+            'book_id': book_id,
+            'chapters': chapters,
+            'questions': questions
+        })
+    except Exception as e:
+        logger.exception("Failed to finalize draft")
+        return jsonify({'error': str(e)}), 500
+
+def generate_questions_async(chapter_id, draft_id, title, content, age_range, reading_level):
+    """Generate questions asynchronously in background."""
+    try:
+        db = DatabaseManager()
+        db.update_chapter_question_status(chapter_id, 'generating')
+        
+        generator = QuestionGenerator()
+        questions_data, vocabulary_data = generator.generate_questions(
+            title="Book Draft",
+            author="Unknown",
+            chapter_number=1,
+            chapter_title=title,
+            chapter_text=content,
+            reading_level=reading_level or settings.default_reading_level,
+            age_range=age_range or settings.default_age_range,
+            num_questions=settings.questions_per_chapter
+        )
+        
+        db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data)
+        logger.info(f"Generated {len(questions_data)} questions for chapter {chapter_id}")
+        
+    except Exception as e:
+        logger.exception(f"Failed to generate questions for chapter {chapter_id}")
+        db = DatabaseManager()
+        db.update_chapter_question_status(chapter_id, 'error')
+
 def split_into_pages(text, words_per_page=500):
     """Split text into pages for easier navigation, preserving paragraph structure."""
     paragraphs = [p.strip() for p in re.split(r'\n\n+', text) if p.strip()]
