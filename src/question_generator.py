@@ -26,33 +26,37 @@ class QuestionGenerator:
         """Load question generation prompt template."""
         return """You are an expert educator creating reading comprehension questions for children.
 
-        Book: "{title}" by {author}
-        Chapter {chapter_number}: {chapter_title}
-        Reading Level: {reading_level}
-        Age Range: {age_range}
+Book: "{title}" by {author}
+Chapter {chapter_number}: {chapter_title}
+Reading Level: {reading_level}
+Age Range: {age_range}
 
-        Chapter Text:
-        {chapter_text}
+Chapter Text:
+{chapter_text}
 
-        Generate exactly {num_questions} open-ended comprehension questions that:
-        1. Are NOT multiple choice or yes/no questions
-        2. Start with "Why" or "How" to encourage critical thinking
-        3. Require {min_words}-{max_words} word thoughtful answers
-        4. Test understanding beyond simple recall
-        5. Are appropriate for {age_range} year old children
-        6. Focus on themes, character motivation, cause-and-effect, or inference
+Generate exactly {num_questions} open-ended comprehension questions that:
+1. Are NOT multiple choice or yes/no questions
+2. Start with "Why" or "How" to encourage critical thinking
+3. Require {min_words}-{max_words} word thoughtful answers
+4. Test understanding beyond simple recall
+5. Are appropriate for {age_range} year old children
+6. Focus on themes, character motivation, cause-and-effect, or inference
 
-        Additionally, identify 5-8 words that might be difficult for a child at reading level "{reading_level}" and age range "{age_range}". For each word, provide:
-        - word: the difficult word (must appear in the chapter text)
-        - definition: a child-friendly definition
-        - example: a simple example sentence using the word in context
+Additionally, identify 5-8 words that might be difficult for a child at reading level "{reading_level}" and age range "{age_range}". For each word, provide:
+- word: the difficult word (must appear in the chapter text)
+- definition: a child-friendly definition
+- example: a simple example sentence using the word in context
 
-        CRITICAL: Respond with ONLY valid JSON. No markdown, no code blocks, no explanations.
-        Use this EXACT format:
+CRITICAL INSTRUCTIONS:
+- Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
+- DO NOT nest "questions" arrays inside questions - keep it flat
+- Each question must have: "text", "keywords" (array), "difficulty"
+- Each vocabulary item must have: "word", "definition", "example"
 
-        {{"questions":[{{"text":"Why did...","keywords":["word1","word2"],"difficulty":"medium"}}],"vocabulary":[{{"word":"example","definition":"simple meaning","example":"Sample sentence."}}]}}
+EXACT FORMAT (copy this structure):
+{{"questions":[{{"text":"Why did the character...","keywords":["character","action"],"difficulty":"medium"}},{{"text":"How does the setting...","keywords":["setting","mood"],"difficulty":"easy"}}],"vocabulary":[{{"word":"example","definition":"simple meaning","example":"Sample sentence using example."}}]}}
 
-        Your response must start with {{ and end with }}"""
+Your entire response must be valid JSON starting with {{ and ending with }}"""
 
     def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict]]:
         """
@@ -95,16 +99,29 @@ class QuestionGenerator:
                 logger.warning("No 'questions' key in response")
                 return [], []
             
-            # Parse questions
+            # Parse questions with better validation
             questions = []
-            for i, q in enumerate(data['questions'][:expected_count]):
-                # Validate question structure
-                if 'text' not in q:
-                    logger.warning(f"Question {i} missing 'text' field")
+            raw_questions = data['questions']
+            
+            # Handle nested questions arrays (flatten if needed)
+            if raw_questions and isinstance(raw_questions[0], dict) and 'questions' in raw_questions[0]:
+                logger.warning("Detected nested 'questions' array - flattening")
+                raw_questions = raw_questions[0]['questions']
+            
+            for i, q in enumerate(raw_questions[:expected_count]):
+                # Skip non-dict items
+                if not isinstance(q, dict):
+                    logger.warning(f"Question {i} is not a dict: {q}")
+                    continue
+                
+                # Validate question structure - accept both 'text' and 'question' keys
+                question_text = q.get('text') or q.get('question')
+                if not question_text:
+                    logger.warning(f"Question {i} missing 'text' field: {q}")
                     continue
                 
                 questions.append({
-                    'text': q['text'].strip(),
+                    'text': question_text.strip(),
                     'keywords': q.get('keywords', []),
                     'difficulty': q.get('difficulty', 'medium')
                 })
@@ -220,66 +237,6 @@ class QuestionGenerator:
         except Exception as e:
             logger.error(f"Ollama API call failed: {e}")
             raise
-    
-    def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict]]:
-        """
-        Parse JSON response from LLM.
-        
-        Returns:
-            Tuple of (questions, vocabulary)
-        """
-        try:
-            # Remove markdown code blocks if present
-            response = response.strip()
-            if response.startswith('```'):
-                response = response.split('```')[1]
-                if response.startswith('json'):
-                    response = response[4:]
-            
-            # Parse JSON
-            data = json.loads(response)
-            
-            if 'questions' not in data:
-                raise ValueError("No 'questions' key in response")
-            
-            # Parse questions
-            questions = []
-            for i, q in enumerate(data['questions'][:expected_count]):
-                # Validate question structure
-                if 'text' not in q:
-                    logger.warning(f"Question {i} missing 'text' field")
-                    continue
-                
-                questions.append({
-                    'text': q['text'].strip(),
-                    'keywords': q.get('keywords', []),
-                    'difficulty': q.get('difficulty', 'medium')
-                })
-            
-            # Parse vocabulary
-            vocabulary = []
-            if 'vocabulary' in data:
-                for i, v in enumerate(data['vocabulary']):
-                    # Validate vocabulary structure
-                    if 'word' not in v or 'definition' not in v:
-                        logger.warning(f"Vocabulary item {i} missing required fields")
-                        continue
-                    
-                    vocabulary.append({
-                        'word': v['word'].strip(),
-                        'definition': v['definition'].strip(),
-                        'example': v.get('example', '').strip()
-                    })
-            
-            return questions, vocabulary
-            
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse JSON: {e}")
-            logger.debug(f"Response was: {response[:200]}")
-            return [], []
-        except Exception as e:
-            logger.error(f"Error parsing response: {e}")
-            return [], []
     
     def _generate_fallback_questions(
         self,

@@ -398,7 +398,11 @@ class DatabaseManager:
                 columns = [desc[0] for desc in cur.description]
                 questions = [dict(zip(columns, row)) for row in cur.fetchall()]
                 for q in questions:
-                    q['expected_keywords'] = json.loads(q['expected_keywords']) if q['expected_keywords'] else []
+                    # JSONB fields are already parsed by psycopg2, no need to json.loads()
+                    if isinstance(q['expected_keywords'], str):
+                        q['expected_keywords'] = json.loads(q['expected_keywords'])
+                    elif q['expected_keywords'] is None:
+                        q['expected_keywords'] = []
                 chapter['questions'] = questions
                 
                 # Get vocabulary

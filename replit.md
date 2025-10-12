@@ -10,6 +10,12 @@ This is an EPUB processing pipeline for a kids reading platform. It downloads bo
 
 Implemented a complete draft system that allows incremental book processing with the ability to save work and continue later:
 
+**Bug Fixes (Latest):**
+- Fixed JSONB parsing error in database - `expected_keywords` is now properly handled as a list
+- Improved Ollama prompt to prevent nested questions arrays
+- Enhanced response parsing to auto-flatten nested structures and accept flexible field names
+- Better error handling and logging for debugging LLM responses
+
 **Database Schema:**
 - **book_drafts** - Tracks books in progress with metadata
 - **draft_chapters** - Stores chapters with question generation status (pending, generating, ready, error)

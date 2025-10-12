@@ -1,0 +1,47 @@
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 13:59:07] "POST /api/download-book HTTP/1.1" 200 -
+INFO:src.database:Created draft: Violists (ID: 2bf5498e-7031-419e-bcf7-c3910b92c836)
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 13:59:07] "POST /api/draft HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 13:59:16] "POST /api/draft-chapter HTTP/1.1" 200 -
+INFO:src.question_generator:Generating 3 questions and vocabulary for Chapter 1: Chapter 2
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 13:59:42] "GET /api/draft-chapter/74aded80-4c80-4c9a-bca8-1c97b0377e05 HTTP/1.1" 200 -
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+{"questions":[{"text":"How does Gretchen's clumsiness affect her interaction with the man in Chapter 1? What does this reveal about her character?","keywords":["gretchen","clumsiness","character","interaction"],"difficulty":"hard"},{"questions":[{"text":"What message do you think the author is conveying through the description of Professor Bridwell's appearance and mannerisms? How does this relate to his character as a professor?","keywords":["bridwell","appearance","mannerisms","character","professor"],"difficulty":"hard"},{"questions":[{"text":"Why does Gretchen find herself feeling light-headed after their encounter in Chapter 1? What does this suggest about her emotional state?","keywords":["gretchen","light-headed","emotional state"],"difficulty":"medium"}],"vocabulary":[{"word":"dishevelled","definition":"having a messy or untidy appearance, like someone's hair or clothes.","example":"The dishevelled look on his face made him look tired and unhappy."},{"word":"complected","definition":"the way someone looks, especially when they are dressed.","example":"He had a light complected skin that looked healthy and radiant in the sunlight."},{"word":"irretrievably","definition":"cannot be taken back or recovered once it has happened.","example":"She realized she had made an irreversible decision by quitting her job."},{"word":"lively","definition":"full of energy and enthusiasm.","example":"The lively music at the party made everyone want to dance and sing along."},{"word":"irrational","definition":"not based on reason or good sense.","example":"He acted irrationally when he threw away his precious gift without thinking it through."},{"word":"fortnight","definition":"one of 14 days, used to measure time.","example":"We will be working for a fortnight before we take our summer break."}]}  ] }  ] }
+WARNING:src.question_generator:Question 1 missing 'text' field
+INFO:src.question_generator:✓ Generated 1 questions and 0 vocabulary words
+INFO:__main__:Generated 1 questions for chapter 74aded80-4c80-4c9a-bca8-1c97b0377e05
+ERROR:__main__:Failed to get chapter details
+Traceback (most recent call last):
+  File "/Users/chedly/dannous-backend/app.py", line 347, in get_draft_chapter_detail
+    chapter = db.get_draft_chapter(chapter_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/src/database.py", line 401, in get_draft_chapter
+    q['expected_keywords'] = json.loads(q['expected_keywords']) if q['expected_keywords'] else []
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/.pyenv/versions/3.12.2/lib/python3.12/json/__init__.py", line 339, in loads
+    raise TypeError(f'the JSON object must be str, bytes or bytearray, '
+TypeError: the JSON object must be str, bytes or bytearray, not list
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 14:00:04] "GET /api/draft-chapter/74aded80-4c80-4c9a-bca8-1c97b0377e05 HTTP/1.1" 500 -
+ERROR:__main__:Failed to get chapter details
+Traceback (most recent call last):
+  File "/Users/chedly/dannous-backend/app.py", line 347, in get_draft_chapter_detail
+    chapter = db.get_draft_chapter(chapter_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/src/database.py", line 401, in get_draft_chapter
+    q['expected_keywords'] = json.loads(q['expected_keywords']) if q['expected_keywords'] else []
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/.pyenv/versions/3.12.2/lib/python3.12/json/__init__.py", line 339, in loads
+    raise TypeError(f'the JSON object must be str, bytes or bytearray, '
+TypeError: the JSON object must be str, bytes or bytearray, not list
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 14:00:05] "GET /api/draft-chapter/74aded80-4c80-4c9a-bca8-1c97b0377e05 HTTP/1.1" 500 -
+ERROR:__main__:Failed to get chapter details
+Traceback (most recent call last):
+  File "/Users/chedly/dannous-backend/app.py", line 347, in get_draft_chapter_detail
+    chapter = db.get_draft_chapter(chapter_id)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/src/database.py", line 401, in get_draft_chapter
+    q['expected_keywords'] = json.loads(q['expected_keywords']) if q['expected_keywords'] else []
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/.pyenv/versions/3.12.2/lib/python3.12/json/__init__.py", line 339, in loads
+    raise TypeError(f'the JSON object must be str, bytes or bytearray, '
+TypeError: the JSON object must be str, bytes or bytearray, not list
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 14:00:05] "GET /api/draft-chapter/74aded80-4c80-4c9a-bca8-1c97b0377e05 HTTP/1.1" 500 -
