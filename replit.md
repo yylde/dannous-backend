@@ -4,7 +4,51 @@
 
 This is an EPUB processing pipeline for a kids reading platform. It downloads books from Project Gutenberg, splits them into chapters, generates comprehension questions, and stores everything in a PostgreSQL database.
 
-## Recent Changes (October 8, 2025)
+## Recent Changes
+
+### Draft System with Async Question Generation (October 12, 2025)
+
+Implemented a complete draft system that allows incremental book processing with the ability to save work and continue later:
+
+**Database Schema:**
+- **book_drafts** - Tracks books in progress with metadata
+- **draft_chapters** - Stores chapters with question generation status (pending, generating, ready, error)
+- **draft_questions** - Comprehension questions for draft chapters
+- **draft_vocabulary** - Vocabulary words and definitions for draft chapters
+
+**Key Features:**
+1. **Draft Selection Modal** - Shows on page load, allowing users to:
+   - Download a new book (creates draft automatically)
+   - Continue working on existing drafts
+   
+2. **Auto-Save as Draft** - Books are automatically saved as drafts when:
+   - Downloaded from Project Gutenberg
+   - Chapters are added
+
+3. **Async Question Generation** - Questions generate in background using Python threading:
+   - Status tracking: pending → generating → ready/error
+   - No blocking UI while questions are being generated
+   - Each chapter's status shown with colored badges
+
+4. **Chapter Detail View** - Click on saved chapters to view:
+   - Question generation status
+   - Comprehension questions with difficulty levels
+   - Vocabulary words with definitions and examples
+   - Full chapter metadata
+
+5. **Draft Finalization** - When complete:
+   - "Finalize Book" button moves draft to main books table
+   - All chapters and questions transferred atomically
+   - Draft is marked as completed
+
+**Workflow:**
+1. User downloads book → auto-saved as draft
+2. User adds chapters → each saved to draft with "generating" status
+3. Questions generate asynchronously in background
+4. User can view chapter details to see questions and status
+5. When done, finalize to move to production books table
+
+### Previous Changes (October 8, 2025)
 
 ### README Documentation Added
 
@@ -80,9 +124,16 @@ Replaced the AI-based chapter splitter with a manual admin UI because the AI was
 
 ### Database Schema
 
+**Production Tables:**
 - **books** - Book metadata (title, author, age range, reading level, etc.)
 - **chapters** - Chapter content and metadata
 - **questions** - Comprehension questions with expected keywords
+
+**Draft Tables:**
+- **book_drafts** - Books in progress with metadata
+- **draft_chapters** - Chapters with question status tracking
+- **draft_questions** - Questions for draft chapters
+- **draft_vocabulary** - Vocabulary for draft chapters
 
 ## User Preferences
 
@@ -95,16 +146,26 @@ The user prefers:
 
 ### Admin UI (Recommended)
 
+**Starting a New Book:**
 1. Open the web interface (automatically opens on port 5000)
-2. Enter a Project Gutenberg book ID (e.g., 11115 for Alice in Wonderland)
-3. Click "Download Book"
-4. Configure settings (age range, reading level, genre)
-5. Navigate through pages and add them to chapters
-6. Give each chapter a title
-7. Monitor word count (green = valid range, red = out of range)
-8. Click "Finish Chapter" when complete
-9. Repeat for all chapters
-10. Click "Save Book & Generate Questions" when done
+2. Choose "Download New Book" from the modal
+3. Enter a Project Gutenberg book ID (e.g., 11115 for Alice in Wonderland)
+4. Click "Download Book" - the book is automatically saved as a draft
+5. Configure settings (age range, reading level, genre)
+6. Select text from the book and add to current chapter
+7. Give each chapter a title
+8. Monitor word count (green = valid range, red = out of range)
+9. Click "Finish Chapter" - questions will generate in background
+10. Repeat for all chapters
+11. Click "Finalize Book" when all chapters are complete
+
+**Continuing an Existing Draft:**
+1. Open the web interface
+2. Choose "Continue Existing Draft" from the modal
+3. Select a draft from the list
+4. Continue adding chapters or review existing ones
+5. Click on saved chapters to view questions and status
+6. Click "Finalize Book" when ready
 
 ### CLI (Legacy)
 
