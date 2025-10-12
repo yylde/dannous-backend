@@ -17,22 +17,16 @@
         </div>
     </div>
 
-    <!-- Draft Selection Modal -->
-    <div id="draft-modal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <h2>Choose an Option</h2>
-            <div class="draft-options">
-                <button onclick="showNewBookForm()" class="btn btn-primary btn-large" style="margin: 10px;">
-                    📥 Download New Book
-                </button>
-                <button onclick="loadDrafts()" class="btn btn-secondary btn-large" style="margin: 10px;">
-                    📝 Continue Existing Draft
-                </button>
-            </div>
-            <div id="drafts-list" style="display: none; margin-top: 20px;">
-                <h3>Your Drafts</h3>
-                <div id="drafts-container"></div>
-            </div>
+    <!-- Draft Sidebar -->
+    <div class="draft-sidebar">
+        <div class="sidebar-header">
+            <h3>📚 Books</h3>
+            <button onclick="showNewBookForm()" class="btn btn-primary btn-small" title="Download New Book">
+                + New
+            </button>
+        </div>
+        <div id="drafts-list-sidebar" class="drafts-list">
+            <p style="color: #718096; text-align: center; padding: 10px;">Loading...</p>
         </div>
     </div>
 

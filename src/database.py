@@ -502,7 +502,11 @@ class DatabaseManager:
                     raise ValueError(f"Draft {draft_id} not found")
                 
                 title, author, age_range, reading_level, genre, metadata = draft
-                metadata = json.loads(metadata) if metadata else {}
+                # JSONB fields are already parsed by psycopg2
+                if isinstance(metadata, str):
+                    metadata = json.loads(metadata)
+                elif metadata is None:
+                    metadata = {}
                 
                 # Get chapters
                 cur.execute("""

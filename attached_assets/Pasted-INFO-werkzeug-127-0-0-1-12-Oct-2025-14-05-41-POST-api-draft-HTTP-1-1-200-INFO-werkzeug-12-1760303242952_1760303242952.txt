@@ -1,0 +1,39 @@
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 14:05:41] "POST /api/draft HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 14:05:56] "POST /api/draft-chapter HTTP/1.1" 200 -
+INFO:src.question_generator:Generating 3 questions and vocabulary for Chapter 1: Chapter 2
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+{
+"questions":
+[
+{"text":"Why does Gretchen feel anxious about her upcoming birthday?","keywords":["birthday","anxiety"],"difficulty":"medium"},
+{"text":"How do the library's conditions affect Gretchen's daily life?","keywords":["library","climate"],"difficulty":"easy"},
+{"text":"What motivates Gretchen to refuse marriage and pursue a career?","keywords":["marriage","career goals"],"difficulty":"hard"}
+],
+"vocabulary":
+[
+{"word":"antiquated","definition":"outdated or old-fashioned","example":"My grandfather's ideas are antiquated and no longer relevant."},
+{"word":"subjugation","definition":"the act of controlling someone or something, often in a way that is unfair or oppressive","example":"The company's actions were seen as an example of subjugation by its employees."},
+{"word":"refrained","definition":"to deliberately choose not to do something","example":"She refrained from speaking up during the meeting."},
+{"word":"ebbed","definition":"to decrease or become less intense","example":"The excitement at the party ebbed as the night wore on."},
+{"word":"legacy","definition":"the idea that the good things you do will continue to be remembered and appreciated after you are gone","example":"Her legacy as a scientist lived on through her discoveries."},
+{"word":"prosper,"} 
+],
+"difficulty": "intermediate"
+}
+WARNING:src.question_generator:Vocabulary item 5 has invalid structure: {'word': 'prosper,'}
+INFO:src.question_generator:Successfully parsed 3 questions and 5 vocabulary words
+INFO:src.question_generator:✓ Generated 3 questions and 5 vocabulary words
+INFO:__main__:Generated 3 questions for chapter 15b8b744-39e3-44ec-8bff-c1af030ff0fc
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 14:06:45] "GET /api/draft-chapter/15b8b744-39e3-44ec-8bff-c1af030ff0fc HTTP/1.1" 200 -
+ERROR:__main__:Failed to finalize draft
+Traceback (most recent call last):
+  File "/Users/chedly/dannous-backend/app.py", line 379, in finalize_draft
+    book_id, chapters, questions = db.finalize_draft(draft_id)
+                                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/src/database.py", line 505, in finalize_draft
+    metadata = json.loads(metadata) if metadata else {}
+               ^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/.pyenv/versions/3.12.2/lib/python3.12/json/__init__.py", line 339, in loads
+    raise TypeError(f'the JSON object must be str, bytes or bytearray, '
+TypeError: the JSON object must be str, bytes or bytearray, not dict
+INFO:werkzeug:127.0.0.1 - - [12/Oct/2025 14:06:56] "POST /api/finalize-draft/578600e4-a6e3-40d2-8a29-bc319cd2893d HTTP/1.1" 500 -

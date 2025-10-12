@@ -16,8 +16,8 @@ document.addEventListener('DOMContentLoaded', () => {
     loadDifficultyRanges();
     updateDifficultyRange();
     
-    // Show draft selection modal on page load
-    showDraftModal();
+    // Load drafts in sidebar on page load
+    loadDraftsInSidebar();
 
     // Auto-add selected text from book
     document.addEventListener('mouseup', (e) => {
@@ -233,6 +233,9 @@ async function downloadBook() {
         updateChaptersList();
         updateChapterLegend();
         updateUndoButton();
+        
+        // Refresh sidebar to show new draft
+        loadDraftsInSidebar();
 
         document.getElementById('book-section').style.display = 'block';
         showStatus(`Book loaded and saved as draft: ${data.title} by ${data.author}`, 'success');
@@ -688,20 +691,12 @@ function showStatus(message, type = 'info') {
 
 // ==================== DRAFT FUNCTIONS ====================
 
-function showDraftModal() {
-    document.getElementById('draft-modal').style.display = 'flex';
-}
-
-function closeDraftModal() {
-    document.getElementById('draft-modal').style.display = 'none';
-}
-
 function showNewBookForm() {
-    closeDraftModal();
     document.getElementById('download-section').scrollIntoView({ behavior: 'smooth' });
+    document.getElementById('gutenberg-id').focus();
 }
 
-async function loadDrafts() {
+async function loadDraftsInSidebar() {
     try {
         const response = await fetch('/api/drafts');
         const data = await response.json();
@@ -710,25 +705,28 @@ async function loadDrafts() {
             throw new Error(data.error || 'Failed to load drafts');
         }
         
-        const container = document.getElementById('drafts-container');
-        const listDiv = document.getElementById('drafts-list');
+        const container = document.getElementById('drafts-list-sidebar');
         
         if (data.drafts.length === 0) {
-            container.innerHTML = '<p style="color: #718096;">No drafts found. Start a new book!</p>';
+            container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px; font-size: 14px;">No books yet.<br>Click "+ New" to start!</p>';
         } else {
-            container.innerHTML = data.drafts.map(draft => `
-                <div class="draft-item" onclick="loadDraft('${draft.id}')">
-                    <h4>${draft.title}</h4>
-                    <p><strong>Author:</strong> ${draft.author}</p>
-                    <p><strong>Chapters:</strong> ${draft.chapter_count || 0}</p>
-                    <p><strong>Last updated:</strong> ${new Date(draft.updated_at).toLocaleString()}</p>
-                </div>
-            `).join('');
+            container.innerHTML = data.drafts.map(draft => {
+                const statusClass = draft.is_completed ? 'completed' : 'in-progress';
+                const statusText = draft.is_completed ? 'Completed' : 'In Progress';
+                return `
+                    <div class="draft-item ${currentDraftId === draft.id ? 'active' : ''}" onclick="loadDraft('${draft.id}')">
+                        <h4>${draft.title}</h4>
+                        <p><strong>${draft.author}</strong></p>
+                        <p>${draft.chapter_count || 0} chapters</p>
+                        <span class="draft-status ${statusClass}">${statusText}</span>
+                    </div>
+                `;
+            }).join('');
         }
-        
-        listDiv.style.display = 'block';
     } catch (error) {
-        showStatus(`Error loading drafts: ${error.message}`, 'error');
+        console.error('Error loading drafts:', error);
+        const container = document.getElementById('drafts-list-sidebar');
+        container.innerHTML = '<p style="color: #e53e3e; text-align: center; padding: 20px; font-size: 14px;">Error loading books</p>';
     }
 }
 
@@ -796,7 +794,10 @@ async function loadDraft(draftId) {
         updateChapterLegend();
         
         document.getElementById('book-section').style.display = 'block';
-        closeDraftModal();
+        
+        // Refresh sidebar to show active draft
+        loadDraftsInSidebar();
+        
         showStatus(`Loaded draft: ${draft.title}`, 'success');
         
     } catch (error) {
