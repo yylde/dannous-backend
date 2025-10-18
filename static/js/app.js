@@ -792,6 +792,9 @@ async function loadDraftsInSidebar() {
                 const statusText = draft.is_completed ? 'Completed' : 'In Progress';
                 return `
                     <div class="draft-item ${currentDraftId === draft.id ? 'active' : ''}" onclick="loadDraft('${draft.id}')">
+                        <button class="delete-draft-btn" onclick="deleteDraft('${draft.id}', event)" title="Delete this book">
+                            &times;
+                        </button>
                         <h4>${draft.title}</h4>
                         <p><strong>${draft.author}</strong></p>
                         <p>${draft.chapter_count || 0} chapters</p>
@@ -804,6 +807,41 @@ async function loadDraftsInSidebar() {
         console.error('Error loading drafts:', error);
         const container = document.getElementById('drafts-list-sidebar');
         container.innerHTML = '<p style="color: #e53e3e; text-align: center; padding: 20px; font-size: 14px;">Error loading books</p>';
+    }
+}
+
+async function deleteDraft(draftId, event) {
+    if (event) {
+        event.stopPropagation();
+    }
+    
+    if (!confirm('Are you sure you want to delete this book? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/draft/${draftId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to delete draft');
+        }
+        
+        if (currentDraftId === draftId) {
+            currentDraftId = null;
+            bookData = null;
+            chapters = [];
+            updateUI();
+        }
+        
+        await loadDraftsInSidebar();
+        showStatus('Book deleted successfully', 'success');
+    } catch (error) {
+        console.error('Error deleting draft:', error);
+        showStatus(`Error deleting book: ${error.message}`, 'error');
     }
 }
 

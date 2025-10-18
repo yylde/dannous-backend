@@ -499,6 +499,17 @@ class DatabaseManager:
                 
                 return {'content': content, 'chapter_number': chapter_number}
     
+    def delete_draft(self, draft_id: str) -> bool:
+        """Delete a draft and all its associated data (chapters, questions, vocabulary)."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT id FROM book_drafts WHERE id = %s", (draft_id,))
+                if not cur.fetchone():
+                    return False
+                
+                cur.execute("DELETE FROM book_drafts WHERE id = %s", (draft_id,))
+                return True
+    
     def finalize_draft(self, draft_id: str) -> Tuple[str, int, int]:
         """Move draft to main books table. Returns (book_id, chapters, questions)."""
         with self.get_connection() as conn:

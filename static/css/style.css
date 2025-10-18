@@ -700,6 +700,7 @@ select:focus {
     cursor: pointer;
     transition: all 0.3s;
     background: white;
+    position: relative;
 }
 
 .draft-sidebar .draft-item:hover {
@@ -742,6 +743,37 @@ select:focus {
 .draft-sidebar .draft-item .draft-status.completed {
     background: #c6f6d5;
     color: #22543d;
+}
+
+.delete-draft-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 28px;
+    height: 28px;
+    border: none;
+    background: transparent;
+    color: #e53e3e;
+    font-size: 24px;
+    font-weight: bold;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+}
+
+.delete-draft-btn:hover {
+    background: #fed7d7;
+    color: #c53030;
+    transform: scale(1.1);
+}
+
+.delete-draft-btn:active {
+    transform: scale(0.95);
 }
 
 /* Abbr tag styling for vocabulary tooltips */

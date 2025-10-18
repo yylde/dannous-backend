@@ -401,6 +401,20 @@ def delete_draft_chapter(chapter_id):
         logger.exception("Failed to delete chapter")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/draft/<draft_id>', methods=['DELETE'])
+def delete_draft(draft_id):
+    """Delete a draft and all its associated data."""
+    try:
+        db = DatabaseManager()
+        success = db.delete_draft(draft_id)
+        if not success:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        return jsonify({'success': True})
+    except Exception as e:
+        logger.exception("Failed to delete draft")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/finalize-draft/<draft_id>', methods=['POST'])
 def finalize_draft(draft_id):
     """Finalize draft and move to main books table."""
