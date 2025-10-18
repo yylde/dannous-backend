@@ -6,6 +6,24 @@ This is an EPUB processing pipeline for a kids reading platform. It downloads bo
 
 ## Recent Changes
 
+### Delete Draft Feature (October 18, 2025)
+
+Added the ability to delete draft books directly from the UI:
+
+**UI Improvements:**
+- Red X button appears in top-right corner of each book card in sidebar
+- Clicking X shows confirmation dialog before deletion
+- Deletion removes all associated data (chapters, questions, vocabulary) via CASCADE
+- Sidebar automatically refreshes after deletion
+- If deleted draft was active, UI clears and returns to initial state
+
+**Technical Implementation:**
+- Backend endpoint: `DELETE /api/draft/<draft_id>`
+- Database method: `delete_draft()` in DatabaseManager
+- Relies on ON DELETE CASCADE constraints in database schema
+- Atomic transaction ensures all related data is removed
+- Event propagation properly handled to prevent loading draft when clicking delete button
+
 ### Draft System with Async Question Generation (October 12, 2025)
 
 Implemented a complete draft system that allows incremental book processing with the ability to save work and continue later:
