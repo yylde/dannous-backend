@@ -1039,32 +1039,79 @@ async function viewChapter(chapterId) {
         } else if (chapter.question_status === 'error') {
             modalHTML += `<p style="color: #e53e3e;">Error generating questions. Please try again.</p>`;
         } else if (chapter.question_status === 'ready') {
-            // Show vocabulary
-            if (chapter.vocabulary && chapter.vocabulary.length > 0) {
-                modalHTML += `<h3>Vocabulary</h3>`;
-                chapter.vocabulary.forEach(v => {
-                    modalHTML += `
-                        <div class="vocab-item">
-                            <div class="vocab-word">${v.word}</div>
-                            <div class="vocab-definition">${v.definition}</div>
-                            ${v.example ? `<div class="vocab-example">"${v.example}"</div>` : ''}
-                        </div>
-                    `;
+            // Group questions by grade level
+            const questionsByGrade = {};
+            if (chapter.questions && chapter.questions.length > 0) {
+                chapter.questions.forEach(q => {
+                    const grade = q.grade_level || 'unspecified';
+                    if (!questionsByGrade[grade]) {
+                        questionsByGrade[grade] = [];
+                    }
+                    questionsByGrade[grade].push(q);
                 });
             }
             
-            // Show questions
-            if (chapter.questions && chapter.questions.length > 0) {
-                modalHTML += `<h3>Questions</h3>`;
-                chapter.questions.forEach((q, i) => {
-                    modalHTML += `
-                        <div class="question-item">
-                            <strong>Q${i + 1}:</strong> ${q.question_text}
-                            <div style="margin-top: 5px; font-size: 12px; color: #718096;">
-                                <em>Difficulty: ${q.difficulty_level}</em>
+            // Display questions and vocabulary grouped by grade
+            const grades = Object.keys(questionsByGrade).sort();
+            
+            if (grades.length > 0) {
+                grades.forEach(grade => {
+                    const gradeLabel = grade.replace('grade-', 'Grade ');
+                    modalHTML += `<h3 style="margin-top: 30px; color: #2d3748;">${gradeLabel}</h3>`;
+                    
+                    // Show questions for this grade
+                    const questions = questionsByGrade[grade];
+                    modalHTML += `<div style="margin-bottom: 20px;">`;
+                    modalHTML += `<h4 style="color: #4a5568; margin-bottom: 10px;">Questions:</h4>`;
+                    questions.forEach((q, i) => {
+                        modalHTML += `
+                            <div class="question-item" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div style="flex: 1;">
+                                        <strong>Q${i + 1}:</strong> <span id="q-text-${q.id}">${q.question_text}</span>
+                                        <div style="margin-top: 5px; font-size: 12px; color: #718096;">
+                                            <em>Type: ${q.question_type} | Difficulty: ${q.difficulty_level}</em>
+                                        </div>
+                                    </div>
+                                    <div style="margin-left: 10px;">
+                                        <button onclick="editQuestion('${q.id}', '${chapterId}')" class="edit-btn" style="margin-right: 5px;">Edit</button>
+                                        <button onclick="deleteQuestionItem('${q.id}', '${chapterId}')" class="delete-btn">Delete</button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    `;
+                        `;
+                    });
+                    modalHTML += `</div>`;
+                    
+                    // Show vocabulary for this grade (first 8 items belong to first grade, next 8 to second, etc.)
+                    const vocabPerGrade = 8;
+                    const gradeIndex = grades.indexOf(grade);
+                    const vocabStart = gradeIndex * vocabPerGrade;
+                    const vocabEnd = vocabStart + vocabPerGrade;
+                    const gradeVocab = (chapter.vocabulary || []).slice(vocabStart, vocabEnd);
+                    
+                    if (gradeVocab.length > 0) {
+                        modalHTML += `<div style="margin-top: 20px;">`;
+                        modalHTML += `<h4 style="color: #4a5568; margin-bottom: 10px;">Vocabulary:</h4>`;
+                        gradeVocab.forEach(v => {
+                            modalHTML += `
+                                <div class="vocab-item" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
+                                    <div style="display: flex; justify-content: space-between; align-items: start;">
+                                        <div style="flex: 1;">
+                                            <div class="vocab-word" style="font-weight: bold; color: #2d3748;">${v.word}</div>
+                                            <div class="vocab-definition" style="margin-top: 5px; color: #4a5568;">${v.definition}</div>
+                                            ${v.example ? `<div class="vocab-example" style="margin-top: 5px; font-style: italic; color: #718096;">"${v.example}"</div>` : ''}
+                                        </div>
+                                        <div style="margin-left: 10px;">
+                                            <button onclick="editVocabulary('${v.id}', '${chapterId}')" class="edit-btn" style="margin-right: 5px;">Edit</button>
+                                            <button onclick="deleteVocabularyItem('${v.id}', '${chapterId}')" class="delete-btn">Delete</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        modalHTML += `</div>`;
+                    }
                 });
             }
         }
@@ -1081,6 +1128,123 @@ async function viewChapter(chapterId) {
 
 function closeChapterModal() {
     document.getElementById('chapter-modal').style.display = 'none';
+}
+
+async function editQuestion(questionId, chapterId) {
+    const questionText = prompt('Enter new question text:');
+    if (!questionText) return;
+    
+    const questionType = prompt('Enter question type (comprehension, inference, etc.):', 'comprehension');
+    const difficulty = prompt('Enter difficulty (easy, medium, hard):', 'medium');
+    
+    try {
+        showLoading(true);
+        const response = await fetch(`/api/question/${questionId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                question_text: questionText,
+                question_type: questionType,
+                difficulty_level: difficulty,
+                expected_keywords: [],
+                min_word_count: 20,
+                max_word_count: 200
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to update question');
+        }
+        
+        showStatus('Question updated successfully', 'success');
+        viewChapter(chapterId); // Reload the view
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function deleteQuestionItem(questionId, chapterId) {
+    if (!confirm('Are you sure you want to delete this question?')) return;
+    
+    try {
+        showLoading(true);
+        const response = await fetch(`/api/question/${questionId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to delete question');
+        }
+        
+        showStatus('Question deleted successfully', 'success');
+        viewChapter(chapterId); // Reload the view
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function editVocabulary(vocabId, chapterId) {
+    const word = prompt('Enter word:');
+    if (!word) return;
+    
+    const definition = prompt('Enter definition:');
+    if (!definition) return;
+    
+    const example = prompt('Enter example sentence (optional):') || '';
+    
+    try {
+        showLoading(true);
+        const response = await fetch(`/api/vocabulary/${vocabId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                word: word,
+                definition: definition,
+                example: example
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to update vocabulary');
+        }
+        
+        showStatus('Vocabulary updated successfully', 'success');
+        viewChapter(chapterId); // Reload the view
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function deleteVocabularyItem(vocabId, chapterId) {
+    if (!confirm('Are you sure you want to delete this vocabulary item?')) return;
+    
+    try {
+        showLoading(true);
+        const response = await fetch(`/api/vocabulary/${vocabId}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to delete vocabulary');
+        }
+        
+        showStatus('Vocabulary deleted successfully', 'success');
+        viewChapter(chapterId); // Reload the view
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 async function finalizeBook() {
