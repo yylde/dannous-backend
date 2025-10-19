@@ -109,13 +109,15 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
     def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict], List[str]]:
         """
         Parse JSON response from LLM with robust error handling.
-        Handles thinking models that output <think>...</think> tags.
+        Works with ANY Ollama model - thinking or non-thinking.
         
         Returns:
             Tuple of (questions, vocabulary, tags)
         """
         try:
-            # STEP 1: Remove thinking tokens (critical for thinking models)
+            original_response = response
+            
+            # STEP 1: Remove thinking tokens (safe even if no thinking tags present)
             response = remove_thinking_tokens(response)
             
             # STEP 2: Clean up response
@@ -133,18 +135,27 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                         response = part
                         break
             
-            # Try to find JSON object if wrapped in text
-            if not response.startswith('{'):
-                start_idx = response.find('{')
-                if start_idx != -1:
-                    response = response[start_idx:]
+            # STEP 3: Extract JSON using regex (more robust)
+            # Try to find the largest valid JSON object
+            json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            json_matches = re.findall(json_pattern, response, re.DOTALL)
             
-            if not response.endswith('}'):
-                end_idx = response.rfind('}')
-                if end_idx != -1:
-                    response = response[:end_idx + 1]
+            if json_matches:
+                # Take the longest match (usually the complete JSON)
+                response = max(json_matches, key=len)
+            else:
+                # Fallback: try to find JSON boundaries manually
+                if not response.startswith('{'):
+                    start_idx = response.find('{')
+                    if start_idx != -1:
+                        response = response[start_idx:]
+                
+                if not response.endswith('}'):
+                    end_idx = response.rfind('}')
+                    if end_idx != -1:
+                        response = response[:end_idx + 1]
             
-            # Parse JSON
+            # STEP 4: Parse JSON
             data = json.loads(response)
             
             if 'questions' not in data:
@@ -267,47 +278,93 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             max_words=settings.max_answer_words
         )
         
-        # Call Ollama with retries
+        # Call Ollama with intelligent retries (model-agnostic)
         max_retries = 3
+        strategies = [
+            ('free-form', False),      # Try 1: Free-form (works with thinking models)
+            ('free-form', False),      # Try 2: Retry free-form
+            ('json-format', True)      # Try 3: Force JSON format (for non-thinking models)
+        ]
+        
         for attempt in range(max_retries):
+            strategy_name, use_json_format = strategies[attempt]
             try:
-                response = self._call_ollama(prompt)
+                logger.info(f"Attempt {attempt + 1}/{max_retries} using {strategy_name} strategy")
+                response = self._call_ollama(prompt, force_json_format=use_json_format)
                 questions, vocabulary, _ = self._parse_response(response, num_questions)
                 
                 if questions:
-                    logger.info(f"✓ Generated {len(questions)} questions and {len(vocabulary)} vocabulary words for {grade_level}")
+                    logger.info(f"✓ Success with {strategy_name}! Generated {len(questions)} questions and {len(vocabulary)} vocabulary words for {grade_level}")
                     return questions, vocabulary
+                else:
+                    logger.warning(f"Attempt {attempt + 1}: No questions parsed from response")
                 
-            except Exception as e:
-                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+            except json.JSONDecodeError as e:
+                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): JSON parsing failed - {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): {type(e).__name__} - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
         
         # Fallback: generate generic questions and empty vocabulary
         logger.warning("Using fallback questions")
         return self._generate_fallback_questions(chapter_title, num_questions), []
     
-    def _call_ollama(self, prompt: str) -> str:
-        """Call Ollama API with improved settings.
+    def _call_ollama(self, prompt: str, force_json_format: bool = False) -> str:
+        """Call Ollama API with model-agnostic settings.
         
-        Note: We do NOT use format='json' because it's incompatible with thinking models.
-        Instead, we manually parse JSON after removing thinking tokens.
+        This method is designed to work with ANY Ollama model:
+        - Thinking models (DeepSeek-R1, etc.) - outputs <think> tags
+        - Standard models (Llama, Mistral, etc.) - direct JSON output
+        - Any model with custom response formats
+        
+        Args:
+            prompt: The prompt to send to the model
+            force_json_format: If True, uses format='json' (disables thinking mode)
+        
+        Returns:
+            Raw model response string
         """
         try:
-            response = ollama.generate(
-                model=self.model,
-                prompt=prompt,
-                options={
-                    'temperature': 0.7,
-                    'top_p': 0.9,
-                    'num_predict': 4000  # Ensure enough tokens for response
-                }
-                # NOT using format='json' - it disables thinking mode!
-            )
-            logger.debug(f"Raw Ollama response (first 500 chars): {response['response'][:500]}")
-            return response['response']
+            # Build request options
+            options = {
+                'temperature': 0.7,
+                'top_p': 0.9,
+                'num_predict': 4000  # Generous token limit for all models
+            }
+            
+            # Decide whether to use format='json'
+            # - If force_json_format=True: Use it (for retry attempts)
+            # - Otherwise: Don't use it (allows thinking models to work)
+            generate_params = {
+                'model': self.model,
+                'prompt': prompt,
+                'options': options
+            }
+            
+            if force_json_format:
+                generate_params['format'] = 'json'
+                logger.debug(f"Using format='json' for model: {self.model}")
+            else:
+                logger.debug(f"Using free-form output for model: {self.model}")
+            
+            # Call Ollama
+            response = ollama.generate(**generate_params)
+            raw_response = response['response']
+            
+            # Log diagnostic info
+            has_thinking_tags = '<think>' in raw_response.lower() or '<thinking>' in raw_response.lower()
+            logger.debug(f"Model: {self.model}")
+            logger.debug(f"Response length: {len(raw_response)} chars")
+            logger.debug(f"Contains thinking tags: {has_thinking_tags}")
+            logger.debug(f"First 500 chars: {raw_response[:500]}")
+            
+            return raw_response
+            
         except Exception as e:
-            logger.error(f"Ollama API call failed: {e}")
+            logger.error(f"Ollama API call failed with model {self.model}: {e}")
             raise
     
     def _generate_fallback_questions(
@@ -408,19 +465,33 @@ EXACT FORMAT (copy this structure):
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
         
-        # Call Ollama with retries
+        # Call Ollama with intelligent retries (model-agnostic)
         max_retries = 3
+        strategies = [
+            ('free-form', False),      # Try 1: Free-form (works with thinking models)
+            ('free-form', False),      # Try 2: Retry free-form
+            ('json-format', True)      # Try 3: Force JSON format (for non-thinking models)
+        ]
+        
         for attempt in range(max_retries):
+            strategy_name, use_json_format = strategies[attempt]
             try:
-                response = self._call_ollama(prompt)
+                logger.info(f"Tag generation attempt {attempt + 1}/{max_retries} using {strategy_name} strategy")
+                response = self._call_ollama(prompt, force_json_format=use_json_format)
                 tags = self._parse_tags_response(response)
                 
                 if tags:
-                    logger.info(f"✓ Generated {len(tags)} tags for book: {tags}")
+                    logger.info(f"✓ Success with {strategy_name}! Generated {len(tags)} tags for book: {tags}")
                     return tags
+                else:
+                    logger.warning(f"Attempt {attempt + 1}: No tags parsed from response")
                 
+            except json.JSONDecodeError as e:
+                logger.warning(f"Tag attempt {attempt + 1} ({strategy_name}): JSON parsing failed - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
             except Exception as e:
-                logger.warning(f"Tag generation attempt {attempt + 1} failed: {e}")
+                logger.warning(f"Tag attempt {attempt + 1} ({strategy_name}): {type(e).__name__} - {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)
         
@@ -430,9 +501,11 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
     
     def _parse_tags_response(self, response: str) -> List[str]:
         """Parse tags-only response from LLM.
-        Handles thinking models that output <think>...</think> tags."""
+        Works with ANY Ollama model - thinking or non-thinking."""
         try:
-            # STEP 1: Remove thinking tokens (critical for thinking models)
+            original_response = response
+            
+            # STEP 1: Remove thinking tokens (safe even if no thinking tags present)
             response = remove_thinking_tokens(response)
             
             # STEP 2: Clean up response
@@ -449,18 +522,26 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                         response = part
                         break
             
-            # Try to find JSON object
-            if not response.startswith('{'):
-                start_idx = response.find('{')
-                if start_idx != -1:
-                    response = response[start_idx:]
+            # STEP 3: Extract JSON using regex (more robust)
+            json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            json_matches = re.findall(json_pattern, response, re.DOTALL)
             
-            if not response.endswith('}'):
-                end_idx = response.rfind('}')
-                if end_idx != -1:
-                    response = response[:end_idx + 1]
+            if json_matches:
+                # Take the longest match (usually the complete JSON)
+                response = max(json_matches, key=len)
+            else:
+                # Fallback: try to find JSON boundaries manually
+                if not response.startswith('{'):
+                    start_idx = response.find('{')
+                    if start_idx != -1:
+                        response = response[start_idx:]
+                
+                if not response.endswith('}'):
+                    end_idx = response.rfind('}')
+                    if end_idx != -1:
+                        response = response[:end_idx + 1]
             
-            # Parse JSON
+            # STEP 4: Parse JSON
             data = json.loads(response)
             
             # Extract tags
