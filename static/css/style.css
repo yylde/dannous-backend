@@ -455,7 +455,7 @@ select:focus {
     padding: 2px 4px;
     min-height: 20px;
     outline: none;
-    display: inline-block;
+    display: inline;
 }
 
 [contenteditable="true"]:focus {
@@ -469,21 +469,27 @@ select:focus {
     color: #2d3748 !important;
 }
 
-/* For question metadata (type/difficulty), make them editable but no border */
+/* Question text should be block-level to have one continuous border */
+[id^="q-text-"][contenteditable="true"] {
+    display: block !important;
+    margin: 2px 0;
+}
+
+/* For question metadata (type/difficulty), make them editable with subtle underline */
 [id^="q-type-"][contenteditable="true"],
 [id^="q-diff-"][contenteditable="true"] {
-    border: none !important;
-    padding: 0 !important;
+    border: 1px dashed #e2e8f0 !important;
+    padding: 1px 3px !important;
     background: transparent !important;
     display: inline !important;
+    border-radius: 3px;
 }
 
 [id^="q-type-"][contenteditable="true"]:focus,
 [id^="q-diff-"][contenteditable="true"]:focus {
-    border: none !important;
+    border: 1px solid #4299e1 !important;
+    background: #f7fafc !important;
     box-shadow: none !important;
-    background: transparent !important;
-    text-decoration: underline;
 }
 
 .delete-btn {
