@@ -2,7 +2,7 @@
 -- Description: Adds tables to track books in progress with async question generation
 
 -- Table for tracking books in progress
-CREATE TABLE IF NOT EXISTS draft_book (
+CREATE TABLE IF NOT EXISTS draft_books (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     gutenberg_id INTEGER,
     title VARCHAR(500) NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE IF NOT EXISTS draft_book (
 -- Table for chapters in draft books
 CREATE TABLE IF NOT EXISTS draft_chapters (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    draft_id UUID NOT NULL REFERENCES draft_book(id) ON DELETE CASCADE,
+    draft_id UUID NOT NULL REFERENCES draft_books(id) ON DELETE CASCADE,
     chapter_number INTEGER NOT NULL,
     title VARCHAR(300) NOT NULL,
     content TEXT NOT NULL,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS draft_chapters (
 -- Table for questions in draft chapters
 CREATE TABLE IF NOT EXISTS draft_questions (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    draft_id UUID NOT NULL REFERENCES draft_book(id) ON DELETE CASCADE,
+    draft_id UUID NOT NULL REFERENCES draft_books(id) ON DELETE CASCADE,
     chapter_id UUID NOT NULL REFERENCES draft_chapters(id) ON DELETE CASCADE,
     question_text TEXT NOT NULL,
     question_type VARCHAR(50) NOT NULL DEFAULT 'comprehension',
@@ -60,8 +60,8 @@ CREATE TABLE IF NOT EXISTS draft_vocabulary (
 );
 
 -- Indexes for performance
-CREATE INDEX IF NOT EXISTS idx_draft_book_gutenberg_id ON draft_book(gutenberg_id);
-CREATE INDEX IF NOT EXISTS idx_draft_book_is_completed ON draft_book(is_completed);
+CREATE INDEX IF NOT EXISTS idx_draft_book_gutenberg_id ON draft_books(gutenberg_id);
+CREATE INDEX IF NOT EXISTS idx_draft_book_is_completed ON draft_books(is_completed);
 CREATE INDEX IF NOT EXISTS idx_draft_chapters_draft_id ON draft_chapters(draft_id);
 CREATE INDEX IF NOT EXISTS idx_draft_chapters_has_questions ON draft_chapters(has_questions);
 CREATE INDEX IF NOT EXISTS idx_draft_chapters_status ON draft_chapters(question_status);

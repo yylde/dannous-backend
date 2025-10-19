@@ -56,10 +56,10 @@ with psycopg2.connect(DatabaseManager().get_database_url()) as conn:
 
 ## Checking Current Schema
 
-To see the current draft_book table structure:
+To see the current draft_books table structure:
 
 ```sql
-\d draft_book
+\d draft_books
 ```
 
 Or programmatically:
@@ -72,7 +72,7 @@ with db.get_connection() as conn:
         cur.execute("""
             SELECT column_name, data_type 
             FROM information_schema.columns 
-            WHERE table_name = 'draft_book'
+            WHERE table_name = 'draft_books'
         """)
         for row in cur.fetchall():
             print(row)

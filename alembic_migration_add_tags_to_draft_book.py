@@ -19,28 +19,28 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """Upgrade schema - Add tags column to draft_book table."""
-    # Step 1: Add tags column to draft_book table (JSONB array)
+    """Upgrade schema - Add tags column to draft_books table."""
+    # Step 1: Add tags column to draft_books table (JSONB array)
     op.execute("""
-        ALTER TABLE draft_book 
+        ALTER TABLE draft_books 
         ADD COLUMN IF NOT EXISTS tags JSONB DEFAULT '[]';
     """)
     
     # Step 2: Add GIN index for efficient tag filtering
     op.execute("""
         CREATE INDEX IF NOT EXISTS idx_draft_book_tags 
-        ON draft_book USING GIN (tags);
+        ON draft_books USING GIN (tags);
     """)
     
     # Step 3: Add comment to document the column
     op.execute("""
-        COMMENT ON COLUMN draft_book.tags IS 
+        COMMENT ON COLUMN draft_books.tags IS 
         'AI-extracted tags for genre and grade-level categorization (e.g., ["adventure", "fantasy", "grades-4-6"])';
     """)
 
 
 def downgrade() -> None:
-    """Downgrade schema - Remove tags column from draft_book table."""
+    """Downgrade schema - Remove tags column from draft_books table."""
     # Step 1: Drop index
     op.execute("""
         DROP INDEX IF EXISTS idx_draft_book_tags;
@@ -48,6 +48,6 @@ def downgrade() -> None:
     
     # Step 2: Drop tags column
     op.execute("""
-        ALTER TABLE draft_book 
+        ALTER TABLE draft_books 
         DROP COLUMN IF EXISTS tags;
     """)
