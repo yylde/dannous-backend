@@ -450,18 +450,20 @@ Book Sample:
 {sample_text}
 
 Analyze this book and provide appropriate tags:
-1. Genre tags (2-3 tags): Select from: "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction", "humor", "horror", "romance", "poetry", "biography", "educational"
-2. Individual grade-level tags: Select ALL appropriate grades from: "grade-K", "grade-1", "grade-2", "grade-3", "grade-4", "grade-5", "grade-6", "grade-7", "grade-8", "grade-9", "grade-10", "grade-11", "grade-12"
-   - Include MULTIPLE grade tags if the book is appropriate for multiple grades
-   - For example, if suitable for 2nd-4th graders, include: "grade-2", "grade-3", "grade-4"
+1. Genre tags (as many as applicable, 1-4 tags): Select from: "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction", "humor", "horror", "romance", "poetry", "biography", "educational"
+2. Individual grade-level tags (MAXIMUM 4 GRADES): Select the 4 most likely grades from: "grade-K", "grade-1", "grade-2", "grade-3", "grade-4", "grade-5", "grade-6", "grade-7", "grade-8", "grade-9", "grade-10", "grade-11", "grade-12"
+   - Include ONLY the 4 most appropriate consecutive grades for this book
+   - For example, if suitable for 3rd-6th graders, include: "grade-3", "grade-4", "grade-5", "grade-6"
+   - LIMIT: Maximum 4 grade tags total
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
 - Return a simple array of strings
-- Include 2-3 genre tags + as many individual grade tags as appropriate (typically 2-5 grade tags)
+- Include 1-4 genre tags + EXACTLY 4 individual grade tags (or fewer if the book has a narrower audience)
+- Focus on the MOST LIKELY grades for this book
 
 EXACT FORMAT (copy this structure):
-{{"tags":["adventure","fantasy","grade-2","grade-3","grade-4"]}}
+{{"tags":["adventure","fantasy","grade-3","grade-4","grade-5","grade-6"]}}
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
         

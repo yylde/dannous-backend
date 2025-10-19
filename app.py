@@ -329,7 +329,7 @@ def create_or_update_draft():
 
 @app.route('/api/draft-chapter', methods=['POST'])
 def save_draft_chapter():
-    """Save a chapter to draft and trigger async question generation."""
+    """Save a chapter to draft. Question generation will be triggered by background watcher when tags are ready."""
     try:
         data = request.json
         draft_id = data.get('draft_id')
@@ -352,19 +352,14 @@ def save_draft_chapter():
             html_formatting=html_content
         )
         
-        # Trigger async question generation
-        import threading
-        thread = threading.Thread(
-            target=generate_questions_async,
-            args=(chapter_id, draft_id, title, content, html_content, data.get('age_range'), data.get('reading_level'))
-        )
-        thread.daemon = True
-        thread.start()
+        # Note: Question generation is now handled by the background watcher
+        # It will automatically trigger when tags are ready (either from AI or manual entry)
+        logger.info(f"Saved chapter {chapter_id} for draft {draft_id}. Questions will generate when tags are ready.")
         
         return jsonify({
             'success': True,
             'chapter_id': chapter_id,
-            'status': 'generating'
+            'status': 'pending'  # Status will be updated by watcher
         })
     
     except Exception as e:
@@ -625,5 +620,85 @@ def extract_description(text, max_length=500):
     
     return "No description available."
 
+# ==================== BACKGROUND WATCHER ====================
+
+def question_generation_watcher():
+    """
+    Background watcher that monitors chapters and triggers question generation when tags are ready.
+    Runs every 10 seconds to check for chapters with 'pending' status that have tags available.
+    """
+    import threading
+    import time
+    
+    logger.info("Started question generation watcher")
+    
+    while True:
+        try:
+            time.sleep(10)  # Check every 10 seconds
+            
+            db = DatabaseManager()
+            
+            # Find all chapters with 'pending' status
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        SELECT 
+                            dc.id, 
+                            dc.draft_id, 
+                            dc.title, 
+                            dc.content, 
+                            dc.html_formatting,
+                            db.age_range,
+                            db.reading_level,
+                            db.tag_status,
+                            db.tags
+                        FROM draft_chapters dc
+                        JOIN draft_book db ON dc.draft_id = db.id
+                        WHERE dc.question_status = 'pending'
+                          AND db.tag_status = 'ready'
+                          AND db.tags IS NOT NULL
+                          AND jsonb_array_length(db.tags) > 0
+                        ORDER BY dc.created_at ASC
+                        LIMIT 5
+                    """)
+                    
+                    pending_chapters = cur.fetchall()
+            
+            if pending_chapters:
+                logger.info(f"Found {len(pending_chapters)} chapters ready for question generation")
+                
+                for chapter in pending_chapters:
+                    chapter_id, draft_id, title, content, html_content, age_range, reading_level, tag_status, tags = chapter
+                    
+                    # Extract grade tags from tags array
+                    grade_tags = [tag for tag in tags if tag.startswith('grade-')]
+                    
+                    if grade_tags:
+                        logger.info(f"Triggering question generation for chapter {chapter_id} with grades: {grade_tags}")
+                        
+                        # Trigger async question generation
+                        thread = threading.Thread(
+                            target=generate_questions_async,
+                            args=(chapter_id, draft_id, title, content, html_content, age_range, reading_level)
+                        )
+                        thread.daemon = True
+                        thread.start()
+                    else:
+                        logger.warning(f"Chapter {chapter_id} has tags but no grade tags found: {tags}")
+        
+        except Exception as e:
+            logger.exception(f"Error in question generation watcher: {e}")
+            time.sleep(30)  # Wait longer after an error
+
+def start_question_generation_watcher():
+    """Start the question generation watcher in a daemon thread."""
+    import threading
+    watcher_thread = threading.Thread(target=question_generation_watcher, daemon=True)
+    watcher_thread.start()
+    logger.info("Question generation watcher thread started")
+
+# Start the watcher when the module is loaded
+start_question_generation_watcher()
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5002, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)

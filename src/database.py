@@ -258,7 +258,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    INSERT INTO draft_books (
+                    INSERT INTO draft_book (
                         gutenberg_id, title, author, full_text, full_html, age_range, 
                         reading_level, genre, cover_image_url, metadata
                     ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
@@ -289,7 +289,7 @@ class DatabaseManager:
                 if set_clauses:
                     set_clauses.append("updated_at = NOW()")
                     values.append(draft_id)
-                    query = f"UPDATE draft_books SET {', '.join(set_clauses)} WHERE id = %s"
+                    query = f"UPDATE draft_book SET {', '.join(set_clauses)} WHERE id = %s"
                     cur.execute(query, values)
     
     def get_all_drafts(self) -> List[dict]:
@@ -307,7 +307,7 @@ class DatabaseManager:
                         bd.created_at,
                         bd.updated_at,
                         COUNT(dc.id) as chapter_count
-                    FROM draft_books bd
+                    FROM draft_book bd
                     LEFT JOIN draft_chapters dc ON bd.id = dc.draft_id
                     WHERE bd.is_completed = false
                     GROUP BY bd.id
@@ -324,7 +324,7 @@ class DatabaseManager:
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, cover_image_url, metadata, 
                            tags, tag_status, created_at, updated_at
-                    FROM draft_books
+                    FROM draft_book
                     WHERE id = %s
                 """, (draft_id,))
                 result = cur.fetchone()
@@ -373,7 +373,7 @@ class DatabaseManager:
                 chapter_id = cur.fetchone()[0]
                 
                 # Update draft timestamp
-                cur.execute("UPDATE draft_books SET updated_at = NOW() WHERE id = %s", (draft_id,))
+                cur.execute("UPDATE draft_book SET updated_at = NOW() WHERE id = %s", (draft_id,))
                 return str(chapter_id)
     
     def get_draft_chapters(self, draft_id: str) -> List[dict]:
@@ -453,7 +453,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    UPDATE draft_books 
+                    UPDATE draft_book 
                     SET tag_status = %s,
                         updated_at = NOW()
                     WHERE id = %s
@@ -517,7 +517,7 @@ class DatabaseManager:
                 cur.execute("DELETE FROM draft_chapters WHERE id = %s", (chapter_id,))
                 
                 # Update draft timestamp
-                cur.execute("UPDATE draft_books SET updated_at = NOW() WHERE id = %s", (draft_id,))
+                cur.execute("UPDATE draft_book SET updated_at = NOW() WHERE id = %s", (draft_id,))
                 
                 return {'content': content, 'chapter_number': chapter_number}
     
@@ -525,11 +525,11 @@ class DatabaseManager:
         """Delete a draft and all its associated data (chapters, questions, vocabulary)."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                cur.execute("SELECT id FROM draft_books WHERE id = %s", (draft_id,))
+                cur.execute("SELECT id FROM draft_book WHERE id = %s", (draft_id,))
                 if not cur.fetchone():
                     return False
                 
-                cur.execute("DELETE FROM draft_books WHERE id = %s", (draft_id,))
+                cur.execute("DELETE FROM draft_book WHERE id = %s", (draft_id,))
                 return True
     
     def finalize_draft(self, draft_id: str) -> Tuple[str, int, int]:
@@ -539,7 +539,7 @@ class DatabaseManager:
                 # Get draft data
                 cur.execute("""
                     SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata, tags
-                    FROM draft_books WHERE id = %s
+                    FROM draft_book WHERE id = %s
                 """, (draft_id,))
                 draft = cur.fetchone()
                 if not draft:
@@ -627,7 +627,7 @@ class DatabaseManager:
                 
                 # Mark draft as completed
                 cur.execute("""
-                    UPDATE draft_books SET is_completed = true, updated_at = NOW()
+                    UPDATE draft_book SET is_completed = true, updated_at = NOW()
                     WHERE id = %s
                 """, (draft_id,))
                 
