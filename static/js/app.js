@@ -7,7 +7,6 @@ let currentChapter = {
     textChunks: [] // Array of {text, html, originalIndices}
 };
 let chapters = [];
-let difficultyRanges = {};
 let undoStack = [];
 let bookTextParts = []; // Store plain text parts for display
 let bookHtmlParts = []; // Store HTML parts for storage
@@ -16,7 +15,6 @@ let currentDraftId = null; // Track current draft
 let statusPollingInterval = null; // Track polling interval for chapter status updates
 
 document.addEventListener('DOMContentLoaded', () => {
-    loadDifficultyRanges();
     updateDifficultyRange();
     
     // Load drafts in sidebar on page load
@@ -142,26 +140,15 @@ function getSelectedParagraphIndices(selection) {
     return indices;
 }
 
-async function loadDifficultyRanges() {
-    try {
-        const response = await fetch('/api/difficulty-ranges');
-        difficultyRanges = await response.json();
-    } catch (error) {
-        console.error('Failed to load difficulty ranges:', error);
-    }
-}
-
 function updateDifficultyRange() {
     const level = document.getElementById('reading-level').value;
-    const range = difficultyRanges[level] || { min: 500, max: 1500 };
 
     const info = document.getElementById('difficulty-info');
     info.innerHTML = `
-        <strong>${level.charAt(0).toUpperCase() + level.slice(1)} Level:</strong> 
-        Recommended chapter word count: ${range.min} - ${range.max} words
+        <strong>Selected Level:</strong> ${level.charAt(0).toUpperCase() + level.slice(1)}
     `;
 
-    // Update chapter stats to reflect new target range
+    // Update chapter stats display
     updateChapterStats();
 }
 
@@ -439,27 +426,13 @@ function updateChapterFromEditable() {
 }
 
 function updateChapterStats() {
-    const level = document.getElementById('reading-level').value;
-    const range = difficultyRanges[level] || { min: 500, max: 1500 };
-    const ignoreCount = document.getElementById('ignore-word-count')?.checked || false;
-
     const wordCount = currentChapter.word_count;
-    const isValid = ignoreCount || (wordCount >= range.min && wordCount <= range.max);
-    const validClass = isValid ? 'valid' : 'invalid';
 
     const stats = document.getElementById('chapter-stats');
     stats.innerHTML = `
         <div class="stat-item">
-            <span class="stat-value ${validClass}">${wordCount}</span>
+            <span class="stat-value">${wordCount}</span>
             <span class="stat-label">Words</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value">${ignoreCount ? 'N/A' : `${range.min} - ${range.max}`}</span>
-            <span class="stat-label">Target Range</span>
-        </div>
-        <div class="stat-item">
-            <span class="stat-value ${validClass}">${ignoreCount ? '✓ Ignored' : (isValid ? '✓ Valid' : '✗ Out of Range')}</span>
-            <span class="stat-label">Status</span>
         </div>
     `;
 }
@@ -471,7 +444,6 @@ async function finishChapter() {
     }
 
     const title = document.getElementById('chapter-title').value || `Chapter ${chapters.length + 1}`;
-    const ignoreCount = document.getElementById('ignore-word-count')?.checked || false;
 
     // Save state for undo
     undoStack.push({
@@ -488,7 +460,6 @@ async function finishChapter() {
         content: currentChapter.content,
         html_content: currentChapter.html_content,
         word_count: currentChapter.word_count,
-        ignore_validation: ignoreCount,
         textChunks: currentChapter.textChunks,
         question_status: 'generating'
     };
@@ -505,7 +476,6 @@ async function finishChapter() {
     // Reset for next chapter
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
     document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
-    document.getElementById('ignore-word-count').checked = false;
 
     updateChapterDisplay();
     updateChapterStats();
@@ -547,7 +517,6 @@ function discardChapter() {
     // Clear the current chapter
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
     document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
-    document.getElementById('ignore-word-count').checked = false;
 
     updateChapterDisplay();
     updateChapterStats();
@@ -595,11 +564,6 @@ function updateChaptersList() {
     }
 
     container.innerHTML = chapters.map((chapter, index) => {
-        const level = document.getElementById('reading-level').value;
-        const range = difficultyRanges[level] || { min: 500, max: 1500 };
-        const isValid = chapter.ignore_validation || (chapter.word_count >= range.min && chapter.word_count <= range.max);
-        const statusColor = isValid ? '#48bb78' : '#f56565';
-        
         // Question status badge
         const questionStatus = chapter.question_status || 'pending';
         const statusBadge = `<span class="status-badge status-${questionStatus}">${questionStatus.toUpperCase()}</span>`;
@@ -615,8 +579,7 @@ function updateChaptersList() {
                     <button onclick="event.stopPropagation(); deleteChapter(${index})" class="delete-btn">Delete</button>
                 </div>
                 <div class="chapter-stats">
-                    <span style="color: ${statusColor};">${chapter.word_count} words</span>
-                    <span>${chapter.ignore_validation ? '✓ Validation ignored' : (isValid ? '✓ Valid' : '✗ Out of range')}</span>
+                    <span>${chapter.word_count} words</span>
                 </div>
                 ${chapter.id ? '<div style="font-size: 11px; color: #718096; margin-top: 4px;">Click to view questions</div>' : ''}
             </div>

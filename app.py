@@ -25,11 +25,8 @@ logger = logging.getLogger(__name__)
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)
 
-DIFFICULTY_RANGES = {
-    "beginner": {"min": 300, "max": 800},
-    "intermediate": {"min": 800, "max": 1500},
-    "advanced": {"min": 1500, "max": 2500}
-}
+# DIFFICULTY_RANGES removed - word count validation is no longer enforced
+# Reading levels are still used for AI question generation
 
 @app.route('/')
 def index():
@@ -182,10 +179,7 @@ def save_chapters():
         logger.exception("Save failed")
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/difficulty-ranges', methods=['GET'])
-def get_difficulty_ranges():
-    """Get word count ranges for each difficulty level."""
-    return jsonify(DIFFICULTY_RANGES)
+# Removed /api/difficulty-ranges endpoint - no longer validating word counts
 
 @app.route('/api/generate-title', methods=['POST'])
 def generate_title():
