@@ -502,12 +502,8 @@ def update_draft_tags_url(draft_id):
         
         db = DatabaseManager()
         
-        update_data = {
-            'tags': tags,
-            'cover_image_url': cover_image_url
-        }
-        
-        db.update_draft(draft_id, update_data)
+        # Update draft with unpacked keyword arguments
+        db.update_draft(draft_id, tags=tags, cover_image_url=cover_image_url)
         
         return jsonify({
             'success': True,
@@ -515,6 +511,54 @@ def update_draft_tags_url(draft_id):
         })
     except Exception as e:
         logger.exception("Failed to update tags and URL")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft/<draft_id>/regenerate-tags', methods=['POST'])
+def regenerate_tags(draft_id):
+    """Regenerate tags for a draft using AI."""
+    try:
+        db = DatabaseManager()
+        
+        # Get the draft to verify it exists
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # Check if tag generation is already in progress
+        current_tag_status = draft.get('tag_status')
+        if current_tag_status in ('pending', 'generating'):
+            logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (current status: {current_tag_status})")
+            return jsonify({
+                'error': 'Tag generation already in progress. Please wait for it to complete.'
+            }), 409
+        
+        # Set tag status to pending
+        db.update_draft_tag_status(draft_id, 'pending')
+        
+        # Start async tag generation
+        import threading
+        thread = threading.Thread(
+            target=generate_tags_async,
+            args=(
+                draft_id,
+                draft.get('title'),
+                draft.get('author'),
+                draft.get('full_text'),
+                draft.get('age_range'),
+                draft.get('reading_level')
+            )
+        )
+        thread.daemon = True
+        thread.start()
+        
+        logger.info(f"Started tag regeneration for draft {draft_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Tag regeneration started'
+        })
+    except Exception as e:
+        logger.exception("Failed to start tag regeneration")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/draft/<draft_id>/regenerate-questions', methods=['POST'])

@@ -24,6 +24,7 @@ The core application is a Flask web application (`app.py`) providing a REST API.
 - **Multi-Grade Question Generation:** Generates separate questions and vocabulary for EACH detected grade level. If a book is tagged for grades 2-4, it generates questions specifically for grade-2, grade-3, and grade-4 students.
 - **Grade-Specific Vocabulary:** Generates 8 vocabulary words per grade level, with definitions and examples tailored to that grade's comprehension level. Each vocabulary item includes a grade_level field.
 - **Question Regeneration:** Smart regeneration button that updates questions when grade tags change. Only processes changed grades: deletes questions for removed grades, generates questions for added grades, and preserves questions for unchanged grades. Automatically handles edge cases like removing all grade tags.
+- **Tag Regeneration:** AI-powered tag regeneration button that re-analyzes the book content and automatically triggers question regeneration when new tags are ready. Includes duplicate request protection to prevent concurrent tag generation jobs.
 - **Vocabulary Tooltips:** Injected into HTML content for interactive definitions.
 - **Book Cover URL:** Option to add a cover image URL to books.
 - **Reading Benchmarks:** A modal displaying reading benchmarks (WPM, total words, pages) by grade level.

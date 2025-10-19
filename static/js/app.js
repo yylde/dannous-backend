@@ -1742,6 +1742,124 @@ async function regenerateQuestions() {
     }
 }
 
+async function regenerateTags() {
+    if (!currentDraftId) {
+        showStatus('No draft selected', 'error');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        showStatus('Regenerating tags with AI...', 'info');
+        
+        // Trigger tag regeneration
+        const response = await fetch(`/api/draft/${currentDraftId}/regenerate-tags`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            // Handle 409 Conflict specifically (tag generation already in progress)
+            if (response.status === 409) {
+                showStatus('Tag generation is already in progress. Please wait...', 'warning');
+                return;
+            }
+            throw new Error(data.error || 'Failed to regenerate tags');
+        }
+        
+        showStatus('Tag regeneration started! AI is analyzing the book...', 'success');
+        
+        // Start polling for tag status and auto-trigger question regeneration when done
+        startTagStatusPollingWithAutoRegen(currentDraftId);
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function startTagStatusPollingWithAutoRegen(draftId) {
+    // Always stop existing polling first to prevent dangling intervals
+    stopTagStatusPolling();
+    
+    console.log('Started tag status polling with auto-regen for draft:', draftId);
+    
+    tagStatusPollingInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/draft/${draftId}`);
+            const data = await response.json();
+            
+            if (data.success && data.draft) {
+                const tagStatus = data.draft.tag_status;
+                console.log('Tag status:', tagStatus);
+                updateTagStatusBadge(tagStatus);
+                
+                if (tagStatus === 'ready') {
+                    if (data.draft.tags && data.draft.tags.length > 0) {
+                        currentTags = data.draft.tags;
+                        renderTags();
+                        console.log('✓ Tags loaded:', currentTags);
+                        stopTagStatusPolling();
+                        showStatus('Tags generated successfully! Now regenerating questions...', 'success');
+                        
+                        // Auto-trigger question regeneration after a brief delay
+                        setTimeout(() => {
+                            triggerQuestionRegenAfterTags();
+                        }, 1000);
+                    } else {
+                        console.warn('⚠ Tag status is ready but no tags returned');
+                        stopTagStatusPolling();
+                        showStatus('Tags generated but empty. Please add tags manually.', 'warning');
+                    }
+                } else if (tagStatus === 'error') {
+                    stopTagStatusPolling();
+                    console.error('✗ Tag generation failed - check if Ollama is running');
+                    showStatus('Tag generation failed. Check if Ollama is running, or add tags manually.', 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Tag status polling error:', error);
+        }
+    }, 2000);
+}
+
+async function triggerQuestionRegenAfterTags() {
+    try {
+        showLoading(true);
+        showStatus('Regenerating questions based on new tags...', 'info');
+        
+        const response = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to regenerate questions');
+        }
+        
+        showStatus('Question regeneration started! Updating all chapters...', 'success');
+        
+        // Start polling for chapter status updates
+        startStatusPolling();
+        
+        // Refresh the draft to show updated data
+        await loadDraft(currentDraftId);
+        
+    } catch (error) {
+        showStatus(`Error regenerating questions: ${error.message}`, 'error');
+        showLoading(false);
+    }
+}
+
 function startTagStatusPolling(draftId) {
     if (tagStatusPollingInterval) {
         clearInterval(tagStatusPollingInterval);
