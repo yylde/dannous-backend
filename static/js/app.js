@@ -255,17 +255,24 @@ async function downloadBook() {
         bookHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
 
         // Clear form values for new book
-        document.getElementById('age-range').value = '8-12';
         document.getElementById('reading-level').value = 'intermediate';
         document.getElementById('cover-image-url').value = '';
         
-        // Initialize tags as empty
+        // Initialize tags as empty and set status to pending
         currentTags = [];
         renderTags();
-        updateTagStatusBadge(null);
+        updateTagStatusBadge('pending'); // Show pending status initially
         
-        // Auto-save as draft
+        // Auto-save as draft (this triggers tag generation in backend)
         await saveDraft();
+        
+        // Start polling for tag status after a short delay (to allow backend to start)
+        if (currentDraftId) {
+            setTimeout(() => {
+                updateTagStatusBadge('generating'); // Update to generating
+                startTagStatusPolling(currentDraftId);
+            }, 1000);
+        }
         
         // Show draft info
         document.getElementById('draft-title').textContent = `${data.title} by ${data.author}`;
@@ -672,9 +679,8 @@ async function saveChapters() {
         }
     }
 
-    const ageRange = document.getElementById('age-range').value;
+    const ageRange = '8-12'; // Default age range
     const readingLevel = document.getElementById('reading-level').value;
-    const genre = document.getElementById('genre').value;
 
     showLoading(true);
     showStatus('Saving chapters and generating questions...', 'info');
@@ -687,8 +693,7 @@ async function saveChapters() {
                 chapters: chapters,
                 metadata: bookData.metadata,
                 age_range: ageRange,
-                reading_level: readingLevel,
-                genre: genre
+                reading_level: readingLevel
             })
         });
 
@@ -864,7 +869,6 @@ async function loadDraft(draftId) {
         });
         
         // Set form values
-        document.getElementById('age-range').value = draft.age_range || '8-12';
         document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
         document.getElementById('cover-image-url').value = draft.cover_image_url || '';
         
@@ -909,7 +913,7 @@ async function saveDraft() {
     if (!bookData) return null;
     
     try {
-        const ageRange = document.getElementById('age-range').value;
+        const ageRange = '8-12'; // Default age range
         const readingLevel = document.getElementById('reading-level').value;
         let coverImageUrl = document.getElementById('cover-image-url').value.trim();
         
@@ -967,7 +971,7 @@ async function saveDraftChapter(chapterData) {
     }
     
     try {
-        const ageRange = document.getElementById('age-range').value;
+        const ageRange = '8-12'; // Default age range
         const readingLevel = document.getElementById('reading-level').value;
         
         const response = await fetch('/api/draft-chapter', {
@@ -1298,6 +1302,8 @@ function startTagStatusPolling(draftId) {
         clearInterval(tagStatusPollingInterval);
     }
     
+    console.log('Started tag status polling for draft:', draftId);
+    
     tagStatusPollingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/draft/${draftId}`);
@@ -1305,14 +1311,20 @@ function startTagStatusPolling(draftId) {
             
             if (data.success && data.draft) {
                 const tagStatus = data.draft.tag_status;
+                console.log('Tag status:', tagStatus);
                 updateTagStatusBadge(tagStatus);
                 
-                if (tagStatus === 'ready' && data.draft.tags && data.draft.tags.length > 0) {
-                    currentTags = data.draft.tags;
-                    renderTags();
+                if (tagStatus === 'ready') {
+                    if (data.draft.tags && data.draft.tags.length > 0) {
+                        currentTags = data.draft.tags;
+                        renderTags();
+                        console.log('Tags loaded:', currentTags);
+                    }
                     stopTagStatusPolling();
+                    showStatus('Tags generated successfully!', 'success');
                 } else if (tagStatus === 'error') {
                     stopTagStatusPolling();
+                    showStatus('Tag generation failed. You can add tags manually.', 'error');
                 }
             }
         } catch (error) {
