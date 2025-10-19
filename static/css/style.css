@@ -469,6 +469,23 @@ select:focus {
     color: #2d3748 !important;
 }
 
+/* For question metadata (type/difficulty), make them editable but no border */
+[id^="q-type-"][contenteditable="true"],
+[id^="q-diff-"][contenteditable="true"] {
+    border: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+    display: inline !important;
+}
+
+[id^="q-type-"][contenteditable="true"]:focus,
+[id^="q-diff-"][contenteditable="true"]:focus {
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    text-decoration: underline;
+}
+
 .delete-btn {
     background: #fc8181;
     color: white;
