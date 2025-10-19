@@ -171,7 +171,7 @@ function startStatusPolling() {
     
     if (!currentDraftId) return;
     
-    // Set up polling every 3 seconds
+    // Set up polling every 1.5 seconds for more responsive updates
     statusPollingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/draft-chapters/${currentDraftId}`);
@@ -191,6 +191,7 @@ function startStatusPolling() {
                 if (localChapter && localChapter.question_status !== serverChapter.question_status) {
                     hasChanges = true;
                     localChapter.question_status = serverChapter.question_status;
+                    console.log(`✓ Chapter "${serverChapter.title}" status updated: ${serverChapter.question_status}`);
                 }
                 
                 // Check if any chapter is still generating
@@ -201,6 +202,7 @@ function startStatusPolling() {
             
             // Update UI if there were changes
             if (hasChanges) {
+                console.log('Updating chapters list with new statuses');
                 updateChaptersList();
             }
             
@@ -213,7 +215,7 @@ function startStatusPolling() {
         } catch (error) {
             console.error('Error polling chapter status:', error);
         }
-    }, 3000);
+    }, 1500);  // Poll every 1.5 seconds for faster per-chapter updates
     
     console.log('Started status polling');
 }
