@@ -1172,25 +1172,10 @@ function toggleEditQuestion(questionId, chapterId) {
         // Save mode
         saveQuestion(questionId, chapterId);
     } else {
-        // Edit mode
+        // Edit mode - CSS will handle the styling via [contenteditable="true"]
         textElem.contentEditable = 'true';
         typeElem.contentEditable = 'true';
         diffElem.contentEditable = 'true';
-        
-        textElem.style.backgroundColor = '#fff';
-        textElem.style.padding = '5px';
-        textElem.style.borderRadius = '3px';
-        textElem.style.border = '1px solid #cbd5e0';
-        
-        typeElem.style.backgroundColor = '#fff';
-        typeElem.style.padding = '2px 5px';
-        typeElem.style.borderRadius = '3px';
-        typeElem.style.border = '1px solid #cbd5e0';
-        
-        diffElem.style.backgroundColor = '#fff';
-        diffElem.style.padding = '2px 5px';
-        diffElem.style.borderRadius = '3px';
-        diffElem.style.border = '1px solid #cbd5e0';
         
         btn.textContent = 'Save';
         btn.classList.remove('edit-btn');
@@ -1244,16 +1229,6 @@ async function saveQuestion(questionId, chapterId) {
         textElem.contentEditable = 'false';
         typeElem.contentEditable = 'false';
         diffElem.contentEditable = 'false';
-        
-        textElem.style.backgroundColor = '';
-        textElem.style.padding = '';
-        textElem.style.border = '';
-        typeElem.style.backgroundColor = '';
-        typeElem.style.padding = '';
-        typeElem.style.border = '';
-        diffElem.style.backgroundColor = '';
-        diffElem.style.padding = '';
-        diffElem.style.border = '';
         
         btn.textContent = 'Edit';
         btn.classList.remove('save-btn');
