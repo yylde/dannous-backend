@@ -285,6 +285,143 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         ]
         
         return fallback[:num_questions]
+    
+    def generate_tags(
+        self,
+        title: str,
+        author: str,
+        book_text: str,
+        reading_level: str,
+        age_range: str
+    ) -> List[str]:
+        """
+        Generate tags (genre + grade level) for an entire book.
+        
+        Args:
+            title: Book title
+            author: Book author
+            book_text: Full book text or sample
+            reading_level: Reading level
+            age_range: Age range
+        
+        Returns:
+            List of tags (e.g., ["adventure", "fantasy", "grades-4-6"])
+        """
+        logger.info(f"Generating tags for book: {title} by {author}")
+        
+        # Take a sample from the beginning and middle of the book (max 3000 words)
+        words = book_text.split()
+        sample_size = min(3000, len(words))
+        
+        # Take 60% from beginning, 40% from middle
+        beginning_size = int(sample_size * 0.6)
+        middle_start = len(words) // 2
+        middle_size = sample_size - beginning_size
+        
+        beginning_text = ' '.join(words[:beginning_size])
+        middle_text = ' '.join(words[middle_start:middle_start + middle_size])
+        sample_text = beginning_text + '\n\n[...]\n\n' + middle_text
+        
+        # Build prompt for tag generation
+        prompt = f"""You are an expert librarian and educator analyzing children's books.
+
+Book: "{title}" by {author}
+Reading Level: {reading_level}
+Age Range: {age_range}
+
+Book Sample:
+{sample_text}
+
+Analyze this book and provide appropriate tags:
+1. Genre tags (2-3 tags): Select from: "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction", "humor", "horror", "romance", "poetry", "biography", "educational"
+2. Grade-level tags (1 tag): Select from: "grades-K-2", "grades-1-3", "grades-4-6", "grades-7-9", "grades-10-12"
+
+CRITICAL INSTRUCTIONS:
+- Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
+- Return a simple array of strings
+- Select 3-5 tags total
+
+EXACT FORMAT (copy this structure):
+{{"tags":["adventure","fantasy","grades-4-6"]}}
+
+Your entire response must be valid JSON starting with {{ and ending with }}"""
+        
+        # Call Ollama with retries
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = self._call_ollama(prompt)
+                tags = self._parse_tags_response(response)
+                
+                if tags:
+                    logger.info(f"✓ Generated {len(tags)} tags for book: {tags}")
+                    return tags
+                
+            except Exception as e:
+                logger.warning(f"Tag generation attempt {attempt + 1} failed: {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+        
+        # Fallback: return generic tags based on reading level
+        logger.warning("Using fallback tags")
+        return self._generate_fallback_tags(reading_level)
+    
+    def _parse_tags_response(self, response: str) -> List[str]:
+        """Parse tags-only response from LLM."""
+        try:
+            # Clean up response
+            response = response.strip()
+            
+            # Remove markdown code blocks if present
+            if '```json' in response:
+                response = response.split('```json')[1].split('```')[0].strip()
+            elif '```' in response:
+                parts = response.split('```')
+                for part in parts:
+                    part = part.strip()
+                    if part.startswith('{') and part.endswith('}'):
+                        response = part
+                        break
+            
+            # Try to find JSON object
+            if not response.startswith('{'):
+                start_idx = response.find('{')
+                if start_idx != -1:
+                    response = response[start_idx:]
+            
+            if not response.endswith('}'):
+                end_idx = response.rfind('}')
+                if end_idx != -1:
+                    response = response[:end_idx + 1]
+            
+            # Parse JSON
+            data = json.loads(response)
+            
+            # Extract tags
+            tags = []
+            if 'tags' in data and isinstance(data['tags'], list):
+                tags = [str(tag).strip() for tag in data['tags'] if tag]
+            
+            return tags
+            
+        except Exception as e:
+            logger.error(f"Error parsing tags response: {e}")
+            logger.debug(f"Response was: {response[:500]}")
+            return []
+    
+    def _generate_fallback_tags(self, reading_level: str) -> List[str]:
+        """Generate fallback tags based on reading level."""
+        # Map reading level to grade tags
+        level_map = {
+            'beginner': 'grades-K-2',
+            'early-reader': 'grades-1-3',
+            'intermediate': 'grades-4-6',
+            'advanced': 'grades-7-9',
+            'young-adult': 'grades-10-12'
+        }
+        
+        grade_tag = level_map.get(reading_level, 'grades-4-6')
+        return ['fiction', grade_tag]
 
 
 def save_prompt_template(filepath: str = "prompts/question_generation.txt"):
