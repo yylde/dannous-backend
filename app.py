@@ -283,6 +283,23 @@ def create_or_update_draft():
                 db.update_draft(draft_id, **update_fields)
             return jsonify({'success': True, 'draft_id': draft_id})
         else:
+            # Check if a draft with this Gutenberg ID already exists
+            # Normalize the input (strip whitespace, convert to int)
+            gutenberg_id = data.get('gutenberg_id')
+            if gutenberg_id:
+                # Normalize to integer to avoid string formatting issues
+                try:
+                    gutenberg_id = int(str(gutenberg_id).strip())
+                except (ValueError, TypeError):
+                    pass
+                existing_draft = db.get_draft_by_gutenberg_id(gutenberg_id)
+                if existing_draft:
+                    logger.info(f"Draft with Gutenberg ID {gutenberg_id} already exists: {existing_draft['id']}")
+                    return jsonify({
+                        'error': f"A draft for this book already exists: '{existing_draft['title']}' by {existing_draft['author']}",
+                        'existing_draft_id': existing_draft['id']
+                    }), 409
+            
             # Create new draft - database connection closes automatically at end of context
             draft_id = db.create_draft(
                 gutenberg_id=data.get('gutenberg_id'),

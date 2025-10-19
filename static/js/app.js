@@ -253,59 +253,117 @@ async function downloadBook() {
         // Stop any existing polling when loading a new book
         stopStatusPolling();
         
+        // Try to save as draft, handle duplicate detection
         bookData = data;
-        chapters = [];
-        currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
-        undoStack = [];
-        deletedIndices = new Set();
-
-        // Initialize book text parts (plain text for display)
-        bookTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
+        const draftResponse = await saveDraftAfterDownload();
         
-        // Initialize book HTML parts (HTML for storage)
-        bookHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
-
-        // Clear form values for new book
-        document.getElementById('reading-level').value = 'intermediate';
-        document.getElementById('cover-image-url').value = '';
-        
-        // Initialize tags as empty and set status to pending
-        currentTags = [];
-        renderTags();
-        updateTagStatusBadge('pending'); // Show pending status initially
-        
-        // Auto-save as draft (this triggers tag generation in backend)
-        await saveDraft();
-        
-        // Start polling for tag status after a short delay (to allow backend to start)
-        if (currentDraftId) {
-            setTimeout(() => {
-                updateTagStatusBadge('generating'); // Update to generating
-                startTagStatusPolling(currentDraftId);
-            }, 1000);
+        if (!draftResponse.success) {
+            // If it's a duplicate, offer to load the existing draft
+            if (draftResponse.status === 409 && draftResponse.existing_draft_id) {
+                const loadExisting = confirm(draftResponse.error + '\n\nWould you like to open the existing draft instead?');
+                if (loadExisting) {
+                    await loadDraft(draftResponse.existing_draft_id);
+                    return;
+                } else {
+                    showStatus('Book download cancelled. Select a different book or continue editing the existing draft.', 'warning');
+                    return;
+                }
+            }
+            throw new Error(draftResponse.error || 'Failed to save draft');
         }
         
-        // Show draft info
-        document.getElementById('draft-title').textContent = `${data.title} by ${data.author}`;
-        document.getElementById('current-draft-info').style.display = 'block';
-
-        showBookInfo(data);
-        displayFullBook();
-        updateChapterStats();
-        updateChaptersList();
-        updateUndoButton();
-        
-        // Refresh sidebar to show new draft
-        loadDraftsInSidebar();
-
-        document.getElementById('book-section').style.display = 'block';
-        showStatus(`Book loaded and saved as draft: ${data.title} by ${data.author}`, 'success');
+        // Continue with normal flow
+        setupNewBookAfterDownload();
 
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
         showLoading(false);
     }
+}
+
+async function saveDraftAfterDownload() {
+    try {
+        const response = await fetch('/api/draft', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                gutenberg_id: bookData.book_id,
+                title: bookData.title,
+                author: bookData.author,
+                full_text: bookData.full_text,
+                full_html: bookData.full_html,
+                metadata: bookData.metadata,
+                age_range: document.getElementById('age-range').value,
+                reading_level: document.getElementById('reading-level').value,
+                genre: document.getElementById('genre').value
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok) {
+            currentDraftId = data.draft_id;
+            return { success: true };
+        } else {
+            return { 
+                success: false, 
+                error: data.error,
+                status: response.status,
+                existing_draft_id: data.existing_draft_id
+            };
+        }
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+}
+
+function setupNewBookAfterDownload() {
+    if (!bookData) return;
+    
+    chapters = [];
+    currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
+    undoStack = [];
+    deletedIndices = new Set();
+
+    // Initialize book text parts (plain text for display)
+    bookTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
+    
+    // Initialize book HTML parts (HTML for storage)
+    bookHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
+
+    // Clear form values for new book
+    document.getElementById('reading-level').value = 'intermediate';
+    document.getElementById('cover-image-url').value = '';
+    
+    // Initialize tags as empty and set status to pending
+    currentTags = [];
+    renderTags();
+    updateTagStatusBadge('pending');
+    
+    // Start polling for tag status after a short delay (to allow backend to start)
+    if (currentDraftId) {
+        setTimeout(() => {
+            updateTagStatusBadge('generating');
+            startTagStatusPolling(currentDraftId);
+        }, 1000);
+    }
+    
+    // Show draft info
+    document.getElementById('draft-title').textContent = `${bookData.title} by ${bookData.author}`;
+    document.getElementById('current-draft-info').style.display = 'block';
+
+    showBookInfo(bookData);
+    displayFullBook();
+    updateChapterStats();
+    updateChaptersList();
+    updateUndoButton();
+    
+    // Refresh sidebar to show new draft
+    loadDraftsInSidebar();
+
+    document.getElementById('book-section').style.display = 'block';
+    showStatus(`Book loaded and saved as draft: ${bookData.title} by ${bookData.author}`, 'success');
 }
 
 function showBookInfo(data) {

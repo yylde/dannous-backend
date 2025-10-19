@@ -316,6 +316,26 @@ class DatabaseManager:
                 columns = [desc[0] for desc in cur.description]
                 return [dict(zip(columns, row)) for row in cur.fetchall()]
     
+    def get_draft_by_gutenberg_id(self, gutenberg_id: int) -> Optional[dict]:
+        """Check if a draft with this Gutenberg ID already exists."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, title, author, created_at
+                    FROM draft_books
+                    WHERE gutenberg_id = %s AND is_completed = false
+                    LIMIT 1
+                """, (gutenberg_id,))
+                row = cur.fetchone()
+                if row:
+                    return {
+                        'id': str(row[0]),
+                        'title': row[1],
+                        'author': row[2],
+                        'created_at': row[3].isoformat() if row[3] else None
+                    }
+                return None
+    
     def get_draft(self, draft_id: str) -> Optional[dict]:
         """Get a specific draft with all its data."""
         with self.get_connection() as conn:
