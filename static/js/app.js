@@ -1676,11 +1676,38 @@ async function saveTagsAndUrl() {
             throw new Error(data.error || 'Failed to save');
         }
         
-        showStatus('Tags and cover URL saved successfully!', 'success');
+        showStatus('Tags and cover URL saved successfully! Regenerating questions...', 'success');
+        
+        // Automatically trigger question regeneration after saving tags
+        setTimeout(async () => {
+            try {
+                showStatus('Regenerating questions based on grade tags...', 'info');
+                
+                const regenResponse = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const regenData = await regenResponse.json();
+                
+                if (!regenResponse.ok) {
+                    throw new Error(regenData.error || 'Failed to regenerate questions');
+                }
+                
+                showStatus('Question regeneration started! Updating chapters...', 'success');
+                startStatusPolling();
+                
+            } catch (regenError) {
+                showStatus(`Error regenerating questions: ${regenError.message}`, 'error');
+            } finally {
+                showLoading(false);
+            }
+        }, 500);
         
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
-    } finally {
         showLoading(false);
     }
 }
