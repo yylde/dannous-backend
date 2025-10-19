@@ -874,11 +874,13 @@ async function loadDraft(draftId) {
         
         // Load tags and tag status
         currentTags = draft.tags || [];
+        console.log('Draft loaded - Tags:', currentTags, 'Status:', draft.tag_status);
         renderTags();
         updateTagStatusBadge(draft.tag_status);
         
         // Start tag status polling if generating
         if (draft.tag_status === 'pending' || draft.tag_status === 'generating') {
+            console.log('Starting tag status polling...');
             startTagStatusPolling(draftId);
         }
         
@@ -1318,13 +1320,17 @@ function startTagStatusPolling(draftId) {
                     if (data.draft.tags && data.draft.tags.length > 0) {
                         currentTags = data.draft.tags;
                         renderTags();
-                        console.log('Tags loaded:', currentTags);
+                        console.log('✓ Tags loaded:', currentTags);
+                        stopTagStatusPolling();
+                        showStatus('Tags generated successfully!', 'success');
+                    } else {
+                        console.warn('⚠ Tag status is ready but no tags returned');
+                        stopTagStatusPolling();
                     }
-                    stopTagStatusPolling();
-                    showStatus('Tags generated successfully!', 'success');
                 } else if (tagStatus === 'error') {
                     stopTagStatusPolling();
-                    showStatus('Tag generation failed. You can add tags manually.', 'error');
+                    console.error('✗ Tag generation failed - check if Ollama is running');
+                    showStatus('Tag generation failed. Check if Ollama is running, or add tags manually.', 'error');
                 }
             }
         } catch (error) {
