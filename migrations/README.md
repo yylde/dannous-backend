@@ -5,21 +5,21 @@ This project uses SQL migration files to manage database schema changes.
 ## Migration Files
 
 Migration files are numbered sequentially and stored in this directory:
-- `001_add_book_drafts.sql` - Initial draft system tables
-- `002_add_tags_to_book_drafts.sql` - Add tags column for AI categorization
+- `001_add_draft_book.sql` - Initial draft system tables
+- `002_add_tags_to_draft_book.sql` - Add tags column for AI categorization
 
 ## Running Migrations
 
 ### Option 1: Using the migration runner script (Recommended)
 
 ```bash
-python run_migration.py migrations/002_add_tags_to_book_drafts.sql
+python run_migration.py migrations/002_add_tags_to_draft_book.sql
 ```
 
 ### Option 2: Using psql directly
 
 ```bash
-psql $DATABASE_URL -f migrations/002_add_tags_to_book_drafts.sql
+psql $DATABASE_URL -f migrations/002_add_tags_to_draft_book.sql
 ```
 
 ### Option 3: Using the Python script directly
@@ -30,7 +30,7 @@ import psycopg2
 
 with psycopg2.connect(DatabaseManager().get_database_url()) as conn:
     with conn.cursor() as cur:
-        with open('migrations/002_add_tags_to_book_drafts.sql', 'r') as f:
+        with open('migrations/002_add_tags_to_draft_book.sql', 'r') as f:
             cur.execute(f.read())
     conn.commit()
 ```
@@ -56,10 +56,10 @@ with psycopg2.connect(DatabaseManager().get_database_url()) as conn:
 
 ## Checking Current Schema
 
-To see the current book_drafts table structure:
+To see the current draft_book table structure:
 
 ```sql
-\d book_drafts
+\d draft_book
 ```
 
 Or programmatically:
@@ -72,7 +72,7 @@ with db.get_connection() as conn:
         cur.execute("""
             SELECT column_name, data_type 
             FROM information_schema.columns 
-            WHERE table_name = 'book_drafts'
+            WHERE table_name = 'draft_book'
         """)
         for row in cur.fetchall():
             print(row)

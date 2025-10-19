@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Simple migration runner for SQL migration files.
-Usage: python run_migration.py migrations/002_add_tags_to_book_drafts.sql
+Usage: python run_migration.py migrations/002_add_tags_to_draft_book.sql
 """
 import sys
 import psycopg2
@@ -43,7 +43,7 @@ def run_migration(migration_file):
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python run_migration.py <migration_file>")
-        print("Example: python run_migration.py migrations/002_add_tags_to_book_drafts.sql")
+        print("Example: python run_migration.py migrations/002_add_tags_to_draft_book.sql")
         sys.exit(1)
     
     migration_file = sys.argv[1]
