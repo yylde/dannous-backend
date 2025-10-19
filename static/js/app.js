@@ -14,6 +14,17 @@ let deletedIndices = new Set(); // Track which indices have been deleted
 let currentDraftId = null; // Track current draft
 let statusPollingInterval = null; // Track polling interval for chapter status updates
 
+// Helper function to escape HTML for use in attributes
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     updateDifficultyRange();
     
@@ -1064,17 +1075,31 @@ async function viewChapter(chapterId) {
                     modalHTML += `<div style="margin-bottom: 20px;">`;
                     modalHTML += `<h4 style="color: #4a5568; margin-bottom: 10px;">Questions:</h4>`;
                     questions.forEach((q, i) => {
+                        const keywordsStr = escapeHtml(JSON.stringify(q.expected_keywords || []));
+                        const questionTextEscaped = escapeHtml(q.question_text || '');
+                        const questionTypeEscaped = escapeHtml(q.question_type || '');
+                        const difficultyEscaped = escapeHtml(q.difficulty_level || '');
+                        
                         modalHTML += `
-                            <div class="question-item" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
+                            <div class="question-item" id="question-container-${q.id}" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
                                 <div style="display: flex; justify-content: space-between; align-items: start;">
                                     <div style="flex: 1;">
-                                        <strong>Q${i + 1}:</strong> <span id="q-text-${q.id}">${q.question_text}</span>
-                                        <div style="margin-top: 5px; font-size: 12px; color: #718096;">
-                                            <em>Type: ${q.question_type} | Difficulty: ${q.difficulty_level}</em>
+                                        <strong>Q${i + 1}:</strong> 
+                                        <span id="q-text-${q.id}" 
+                                              data-original="${questionTextEscaped}"
+                                              data-type="${questionTypeEscaped}"
+                                              data-difficulty="${difficultyEscaped}"
+                                              data-keywords="${keywordsStr}"
+                                              data-min="${q.min_word_count}"
+                                              data-max="${q.max_word_count}"
+                                              style="display: inline;">${q.question_text}</span>
+                                        <div id="q-meta-${q.id}" style="margin-top: 5px; font-size: 12px; color: #718096;">
+                                            <em>Type: <span id="q-type-${q.id}" data-original="${questionTypeEscaped}">${q.question_type}</span> | 
+                                            Difficulty: <span id="q-diff-${q.id}" data-original="${difficultyEscaped}">${q.difficulty_level}</span></em>
                                         </div>
                                     </div>
-                                    <div style="margin-left: 10px;">
-                                        <button onclick="editQuestion('${q.id}', '${chapterId}')" class="edit-btn" style="margin-right: 5px;">Edit</button>
+                                    <div style="margin-left: 10px; white-space: nowrap;">
+                                        <button id="edit-q-btn-${q.id}" onclick="toggleEditQuestion('${q.id}', '${chapterId}')" class="edit-btn" style="margin-right: 5px;">Edit</button>
                                         <button onclick="deleteQuestionItem('${q.id}', '${chapterId}')" class="delete-btn">Delete</button>
                                     </div>
                                 </div>
@@ -1094,16 +1119,20 @@ async function viewChapter(chapterId) {
                         modalHTML += `<div style="margin-top: 20px;">`;
                         modalHTML += `<h4 style="color: #4a5568; margin-bottom: 10px;">Vocabulary:</h4>`;
                         gradeVocab.forEach(v => {
+                            const wordEscaped = escapeHtml(v.word || '');
+                            const defEscaped = escapeHtml(v.definition || '');
+                            const exEscaped = escapeHtml(v.example || '');
+                            
                             modalHTML += `
-                                <div class="vocab-item" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
+                                <div class="vocab-item" id="vocab-container-${v.id}" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
                                         <div style="flex: 1;">
-                                            <div class="vocab-word" style="font-weight: bold; color: #2d3748;">${v.word}</div>
-                                            <div class="vocab-definition" style="margin-top: 5px; color: #4a5568;">${v.definition}</div>
-                                            ${v.example ? `<div class="vocab-example" style="margin-top: 5px; font-style: italic; color: #718096;">"${v.example}"</div>` : ''}
+                                            <div id="v-word-${v.id}" class="vocab-word" data-original="${wordEscaped}" style="font-weight: bold; color: #2d3748;">${v.word}</div>
+                                            <div id="v-def-${v.id}" class="vocab-definition" data-original="${defEscaped}" style="margin-top: 5px; color: #4a5568;">${v.definition}</div>
+                                            <div id="v-ex-${v.id}" class="vocab-example" data-original="${exEscaped}" style="margin-top: 5px; font-style: italic; color: #718096;">${v.example ? `"${v.example}"` : ''}</div>
                                         </div>
-                                        <div style="margin-left: 10px;">
-                                            <button onclick="editVocabulary('${v.id}', '${chapterId}')" class="edit-btn" style="margin-right: 5px;">Edit</button>
+                                        <div style="margin-left: 10px; white-space: nowrap;">
+                                            <button id="edit-v-btn-${v.id}" onclick="toggleEditVocabulary('${v.id}', '${chapterId}')" class="edit-btn" style="margin-right: 5px;">Edit</button>
                                             <button onclick="deleteVocabularyItem('${v.id}', '${chapterId}')" class="delete-btn">Delete</button>
                                         </div>
                                     </div>
@@ -1130,15 +1159,69 @@ function closeChapterModal() {
     document.getElementById('chapter-modal').style.display = 'none';
 }
 
-async function editQuestion(questionId, chapterId) {
-    const questionText = prompt('Enter new question text:');
-    if (!questionText) return;
+function toggleEditQuestion(questionId, chapterId) {
+    const textElem = document.getElementById(`q-text-${questionId}`);
+    const typeElem = document.getElementById(`q-type-${questionId}`);
+    const diffElem = document.getElementById(`q-diff-${questionId}`);
+    const btn = document.getElementById(`edit-q-btn-${questionId}`);
     
-    const questionType = prompt('Enter question type (comprehension, inference, etc.):', 'comprehension');
-    const difficulty = prompt('Enter difficulty (easy, medium, hard):', 'medium');
+    if (!textElem || !btn) return;
+    
+    // Check if currently in edit mode
+    if (textElem.contentEditable === 'true') {
+        // Save mode
+        saveQuestion(questionId, chapterId);
+    } else {
+        // Edit mode
+        textElem.contentEditable = 'true';
+        typeElem.contentEditable = 'true';
+        diffElem.contentEditable = 'true';
+        
+        textElem.style.backgroundColor = '#fff';
+        textElem.style.padding = '5px';
+        textElem.style.borderRadius = '3px';
+        textElem.style.border = '1px solid #cbd5e0';
+        
+        typeElem.style.backgroundColor = '#fff';
+        typeElem.style.padding = '2px 5px';
+        typeElem.style.borderRadius = '3px';
+        typeElem.style.border = '1px solid #cbd5e0';
+        
+        diffElem.style.backgroundColor = '#fff';
+        diffElem.style.padding = '2px 5px';
+        diffElem.style.borderRadius = '3px';
+        diffElem.style.border = '1px solid #cbd5e0';
+        
+        btn.textContent = 'Save';
+        btn.classList.remove('edit-btn');
+        btn.classList.add('save-btn');
+        
+        textElem.focus();
+    }
+}
+
+async function saveQuestion(questionId, chapterId) {
+    const textElem = document.getElementById(`q-text-${questionId}`);
+    const typeElem = document.getElementById(`q-type-${questionId}`);
+    const diffElem = document.getElementById(`q-diff-${questionId}`);
+    const btn = document.getElementById(`edit-q-btn-${questionId}`);
+    
+    const questionText = textElem.innerText.trim();
+    const questionType = typeElem.innerText.trim();
+    const difficulty = diffElem.innerText.trim();
+    
+    if (!questionText) {
+        showStatus('Question text cannot be empty', 'error');
+        return;
+    }
     
     try {
         showLoading(true);
+        
+        const keywords = JSON.parse(textElem.dataset.keywords || '[]');
+        const minWords = parseInt(textElem.dataset.min) || 20;
+        const maxWords = parseInt(textElem.dataset.max) || 200;
+        
         const response = await fetch(`/api/question/${questionId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1146,9 +1229,9 @@ async function editQuestion(questionId, chapterId) {
                 question_text: questionText,
                 question_type: questionType,
                 difficulty_level: difficulty,
-                expected_keywords: [],
-                min_word_count: 20,
-                max_word_count: 200
+                expected_keywords: keywords,
+                min_word_count: minWords,
+                max_word_count: maxWords
             })
         });
         
@@ -1157,8 +1240,31 @@ async function editQuestion(questionId, chapterId) {
             throw new Error(data.error || 'Failed to update question');
         }
         
+        // Exit edit mode
+        textElem.contentEditable = 'false';
+        typeElem.contentEditable = 'false';
+        diffElem.contentEditable = 'false';
+        
+        textElem.style.backgroundColor = '';
+        textElem.style.padding = '';
+        textElem.style.border = '';
+        typeElem.style.backgroundColor = '';
+        typeElem.style.padding = '';
+        typeElem.style.border = '';
+        diffElem.style.backgroundColor = '';
+        diffElem.style.padding = '';
+        diffElem.style.border = '';
+        
+        btn.textContent = 'Edit';
+        btn.classList.remove('save-btn');
+        btn.classList.add('edit-btn');
+        
+        // Update data attributes
+        textElem.dataset.original = questionText;
+        typeElem.dataset.original = questionType;
+        diffElem.dataset.original = difficulty;
+        
         showStatus('Question updated successfully', 'success');
-        viewChapter(chapterId); // Reload the view
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -1189,14 +1295,66 @@ async function deleteQuestionItem(questionId, chapterId) {
     }
 }
 
-async function editVocabulary(vocabId, chapterId) {
-    const word = prompt('Enter word:');
-    if (!word) return;
+function toggleEditVocabulary(vocabId, chapterId) {
+    const wordElem = document.getElementById(`v-word-${vocabId}`);
+    const defElem = document.getElementById(`v-def-${vocabId}`);
+    const exElem = document.getElementById(`v-ex-${vocabId}`);
+    const btn = document.getElementById(`edit-v-btn-${vocabId}`);
     
-    const definition = prompt('Enter definition:');
-    if (!definition) return;
+    if (!wordElem || !btn) return;
     
-    const example = prompt('Enter example sentence (optional):') || '';
+    // Check if currently in edit mode
+    if (wordElem.contentEditable === 'true') {
+        // Save mode
+        saveVocabulary(vocabId, chapterId);
+    } else {
+        // Edit mode
+        wordElem.contentEditable = 'true';
+        defElem.contentEditable = 'true';
+        exElem.contentEditable = 'true';
+        
+        wordElem.style.backgroundColor = '#fff';
+        wordElem.style.padding = '5px';
+        wordElem.style.borderRadius = '3px';
+        wordElem.style.border = '1px solid #cbd5e0';
+        
+        defElem.style.backgroundColor = '#fff';
+        defElem.style.padding = '5px';
+        defElem.style.borderRadius = '3px';
+        defElem.style.border = '1px solid #cbd5e0';
+        
+        exElem.style.backgroundColor = '#fff';
+        exElem.style.padding = '5px';
+        exElem.style.borderRadius = '3px';
+        exElem.style.border = '1px solid #cbd5e0';
+        
+        btn.textContent = 'Save';
+        btn.classList.remove('edit-btn');
+        btn.classList.add('save-btn');
+        
+        wordElem.focus();
+    }
+}
+
+async function saveVocabulary(vocabId, chapterId) {
+    const wordElem = document.getElementById(`v-word-${vocabId}`);
+    const defElem = document.getElementById(`v-def-${vocabId}`);
+    const exElem = document.getElementById(`v-ex-${vocabId}`);
+    const btn = document.getElementById(`edit-v-btn-${vocabId}`);
+    
+    const word = wordElem.innerText.trim();
+    const definition = defElem.innerText.trim();
+    const example = exElem.innerText.trim().replace(/^"|"$/g, ''); // Remove quotes if present
+    
+    if (!word) {
+        showStatus('Word cannot be empty', 'error');
+        return;
+    }
+    
+    if (!definition) {
+        showStatus('Definition cannot be empty', 'error');
+        return;
+    }
     
     try {
         showLoading(true);
@@ -1215,8 +1373,32 @@ async function editVocabulary(vocabId, chapterId) {
             throw new Error(data.error || 'Failed to update vocabulary');
         }
         
+        // Exit edit mode
+        wordElem.contentEditable = 'false';
+        defElem.contentEditable = 'false';
+        exElem.contentEditable = 'false';
+        
+        wordElem.style.backgroundColor = '';
+        wordElem.style.padding = '';
+        wordElem.style.border = '';
+        defElem.style.backgroundColor = '';
+        defElem.style.padding = '';
+        defElem.style.border = '';
+        exElem.style.backgroundColor = '';
+        exElem.style.padding = '';
+        exElem.style.border = '';
+        
+        btn.textContent = 'Edit';
+        btn.classList.remove('save-btn');
+        btn.classList.add('edit-btn');
+        
+        // Update display
+        wordElem.dataset.original = word;
+        defElem.dataset.original = definition;
+        exElem.dataset.original = example;
+        exElem.innerHTML = example ? `"${example}"` : '';
+        
         showStatus('Vocabulary updated successfully', 'success');
-        viewChapter(chapterId); // Reload the view
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {

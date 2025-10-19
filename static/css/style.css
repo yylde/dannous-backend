@@ -410,6 +410,34 @@ select:focus {
     color: #718096;
 }
 
+.edit-btn {
+    background: #4299e1;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.edit-btn:hover {
+    background: #3182ce;
+}
+
+.save-btn {
+    background: #48bb78;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+}
+
+.save-btn:hover {
+    background: #38a169;
+}
+
 .delete-btn {
     background: #fc8181;
     color: white;
