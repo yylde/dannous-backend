@@ -296,6 +296,25 @@ def create_or_update_draft():
                 metadata=data.get('metadata', {}),
                 full_html=data.get('full_html')
             )
+            
+            # Trigger async tag generation for the book
+            import threading
+            thread = threading.Thread(
+                target=generate_tags_async,
+                args=(
+                    draft_id,
+                    data.get('title'),
+                    data.get('author'),
+                    data.get('full_text'),
+                    data.get('age_range', settings.default_age_range),
+                    data.get('reading_level', settings.default_reading_level)
+                )
+            )
+            thread.daemon = True
+            thread.start()
+            
+            logger.info(f"Started async tag generation for draft {draft_id}")
+            
             return jsonify({'success': True, 'draft_id': draft_id})
     
     except Exception as e:
@@ -450,11 +469,6 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
         
         db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data)
         
-        # Save tags to the draft (only if this is the first chapter)
-        draft_chapters = db.get_draft_chapters(draft_id)
-        if len(draft_chapters) == 1 and tags_data:
-            db.update_draft(draft_id, tags=tags_data)
-        
         # Apply vocabulary abbr tags to HTML content (not plain text)
         html_with_abbr = inject_vocabulary_abbr(html_content or content, vocabulary_data)
         
@@ -472,6 +486,35 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
         logger.exception(f"Failed to generate questions for chapter {chapter_id}")
         db = DatabaseManager()
         db.update_chapter_question_status(chapter_id, 'error')
+
+def generate_tags_async(draft_id, title, author, full_text, age_range, reading_level):
+    """Generate tags asynchronously in background for a book."""
+    try:
+        db = DatabaseManager()
+        db.update_draft_tag_status(draft_id, 'generating')
+        
+        generator = QuestionGenerator()
+        tags_data = generator.generate_tags(
+            title=title,
+            author=author,
+            book_text=full_text,
+            reading_level=reading_level or settings.default_reading_level,
+            age_range=age_range or settings.default_age_range
+        )
+        
+        # Save tags to the draft
+        if tags_data:
+            db.update_draft(draft_id, tags=tags_data)
+            db.update_draft_tag_status(draft_id, 'ready')
+            logger.info(f"Generated {len(tags_data)} tags for draft {draft_id}: {tags_data}")
+        else:
+            db.update_draft_tag_status(draft_id, 'error')
+            logger.warning(f"No tags generated for draft {draft_id}")
+        
+    except Exception as e:
+        logger.exception(f"Failed to generate tags for draft {draft_id}")
+        db = DatabaseManager()
+        db.update_draft_tag_status(draft_id, 'error')
 
 def split_into_pages(text, words_per_page=500):
     """Split text into pages for easier navigation, preserving paragraph structure."""

@@ -438,6 +438,17 @@ class DatabaseManager:
                     WHERE id = %s
                 """, (status, status, chapter_id))
     
+    def update_draft_tag_status(self, draft_id: str, status: str) -> None:
+        """Update tag generation status for a draft book."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_book 
+                    SET tag_status = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (status, draft_id))
+    
     def save_draft_questions(self, chapter_id: str, draft_id: str, 
                             questions: List[dict], vocabulary: List[dict]) -> None:
         """Save generated questions and vocabulary for a draft chapter."""
