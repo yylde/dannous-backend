@@ -1108,12 +1108,8 @@ async function viewChapter(chapterId) {
                     });
                     modalHTML += `</div>`;
                     
-                    // Show vocabulary for this grade (first 8 items belong to first grade, next 8 to second, etc.)
-                    const vocabPerGrade = 8;
-                    const gradeIndex = grades.indexOf(grade);
-                    const vocabStart = gradeIndex * vocabPerGrade;
-                    const vocabEnd = vocabStart + vocabPerGrade;
-                    const gradeVocab = (chapter.vocabulary || []).slice(vocabStart, vocabEnd);
+                    // Show vocabulary for this grade (filter by grade_level)
+                    const gradeVocab = (chapter.vocabulary || []).filter(v => v.grade_level === grade);
                     
                     if (gradeVocab.length > 0) {
                         modalHTML += `<div style="margin-top: 20px;">`;

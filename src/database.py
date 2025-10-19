@@ -426,11 +426,12 @@ class DatabaseManager:
                         q['expected_keywords'] = []
                 chapter['questions'] = questions
                 
-                # Get vocabulary (no grade_level column, but we'll group by the chapter's grades)
+                # Get vocabulary with grade_level
                 cur.execute("""
-                    SELECT id, word, definition, example
+                    SELECT id, word, definition, example, grade_level
                     FROM draft_vocabulary
                     WHERE chapter_id = %s
+                    ORDER BY grade_level, word
                 """, (chapter_id,))
                 columns = [desc[0] for desc in cur.description]
                 chapter['vocabulary'] = [dict(zip(columns, row)) for row in cur.fetchall()]
@@ -509,7 +510,7 @@ class DatabaseManager:
                 # Delete existing questions and vocabulary for this grade level only
                 if grade_level:
                     cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
-                    cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s", (chapter_id,))  # Vocabulary gets regenerated for all grades
+                    cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
                 
                 # Insert questions with grade_level
                 for i, q in enumerate(questions, 1):
@@ -525,12 +526,12 @@ class DatabaseManager:
                         q.get('min_words', 20), q.get('max_words', 200), i, grade_level
                     ))
                 
-                # Insert vocabulary with grade_level in the word data itself (as requested)
+                # Insert vocabulary with grade_level
                 for v in vocabulary:
                     cur.execute("""
-                        INSERT INTO draft_vocabulary (chapter_id, word, definition, example)
-                        VALUES (%s, %s, %s, %s)
-                    """, (chapter_id, v['word'], v['definition'], v.get('example', '')))
+                        INSERT INTO draft_vocabulary (chapter_id, word, definition, example, grade_level)
+                        VALUES (%s, %s, %s, %s, %s)
+                    """, (chapter_id, v['word'], v['definition'], v.get('example', ''), v.get('grade_level', grade_level)))
                 
                 # Note: Don't update status here - status is managed by generate_questions_async
                 # which sets it to 'ready' only after ALL grade levels are processed
