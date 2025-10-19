@@ -426,13 +426,28 @@ class DatabaseManager:
                         q['expected_keywords'] = []
                 chapter['questions'] = questions
                 
-                # Get vocabulary with grade_level
+                # Get vocabulary - check if grade_level column exists
                 cur.execute("""
-                    SELECT id, word, definition, example, grade_level
-                    FROM draft_vocabulary
-                    WHERE chapter_id = %s
-                    ORDER BY grade_level, word
-                """, (chapter_id,))
+                    SELECT column_name FROM information_schema.columns 
+                    WHERE table_name = 'draft_vocabulary' AND column_name = 'grade_level'
+                """)
+                has_grade_level = cur.fetchone() is not None
+                
+                if has_grade_level:
+                    cur.execute("""
+                        SELECT id, word, definition, example, grade_level
+                        FROM draft_vocabulary
+                        WHERE chapter_id = %s
+                        ORDER BY grade_level, word
+                    """, (chapter_id,))
+                else:
+                    # Fallback for databases without grade_level column
+                    cur.execute("""
+                        SELECT id, word, definition, example
+                        FROM draft_vocabulary
+                        WHERE chapter_id = %s
+                    """, (chapter_id,))
+                
                 columns = [desc[0] for desc in cur.description]
                 chapter['vocabulary'] = [dict(zip(columns, row)) for row in cur.fetchall()]
                 
