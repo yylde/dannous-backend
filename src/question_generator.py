@@ -53,17 +53,22 @@ CRITICAL INSTRUCTIONS:
 - Each question must have: "text", "keywords" (array), "difficulty"
 - Each vocabulary item must have: "word", "definition", "example"
 
+Additionally, analyze the text and provide:
+- Genre tags (e.g., "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction")
+- Grade-appropriate tags based on content complexity (e.g., "grades-1-3", "grades-4-6", "grades-7-9", "grades-10-12")
+- Select 2-4 tags total that best describe the content
+
 EXACT FORMAT (copy this structure):
-{{"questions":[{{"text":"Why did the character...","keywords":["character","action"],"difficulty":"medium"}},{{"text":"How does the setting...","keywords":["setting","mood"],"difficulty":"easy"}}],"vocabulary":[{{"word":"example","definition":"simple meaning","example":"Sample sentence using example."}}]}}
+{{"questions":[{{"text":"Why did the character...","keywords":["character","action"],"difficulty":"medium"}},{{"text":"How does the setting...","keywords":["setting","mood"],"difficulty":"easy"}}],"vocabulary":[{{"word":"example","definition":"simple meaning","example":"Sample sentence using example."}}],"tags":["adventure","fantasy","grades-4-6"]}}
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
 
-    def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict]]:
+    def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict], List[str]]:
         """
         Parse JSON response from LLM with robust error handling.
         
         Returns:
-            Tuple of (questions, vocabulary)
+            Tuple of (questions, vocabulary, tags)
         """
         try:
             # Clean up response
@@ -97,7 +102,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             
             if 'questions' not in data:
                 logger.warning("No 'questions' key in response")
-                return [], []
+                return [], [], []
             
             # Parse questions with better validation
             questions = []
@@ -140,17 +145,24 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                     else:
                         logger.warning(f"Vocabulary item {i} has invalid structure: {v}")
             
-            logger.info(f"Successfully parsed {len(questions)} questions and {len(vocabulary)} vocabulary words")
-            return questions, vocabulary
+            # Parse tags with lenient validation
+            tags = []
+            if 'tags' in data and isinstance(data['tags'], list):
+                tags = [str(tag).strip() for tag in data['tags'] if tag]
+            else:
+                logger.warning("No 'tags' key in response or tags is not a list, defaulting to empty array")
+            
+            logger.info(f"Successfully parsed {len(questions)} questions, {len(vocabulary)} vocabulary words, and {len(tags)} tags")
+            return questions, vocabulary, tags
             
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse JSON: {e}")
             logger.debug(f"Response was: {response[:500]}")
-            return [], []
+            return [], [], []
         except Exception as e:
             logger.error(f"Error parsing response: {e}")
             logger.debug(f"Response was: {response[:500]}")
-            return [], []
+            return [], [], []
     def generate_questions(
         self,
         title: str,
@@ -161,12 +173,12 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         reading_level: str,
         age_range: str,
         num_questions: int = None
-    ) -> Tuple[List[Dict[str, any]], List[Dict[str, str]]]:
+    ) -> Tuple[List[Dict[str, any]], List[Dict[str, str]], List[str]]:
         """
-        Generate questions and vocabulary for a chapter.
+        Generate questions, vocabulary, and tags for a chapter.
         
         Returns:
-            Tuple of (questions_list, vocabulary_list)
+            Tuple of (questions_list, vocabulary_list, tags_list)
         """
         if num_questions is None:
             num_questions = settings.questions_per_chapter
@@ -202,20 +214,20 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         for attempt in range(max_retries):
             try:
                 response = self._call_ollama(prompt)
-                questions, vocabulary = self._parse_response(response, num_questions)
+                questions, vocabulary, tags = self._parse_response(response, num_questions)
                 
                 if questions:
-                    logger.info(f"✓ Generated {len(questions)} questions and {len(vocabulary)} vocabulary words")
-                    return questions, vocabulary
+                    logger.info(f"✓ Generated {len(questions)} questions, {len(vocabulary)} vocabulary words, and {len(tags)} tags")
+                    return questions, vocabulary, tags
                 
             except Exception as e:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
         
-        # Fallback: generate generic questions and empty vocabulary
+        # Fallback: generate generic questions, empty vocabulary, and empty tags
         logger.warning("Using fallback questions")
-        return self._generate_fallback_questions(chapter_title, num_questions), []
+        return self._generate_fallback_questions(chapter_title, num_questions), [], []
     
     def _call_ollama(self, prompt: str) -> str:
         """Call Ollama API with improved settings."""

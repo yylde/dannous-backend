@@ -18,6 +18,11 @@ Generate exactly {num_questions} open-ended comprehension questions that:
 
 For each question, provide 3-5 expected keywords that would appear in a good answer.
 
+Additionally, analyze the text and provide:
+- Genre tags (e.g., "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction")
+- Grade-appropriate tags based on content complexity (e.g., "grades-1-3", "grades-4-6", "grades-7-9", "grades-10-12")
+- Select 2-4 tags total that best describe the content
+
 Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
 {{
   "questions": [
@@ -26,7 +31,8 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
       "keywords": ["keyword1", "keyword2", "keyword3"],
       "difficulty": "medium"
     }}
-  ]
+  ],
+  "tags": ["adventure", "fantasy", "grades-4-6"]
 }}
 
 IMPORTANT:
@@ -35,3 +41,4 @@ IMPORTANT:
 - Focus on comprehension, not just recall
 - Keep questions age-appropriate
 - Provide relevant keywords for answer validation
+- Include 2-4 tags that accurately categorize the content

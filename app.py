@@ -125,7 +125,7 @@ def save_chapters():
             chapters.append(chapter)
             
             logger.info(f"Generating questions for chapter {i}")
-            questions_data, vocabulary_data = generator.generate_questions(
+            questions_data, vocabulary_data, tags_data = generator.generate_questions(
                 title=book.title,
                 author=book.author,
                 chapter_number=i,
@@ -136,6 +136,10 @@ def save_chapters():
                 num_questions=settings.questions_per_chapter
             )
             chapter.vocabulary_words = vocabulary_data
+            
+            # Store tags on the book object (accumulate from first chapter)
+            if i == 1 and tags_data:
+                book.tags = tags_data
             
             chapter.html_formatting = inject_vocabulary_abbr(chapter.content, vocabulary_data)
             
@@ -433,7 +437,7 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
         db.update_chapter_question_status(chapter_id, 'generating')
         
         generator = QuestionGenerator()
-        questions_data, vocabulary_data = generator.generate_questions(
+        questions_data, vocabulary_data, tags_data = generator.generate_questions(
             title="Book Draft",
             author="Unknown",
             chapter_number=1,
@@ -445,6 +449,11 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
         )
         
         db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data)
+        
+        # Save tags to the draft (only if this is the first chapter)
+        draft_chapters = db.get_draft_chapters(draft_id)
+        if len(draft_chapters) == 1 and tags_data:
+            db.update_draft(draft_id, tags=tags_data)
         
         # Apply vocabulary abbr tags to HTML content (not plain text)
         html_with_abbr = inject_vocabulary_abbr(html_content or content, vocabulary_data)

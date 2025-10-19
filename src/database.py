@@ -279,7 +279,7 @@ class DatabaseManager:
                 for key, value in kwargs.items():
                     if key == 'cover_image_url' and (value is None or value == ''):
                         continue
-                    if key == 'metadata':
+                    if key in ('metadata', 'tags'):
                         set_clauses.append(f"{key} = %s")
                         values.append(json.dumps(value))
                     else:
@@ -516,14 +516,14 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 # Get draft data
                 cur.execute("""
-                    SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata
+                    SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata, tags
                     FROM book_drafts WHERE id = %s
                 """, (draft_id,))
                 draft = cur.fetchone()
                 if not draft:
                     raise ValueError(f"Draft {draft_id} not found")
                 
-                title, author, age_range, reading_level, genre, cover_image_url, metadata = draft
+                title, author, age_range, reading_level, genre, cover_image_url, metadata, tags = draft
                 # JSONB fields are already parsed by psycopg2
                 if isinstance(metadata, str):
                     metadata = json.loads(metadata)
@@ -542,13 +542,19 @@ class DatabaseManager:
                 book_id = str(uuid4())
                 total_chapters = len(draft_chapters)
                 
+                # Parse tags (JSONB is already parsed by psycopg2)
+                if isinstance(tags, str):
+                    tags = json.loads(tags)
+                elif tags is None:
+                    tags = []
+                
                 cur.execute("""
                     INSERT INTO books (
                         id, title, author, age_range, reading_level, genre,
-                        total_chapters, cover_image_url, isbn, publication_year
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        total_chapters, cover_image_url, isbn, publication_year, tags
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (book_id, title, author, age_range, reading_level, genre,
-                      total_chapters, cover_image_url, metadata.get('isbn'), metadata.get('publication_year')))
+                      total_chapters, cover_image_url, metadata.get('isbn'), metadata.get('publication_year'), json.dumps(tags)))
                 
                 # Copy chapters
                 chapter_id_map = {}
