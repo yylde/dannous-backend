@@ -432,6 +432,31 @@ def delete_draft(draft_id):
         logger.exception("Failed to delete draft")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/draft-tags-url/<draft_id>', methods=['PUT'])
+def update_draft_tags_url(draft_id):
+    """Update tags and cover URL for a draft."""
+    try:
+        data = request.json
+        tags = data.get('tags', [])
+        cover_image_url = data.get('cover_image_url', '')
+        
+        db = DatabaseManager()
+        
+        update_data = {
+            'tags': tags,
+            'cover_image_url': cover_image_url
+        }
+        
+        db.update_draft(draft_id, update_data)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Tags and cover URL updated successfully'
+        })
+    except Exception as e:
+        logger.exception("Failed to update tags and URL")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/finalize-draft/<draft_id>', methods=['POST'])
 def finalize_draft(draft_id):
     """Finalize draft and move to main books table."""
