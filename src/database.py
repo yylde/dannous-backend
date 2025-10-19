@@ -408,13 +408,13 @@ class DatabaseManager:
                 columns = [desc[0] for desc in cur.description]
                 chapter = dict(zip(columns, result))
                 
-                # Get questions
+                # Get questions with grade_level
                 cur.execute("""
                     SELECT id, question_text, question_type, difficulty_level, 
-                           expected_keywords, min_word_count, max_word_count, order_index
+                           expected_keywords, min_word_count, max_word_count, order_index, grade_level
                     FROM draft_questions
                     WHERE chapter_id = %s
-                    ORDER BY order_index
+                    ORDER BY grade_level, order_index
                 """, (chapter_id,))
                 columns = [desc[0] for desc in cur.description]
                 questions = [dict(zip(columns, row)) for row in cur.fetchall()]
@@ -426,7 +426,7 @@ class DatabaseManager:
                         q['expected_keywords'] = []
                 chapter['questions'] = questions
                 
-                # Get vocabulary
+                # Get vocabulary (no grade_level column, but we'll group by the chapter's grades)
                 cur.execute("""
                     SELECT id, word, definition, example
                     FROM draft_vocabulary
@@ -436,6 +436,48 @@ class DatabaseManager:
                 chapter['vocabulary'] = [dict(zip(columns, row)) for row in cur.fetchall()]
                 
                 return chapter
+    
+    def update_question(self, question_id: str, question_text: str, question_type: str, 
+                       difficulty_level: str, expected_keywords: List[str], 
+                       min_word_count: int, max_word_count: int) -> None:
+        """Update a draft question."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_questions 
+                    SET question_text = %s,
+                        question_type = %s,
+                        difficulty_level = %s,
+                        expected_keywords = %s,
+                        min_word_count = %s,
+                        max_word_count = %s
+                    WHERE id = %s
+                """, (question_text, question_type, difficulty_level, 
+                      json.dumps(expected_keywords), min_word_count, max_word_count, question_id))
+    
+    def delete_question(self, question_id: str) -> None:
+        """Delete a draft question."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM draft_questions WHERE id = %s", (question_id,))
+    
+    def update_vocabulary(self, vocab_id: str, word: str, definition: str, example: str) -> None:
+        """Update a draft vocabulary item."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_vocabulary 
+                    SET word = %s,
+                        definition = %s,
+                        example = %s
+                    WHERE id = %s
+                """, (word, definition, example, vocab_id))
+    
+    def delete_vocabulary(self, vocab_id: str) -> None:
+        """Delete a draft vocabulary item."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM draft_vocabulary WHERE id = %s", (vocab_id,))
     
     def update_chapter_question_status(self, chapter_id: str, status: str) -> None:
         """Update question generation status for a chapter."""
