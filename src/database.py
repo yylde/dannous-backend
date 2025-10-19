@@ -532,12 +532,8 @@ class DatabaseManager:
                         VALUES (%s, %s, %s, %s)
                     """, (chapter_id, v['word'], v['definition'], v.get('example', '')))
                 
-                # Update chapter status
-                cur.execute("""
-                    UPDATE draft_chapters 
-                    SET has_questions = true, question_status = 'ready'
-                    WHERE id = %s
-                """, (chapter_id,))
+                # Note: Don't update status here - status is managed by generate_questions_async
+                # which sets it to 'ready' only after ALL grade levels are processed
     
     def delete_draft_chapter(self, chapter_id: str) -> Optional[dict]:
         """Delete a draft chapter and return its content for restoration."""
