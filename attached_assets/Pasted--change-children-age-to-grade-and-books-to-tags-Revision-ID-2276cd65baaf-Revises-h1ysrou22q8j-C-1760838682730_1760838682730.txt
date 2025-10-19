@@ -1,0 +1,104 @@
+"""change_children_age_to_grade_and_books_to_tags
+
+Revision ID: 2276cd65baaf
+Revises: h1ysrou22q8j
+Create Date: 2025-10-19 00:00:00.000000
+
+"""
+from typing import Sequence, Union
+
+from alembic import op
+import sqlalchemy as sa
+
+
+# revision identifiers, used by Alembic.
+revision: str = '2276cd65baaf'
+down_revision: Union[str, Sequence[str], None] = 'h1ysrou22q8j'
+branch_labels: Union[str, Sequence[str], None] = None
+depends_on: Union[str, Sequence[str], None] = None
+
+
+def upgrade() -> None:
+    """Upgrade schema."""
+    # Step 1: Add grade column to children table (nullable initially)
+    op.execute("""
+        ALTER TABLE children 
+        ADD COLUMN grade INTEGER;
+    """)
+    
+    # Step 2: Migrate existing age_range data to grade
+    # This is a simple mapping - you may want to adjust based on your actual data
+    # Mapping common age ranges to grades:
+    # 6-8 years -> Grade 1-3, let's use grade 2
+    # 9-11 years -> Grade 4-6, let's use grade 5
+    # 12-14 years -> Grade 7-9, let's use grade 8
+    # Default to grade 5 if no match
+    op.execute("""
+        UPDATE children 
+        SET grade = CASE 
+            WHEN age_range LIKE '6-8%' OR age_range LIKE '%6-8%' THEN 2
+            WHEN age_range LIKE '9-11%' OR age_range LIKE '%9-11%' THEN 5
+            WHEN age_range LIKE '12-14%' OR age_range LIKE '%12-14%' THEN 8
+            WHEN age_range LIKE '15%' OR age_range LIKE '%15%' OR age_range LIKE '%16%' THEN 10
+            ELSE 5
+        END
+        WHERE grade IS NULL;
+    """)
+    
+    # Step 3: Make grade NOT NULL with a default of 5
+    op.execute("""
+        ALTER TABLE children 
+        ALTER COLUMN grade SET NOT NULL,
+        ALTER COLUMN grade SET DEFAULT 5;
+    """)
+    
+    # Step 4: Drop age_range column
+    op.execute("""
+        ALTER TABLE children 
+        DROP COLUMN age_range;
+    """)
+    
+    # Step 5: Make genre nullable in books table (for migration to tags)
+    # Genre is already nullable, but we'll ensure tags field is ready
+    # Tags field already exists as JSONB, no schema change needed
+    op.execute("""
+        COMMENT ON COLUMN books.tags IS 'List of category tags for the book. Use this instead of genre for better categorization.';
+    """)
+
+
+def downgrade() -> None:
+    """Downgrade schema."""
+    # Step 1: Add age_range column back
+    op.execute("""
+        ALTER TABLE children 
+        ADD COLUMN age_range VARCHAR(20);
+    """)
+    
+    # Step 2: Migrate grade back to age_range
+    op.execute("""
+        UPDATE children 
+        SET age_range = CASE 
+            WHEN grade <= 3 THEN '6-8'
+            WHEN grade <= 6 THEN '9-11'
+            WHEN grade <= 9 THEN '12-14'
+            ELSE '15-17'
+        END
+        WHERE age_range IS NULL;
+    """)
+    
+    # Step 3: Make age_range NOT NULL
+    op.execute("""
+        ALTER TABLE children 
+        ALTER COLUMN age_range SET NOT NULL;
+    """)
+    
+    # Step 4: Drop grade column
+    op.execute("""
+        ALTER TABLE children 
+        DROP COLUMN grade;
+    """)
+    
+    # Step 5: Remove comment from books.tags
+    op.execute("""
+        COMMENT ON COLUMN books.tags IS NULL;
+    """)
