@@ -1,0 +1,158 @@
+ Serving Flask app 'app'
+ * Debug mode: on
+INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5002
+ * Running on http://10.0.0.84:5002
+INFO:werkzeug:Press CTRL+C to quit
+INFO:werkzeug: * Restarting with stat
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 314-846-600
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:49] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:49] "GET /static/css/style.css HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:49] "GET /static/js/app.js HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:49] "GET /api/drafts HTTP/1.1" 200 -
+INFO:__main__:Downloading book 112
+INFO:src.epub_parser:Downloading Gutenberg book 112...
+INFO:src.epub_parser:Downloaded 124069 bytes to downloads/gutenberg_112.epub
+INFO:src.epub_parser:Parsing EPUB: downloads/gutenberg_112.epub
+INFO:src.epub_parser:Metadata: Violists by Richard McGowan
+INFO:src.epub_parser:Extracted 2 sections, ~20353 words
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:53] "POST /api/download-book HTTP/1.1" 200 -
+INFO:src.database:Created draft: Violists (ID: bfe4183e-c71c-48eb-8ca1-da78a9a63686)
+INFO:__main__:Started async tag generation for draft bfe4183e-c71c-48eb-8ca1-da78a9a63686
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:55] "POST /api/draft HTTP/1.1" 200 -
+INFO:src.question_generator:Generating tags for book: Violists by Richard McGowan
+INFO:src.question_generator:Tag generation attempt 1/3 using free-form strategy
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 404 Not Found"
+ERROR:src.question_generator:Ollama API call failed with model gpt-oss:20b: model 'gpt-oss:20b' not found (status code: 404)
+WARNING:src.question_generator:Tag attempt 1 (free-form): ResponseError - model 'gpt-oss:20b' not found (status code: 404)
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:55] "GET /api/drafts HTTP/1.1" 200 -
+INFO:src.question_generator:Tag generation attempt 2/3 using free-form strategy
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 404 Not Found"
+ERROR:src.question_generator:Ollama API call failed with model gpt-oss:20b: model 'gpt-oss:20b' not found (status code: 404)
+WARNING:src.question_generator:Tag attempt 2 (free-form): ResponseError - model 'gpt-oss:20b' not found (status code: 404)
+INFO:src.question_generator:Tag generation attempt 3/3 using json-format strategy
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 404 Not Found"
+ERROR:src.question_generator:Ollama API call failed with model gpt-oss:20b: model 'gpt-oss:20b' not found (status code: 404)
+WARNING:src.question_generator:Tag attempt 3 (json-format): ResponseError - model 'gpt-oss:20b' not found (status code: 404)
+WARNING:src.question_generator:Using fallback tags
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:43:58] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:__main__:Generated 4 tags for draft bfe4183e-c71c-48eb-8ca1-da78a9a63686: ['fiction', 'grade-4', 'grade-5', 'grade-6']
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:00] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:02] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:04] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:06] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:08] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:10] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:12] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:15] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:17] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:19] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:21] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:23] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:25] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:27] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:29] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:31] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:33] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:35] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:37] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:39] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:41] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:44:44] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+^C%                                                                              ❯
+❯
+❯ python app.py
+ * Serving Flask app 'app'
+ * Debug mode: on
+INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5002
+ * Running on http://10.0.0.84:5002
+INFO:werkzeug:Press CTRL+C to quit
+INFO:werkzeug: * Restarting with stat
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 314-846-600
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:00] "GET /api/draft/bfe4183e-c71c-48eb-8ca1-da78a9a63686 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:02] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:02] "GET /static/js/app.js HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:02] "GET /static/css/style.css HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:02] "GET /api/drafts HTTP/1.1" 200 -
+INFO:__main__:Downloading book 1124
+INFO:src.epub_parser:Downloading Gutenberg book 1124...
+INFO:src.epub_parser:Downloaded 334089 bytes to downloads/gutenberg_1124.epub
+INFO:src.epub_parser:Parsing EPUB: downloads/gutenberg_1124.epub
+INFO:src.epub_parser:Metadata: Troilus and Cressida by William Shakespeare
+INFO:src.epub_parser:Extracted 4 sections, ~28465 words
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:06] "POST /api/download-book HTTP/1.1" 200 -
+INFO:src.database:Created draft: Troilus and Cressida (ID: 8e99f38a-0b05-44af-864d-e706ba19e9ec)
+INFO:__main__:Started async tag generation for draft 8e99f38a-0b05-44af-864d-e706ba19e9ec
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:08] "POST /api/draft HTTP/1.1" 200 -
+INFO:src.question_generator:Generating tags for book: Troilus and Cressida by William Shakespeare
+INFO:src.question_generator:Tag generation attempt 1/3 using free-form strategy
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:08] "GET /api/drafts HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:11] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:13] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:16] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:17] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:20] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:21] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:23] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:25] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:27] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:30] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:32] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:34] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+^C^C
+❯ python app.py
+ * Serving Flask app 'app'
+ * Debug mode: on
+INFO:werkzeug:WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5002
+ * Running on http://10.0.0.84:5002
+INFO:werkzeug:Press CTRL+C to quit
+INFO:werkzeug: * Restarting with stat
+WARNING:werkzeug: * Debugger is active!
+INFO:werkzeug: * Debugger PIN: 314-846-600
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:48] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:50] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:52] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:54] "GET /api/draft/8e99f38a-0b05-44af-864d-e706ba19e9ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:55] "GET / HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:55] "GET /static/js/app.js HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:55] "GET /static/css/style.css HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:55] "GET /api/drafts HTTP/1.1" 200 -
+INFO:__main__:Downloading book 1124
+INFO:src.epub_parser:Downloading Gutenberg book 1124...
+INFO:src.epub_parser:Downloaded 334089 bytes to downloads/gutenberg_1124.epub
+INFO:src.epub_parser:Parsing EPUB: downloads/gutenberg_1124.epub
+INFO:src.epub_parser:Metadata: Troilus and Cressida by William Shakespeare
+INFO:src.epub_parser:Extracted 4 sections, ~28465 words
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:57] "POST /api/download-book HTTP/1.1" 200 -
+INFO:src.database:Created draft: Troilus and Cressida (ID: 1e6a4272-6ba0-469a-8f73-fdcdf7651e69)
+INFO:__main__:Started async tag generation for draft 1e6a4272-6ba0-469a-8f73-fdcdf7651e69
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:59] "POST /api/draft HTTP/1.1" 200 -
+INFO:src.question_generator:Generating tags for book: Troilus and Cressida by William Shakespeare
+INFO:src.question_generator:Tag generation attempt 1/3 using free-form strategy
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:45:59] "GET /api/drafts HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:02] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:04] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:07] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:09] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:11] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:13] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:15] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:17] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:19] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:21] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:24] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+INFO:src.question_generator:✓ Success with free-form! Generated 3 tags for book: ['epic', 'adventure', 'romance']
+INFO:__main__:Generated 3 tags for draft 1e6a4272-6ba0-469a-8f73-fdcdf7651e69: ['epic', 'adventure', 'romance']
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:26] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:28] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:30] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:32] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [18/Oct/2025 20:46:34] "GET /api/draft/1e6a4272-6ba0-469a-8f73-fdcdf7651e69 HTTP/1.1" 200 -

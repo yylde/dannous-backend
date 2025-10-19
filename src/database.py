@@ -323,7 +323,7 @@ class DatabaseManager:
                 cur.execute("""
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, cover_image_url, metadata, 
-                           created_at, updated_at
+                           tags, tag_status, created_at, updated_at
                     FROM draft_book
                     WHERE id = %s
                 """, (draft_id,))
@@ -339,6 +339,16 @@ class DatabaseManager:
                     draft['metadata'] = json.loads(draft['metadata'])
                 elif draft['metadata'] is None:
                     draft['metadata'] = {}
+                
+                # tags is also JSONB - parse it
+                if isinstance(draft.get('tags'), str):
+                    draft['tags'] = json.loads(draft['tags'])
+                elif draft.get('tags') is None:
+                    draft['tags'] = []
+                
+                # Ensure tag_status has a default value
+                if not draft.get('tag_status'):
+                    draft['tag_status'] = 'pending'
                 
                 return draft
     
