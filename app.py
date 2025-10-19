@@ -517,6 +517,41 @@ def update_draft_tags_url(draft_id):
         logger.exception("Failed to update tags and URL")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/draft/<draft_id>/regenerate-questions', methods=['POST'])
+def regenerate_questions(draft_id):
+    """Regenerate questions for a draft based on grade tag changes."""
+    try:
+        db = DatabaseManager()
+        
+        # Get the draft to verify it exists
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # Get all chapters for this draft
+        chapters = db.get_draft_chapters(draft_id)
+        if not chapters:
+            return jsonify({'error': 'No chapters found for this draft'}), 400
+        
+        # Start async regeneration
+        import threading
+        thread = threading.Thread(
+            target=regenerate_questions_for_draft_async,
+            args=(draft_id,)
+        )
+        thread.daemon = True
+        thread.start()
+        
+        logger.info(f"Started question regeneration for draft {draft_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Question regeneration started'
+        })
+    except Exception as e:
+        logger.exception("Failed to start question regeneration")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/finalize-draft/<draft_id>', methods=['POST'])
 def finalize_draft(draft_id):
     """Finalize draft and move to main books table."""
@@ -605,6 +640,114 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
         logger.exception(f"Failed to generate questions for chapter {chapter_id}")
         db = DatabaseManager()
         db.update_chapter_question_status(chapter_id, 'error')
+
+def regenerate_questions_for_draft_async(draft_id):
+    """Regenerate questions for all chapters in a draft based on current grade tags."""
+    try:
+        db = DatabaseManager()
+        
+        # Get the draft with current tags
+        draft = db.get_draft(draft_id)
+        if not draft:
+            logger.error(f"Draft {draft_id} not found")
+            return
+        
+        tags = draft.get('tags', [])
+        new_grade_levels = [tag for tag in tags if tag.startswith('grade-')]
+        
+        # Get existing grade levels that have questions
+        existing_grade_levels = db.get_existing_grade_levels_for_draft(draft_id)
+        
+        # Determine which grades to delete and which to add
+        grades_to_delete = [g for g in existing_grade_levels if g not in new_grade_levels]
+        grades_to_add = [g for g in new_grade_levels if g not in existing_grade_levels]
+        
+        logger.info(f"Regenerating questions for draft {draft_id}")
+        logger.info(f"  Current grades: {existing_grade_levels}")
+        logger.info(f"  New grades: {new_grade_levels}")
+        logger.info(f"  Grades to delete: {grades_to_delete}")
+        logger.info(f"  Grades to add: {grades_to_add}")
+        
+        # Delete questions for removed grades (this happens even if no new grades are added)
+        if grades_to_delete:
+            logger.info(f"Deleting questions for removed grades: {grades_to_delete}")
+            db.delete_questions_by_grade_level(draft_id, grades_to_delete)
+        
+        # If no new grade tags, we're done after deletion
+        if not new_grade_levels:
+            logger.warning(f"No grade tags found for draft {draft_id} - deleted all grade-specific questions")
+            return
+        
+        # Get all chapters for this draft
+        chapters = db.get_draft_chapters(draft_id)
+        
+        if not chapters:
+            logger.warning(f"No chapters found for draft {draft_id}")
+            return
+        
+        # Generate questions for new grades
+        if grades_to_add:
+            logger.info(f"Generating questions for new grades: {grades_to_add}")
+            
+            generator = QuestionGenerator()
+            
+            # Process each chapter
+            for chapter in chapters:
+                chapter_id = chapter['id']
+                logger.info(f"Processing chapter {chapter['chapter_number']}: {chapter['title']}")
+                
+                # Update status to generating
+                db.update_chapter_question_status(chapter_id, 'generating')
+                
+                all_vocabulary = []
+                
+                # Generate questions for each new grade level
+                for grade_level in grades_to_add:
+                    logger.info(f"  Generating for {grade_level}...")
+                    
+                    questions_data, vocabulary_data = generator.generate_questions(
+                        title=draft.get('title', 'Book Draft'),
+                        author=draft.get('author', 'Unknown'),
+                        chapter_number=chapter['chapter_number'],
+                        chapter_title=chapter['title'],
+                        chapter_text=chapter['content'],
+                        reading_level=draft.get('reading_level') or settings.default_reading_level,
+                        age_range=draft.get('age_range') or settings.default_age_range,
+                        grade_level=grade_level,
+                        num_questions=settings.questions_per_chapter,
+                        vocab_count=8
+                    )
+                    
+                    # Add grade_level to vocabulary items
+                    for vocab_item in vocabulary_data:
+                        vocab_item['grade_level'] = grade_level
+                    
+                    all_vocabulary.extend(vocabulary_data)
+                    
+                    # Save questions for this grade level
+                    db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data, grade_level=grade_level)
+                    
+                    logger.info(f"  ✓ Saved {len(questions_data)} questions and {len(vocabulary_data)} vocabulary for {grade_level}")
+                
+                # Update HTML with vocabulary if we added new vocabulary
+                if all_vocabulary and chapter.get('html_formatting'):
+                    html_with_abbr = inject_vocabulary_abbr(chapter['html_formatting'], all_vocabulary)
+                    
+                    with db.get_connection() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("""
+                                UPDATE draft_chapters 
+                                SET html_formatting = %s
+                                WHERE id = %s
+                            """, (html_with_abbr, chapter_id))
+                
+                # Mark chapter as ready
+                db.update_chapter_question_status(chapter_id, 'ready')
+        
+        logger.info(f"✓ Question regeneration complete for draft {draft_id}")
+        
+    except Exception as e:
+        logger.exception(f"✗ Failed to regenerate questions for draft {draft_id}: {e}")
 
 def generate_tags_async(draft_id, title, author, full_text, age_range, reading_level):
     """Generate tags asynchronously in background for a book."""

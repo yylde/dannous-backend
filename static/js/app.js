@@ -1685,6 +1685,63 @@ async function saveTagsAndUrl() {
     }
 }
 
+async function regenerateQuestions() {
+    if (!currentDraftId) {
+        showStatus('No draft selected', 'error');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        // First, save the current tags
+        showStatus('Saving tags...', 'info');
+        const coverUrl = document.getElementById('cover-image-url').value.trim();
+        
+        const saveResponse = await fetch(`/api/draft-tags-url/${currentDraftId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tags: currentTags,
+                cover_image_url: coverUrl
+            })
+        });
+        
+        if (!saveResponse.ok) {
+            const saveData = await saveResponse.json();
+            throw new Error(saveData.error || 'Failed to save tags');
+        }
+        
+        // Then trigger question regeneration
+        showStatus('Regenerating questions for grade changes...', 'info');
+        
+        const regenResponse = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const regenData = await regenResponse.json();
+        
+        if (!regenResponse.ok) {
+            throw new Error(regenData.error || 'Failed to regenerate questions');
+        }
+        
+        showStatus('Question regeneration started! Updating chapters...', 'success');
+        
+        // Start polling for chapter status updates
+        startStatusPolling();
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 function startTagStatusPolling(draftId) {
     if (tagStatusPollingInterval) {
         clearInterval(tagStatusPollingInterval);

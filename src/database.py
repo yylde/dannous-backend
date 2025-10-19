@@ -480,6 +480,34 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 cur.execute("DELETE FROM draft_vocabulary WHERE id = %s", (vocab_id,))
     
+    def delete_questions_by_grade_level(self, draft_id: str, grade_levels: List[str]) -> None:
+        """Delete all questions and vocabulary for specific grade levels in a draft."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                for grade_level in grade_levels:
+                    cur.execute("""
+                        DELETE FROM draft_questions 
+                        WHERE draft_id = %s AND grade_level = %s
+                    """, (draft_id, grade_level))
+                    cur.execute("""
+                        DELETE FROM draft_vocabulary 
+                        WHERE chapter_id IN (
+                            SELECT id FROM draft_chapters WHERE draft_id = %s
+                        ) AND grade_level = %s
+                    """, (draft_id, grade_level))
+    
+    def get_existing_grade_levels_for_draft(self, draft_id: str) -> List[str]:
+        """Get all unique grade levels that have questions in this draft."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT DISTINCT grade_level 
+                    FROM draft_questions 
+                    WHERE draft_id = %s AND grade_level IS NOT NULL
+                    ORDER BY grade_level
+                """, (draft_id,))
+                return [row[0] for row in cur.fetchall()]
+    
     def update_chapter_question_status(self, chapter_id: str, status: str) -> None:
         """Update question generation status for a chapter."""
         with self.get_connection() as conn:

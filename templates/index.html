@@ -180,9 +180,12 @@
                             <label for="cover-image-url">Book Cover URL (optional):</label>
                             <input type="url" id="cover-image-url" placeholder="https://example.com/cover.jpg">
                         </div>
-                        <div class="form-group">
+                        <div class="form-group" style="display: flex; gap: 10px;">
                             <button onclick="saveTagsAndUrl()" class="btn btn-primary" id="save-tags-url-btn">
                                 💾 Save Tags & URL
+                            </button>
+                            <button onclick="regenerateQuestions()" class="btn btn-secondary" id="regenerate-questions-btn">
+                                🔄 Regenerate Questions
                             </button>
                         </div>
                     </div>
