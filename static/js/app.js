@@ -294,9 +294,9 @@ async function saveDraftAfterDownload() {
                 full_text: bookData.full_text,
                 full_html: bookData.full_html,
                 metadata: bookData.metadata,
-                age_range: document.getElementById('age-range').value,
-                reading_level: document.getElementById('reading-level').value,
-                genre: document.getElementById('genre').value
+                age_range: '6-12',  // Default age range
+                reading_level: document.getElementById('reading-level')?.value || 'intermediate',
+                genre: 'general'  // Default genre
             })
         });
         
