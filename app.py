@@ -28,6 +28,11 @@ DOWNLOAD_DIR.mkdir(exist_ok=True)
 # DIFFICULTY_RANGES removed - word count validation is no longer enforced
 # Reading levels are still used for AI question generation
 
+# Control parallel vs sequential question generation
+# Set PARALLEL_GENERATION=false for GPU-limited environments
+PARALLEL_GENERATION = os.environ.get('PARALLEL_GENERATION', 'true').lower() == 'true'
+logger.info(f"Question generation mode: {'PARALLEL' if PARALLEL_GENERATION else 'SEQUENTIAL'}")
+
 @app.route('/')
 def index():
     """Admin UI homepage."""
@@ -939,22 +944,40 @@ def question_generation_watcher():
             if pending_chapters:
                 logger.info(f"Found {len(pending_chapters)} chapters ready for question generation")
                 
-                for chapter in pending_chapters:
+                if PARALLEL_GENERATION:
+                    # PARALLEL MODE: Process all chapters at once (faster but needs more GPU memory)
+                    for chapter in pending_chapters:
+                        chapter_id, draft_id, title, content, html_content, age_range, reading_level, tag_status, tags = chapter
+                        
+                        # Extract grade tags from tags array
+                        grade_tags = [tag for tag in tags if tag.startswith('grade-')]
+                        
+                        if grade_tags:
+                            logger.info(f"Triggering question generation for chapter {chapter_id} with grades: {grade_tags}")
+                            
+                            # Trigger async question generation in separate thread
+                            thread = threading.Thread(
+                                target=generate_questions_async,
+                                args=(chapter_id, draft_id, title, content, html_content, age_range, reading_level)
+                            )
+                            thread.daemon = True
+                            thread.start()
+                        else:
+                            logger.warning(f"Chapter {chapter_id} has tags but no grade tags found: {tags}")
+                else:
+                    # SEQUENTIAL MODE: Process one chapter at a time (GPU-limited environments)
+                    # Only process the first pending chapter
+                    chapter = pending_chapters[0]
                     chapter_id, draft_id, title, content, html_content, age_range, reading_level, tag_status, tags = chapter
                     
                     # Extract grade tags from tags array
                     grade_tags = [tag for tag in tags if tag.startswith('grade-')]
                     
                     if grade_tags:
-                        logger.info(f"Triggering question generation for chapter {chapter_id} with grades: {grade_tags}")
+                        logger.info(f"[SEQUENTIAL] Processing chapter {chapter_id} with grades: {grade_tags}")
                         
-                        # Trigger async question generation
-                        thread = threading.Thread(
-                            target=generate_questions_async,
-                            args=(chapter_id, draft_id, title, content, html_content, age_range, reading_level)
-                        )
-                        thread.daemon = True
-                        thread.start()
+                        # Process synchronously - wait for completion
+                        generate_questions_async(chapter_id, draft_id, title, content, html_content, age_range, reading_level)
                     else:
                         logger.warning(f"Chapter {chapter_id} has tags but no grade tags found: {tags}")
         
