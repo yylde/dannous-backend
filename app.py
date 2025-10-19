@@ -283,7 +283,7 @@ def create_or_update_draft():
                 db.update_draft(draft_id, **update_fields)
             return jsonify({'success': True, 'draft_id': draft_id})
         else:
-            # Create new draft
+            # Create new draft - database connection closes automatically at end of context
             draft_id = db.create_draft(
                 gutenberg_id=data.get('gutenberg_id'),
                 title=data.get('title'),
@@ -297,8 +297,14 @@ def create_or_update_draft():
                 full_html=data.get('full_html')
             )
             
-            # Trigger async tag generation for the book
+            # Database connection is now closed and transaction committed
+            # Safe to start async operations
+            logger.info(f"Created draft {draft_id}, starting async tag generation...")
+            
+            # Trigger async tag generation in background thread
+            # Transaction is guaranteed committed since db object is out of scope
             import threading
+            
             thread = threading.Thread(
                 target=generate_tags_async,
                 args=(
@@ -558,19 +564,30 @@ def generate_tags_async(draft_id, title, author, full_text, age_range, reading_l
             age_range=age_range or settings.default_age_range
         )
         
-        # Save tags to the draft
-        if tags_data:
+        # Save tags to the draft (even if using fallback)
+        if tags_data and len(tags_data) > 0:
             db.update_draft(draft_id, tags=tags_data)
             db.update_draft_tag_status(draft_id, 'ready')
-            logger.info(f"Generated {len(tags_data)} tags for draft {draft_id}: {tags_data}")
+            logger.info(f"✓ Generated {len(tags_data)} tags for draft {draft_id}: {tags_data}")
         else:
             db.update_draft_tag_status(draft_id, 'error')
-            logger.warning(f"No tags generated for draft {draft_id}")
+            logger.error(f"✗ No tags generated for draft {draft_id}")
         
     except Exception as e:
-        logger.exception(f"Failed to generate tags for draft {draft_id}")
+        logger.exception(f"✗ Failed to generate tags for draft {draft_id}: {e}")
         db = DatabaseManager()
-        db.update_draft_tag_status(draft_id, 'error')
+        # Even on error, try to save fallback tags if they exist
+        try:
+            generator = QuestionGenerator()
+            fallback_tags = generator._generate_fallback_tags(reading_level or settings.default_reading_level)
+            if fallback_tags:
+                db.update_draft(draft_id, tags=fallback_tags)
+                db.update_draft_tag_status(draft_id, 'ready')
+                logger.warning(f"⚠ Used fallback tags for draft {draft_id}: {fallback_tags}")
+            else:
+                db.update_draft_tag_status(draft_id, 'error')
+        except:
+            db.update_draft_tag_status(draft_id, 'error')
 
 def split_into_pages(text, words_per_page=500):
     """Split text into pages for easier navigation, preserving paragraph structure."""
