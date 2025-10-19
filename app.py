@@ -656,7 +656,7 @@ def question_generation_watcher():
                             db.tag_status,
                             db.tags
                         FROM draft_chapters dc
-                        JOIN draft_book db ON dc.draft_id = db.id
+                        JOIN draft_books db ON dc.draft_id = db.id
                         WHERE dc.question_status = 'pending'
                           AND db.tag_status = 'ready'
                           AND db.tags IS NOT NULL
