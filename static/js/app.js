@@ -1155,22 +1155,74 @@ async function viewChapter(chapterId) {
     }
 }
 
-function hasUnsavedEdits() {
-    // Check if any elements are in edit mode (contenteditable="true")
+function getEditingItems() {
+    // Get all items currently in edit mode
     const modal = document.getElementById('chapter-modal');
-    if (!modal) return false;
+    if (!modal) return { questions: [], vocabulary: [] };
     
-    const editableElements = modal.querySelectorAll('[contenteditable="true"]');
-    return editableElements.length > 0;
+    const questions = [];
+    const vocabulary = [];
+    
+    // Find all Save buttons (indicates edit mode)
+    const saveBtns = modal.querySelectorAll('.save-btn');
+    saveBtns.forEach(btn => {
+        const id = btn.id;
+        if (id.startsWith('edit-q-btn-')) {
+            const questionId = id.replace('edit-q-btn-', '');
+            questions.push(questionId);
+        } else if (id.startsWith('edit-v-btn-')) {
+            const vocabId = id.replace('edit-v-btn-', '');
+            vocabulary.push(vocabId);
+        }
+    });
+    
+    return { questions, vocabulary };
 }
 
-function closeChapterModal() {
+async function closeChapterModal() {
+    const editing = getEditingItems();
+    const hasEdits = editing.questions.length > 0 || editing.vocabulary.length > 0;
+    
     // Check for unsaved edits
-    if (hasUnsavedEdits()) {
-        const confirmClose = confirm('You have unsaved changes. Do you want to discard them and close?');
-        if (!confirmClose) {
-            return; // User cancelled, don't close
+    if (hasEdits) {
+        const userChoice = confirm('You have unsaved changes. Do you want to save them?\n\nOK = Save and close\nCancel = Don\'t save and close');
+        
+        if (userChoice) {
+            // User wants to save - get the chapter ID from the modal
+            const chapterIdElem = document.querySelector('[id^="question-container-"], [id^="vocab-container-"]');
+            if (!chapterIdElem) {
+                document.getElementById('chapter-modal').style.display = 'none';
+                return;
+            }
+            
+            // Extract chapter ID from any save button's onclick attribute
+            const anyBtn = document.querySelector('.save-btn');
+            let chapterId = null;
+            if (anyBtn) {
+                const onclickStr = anyBtn.getAttribute('onclick') || '';
+                const match = onclickStr.match(/'([^']+)'/g);
+                if (match && match.length >= 2) {
+                    chapterId = match[1].replace(/'/g, '');
+                }
+            }
+            
+            if (!chapterId) {
+                showStatus('Could not determine chapter ID', 'error');
+                document.getElementById('chapter-modal').style.display = 'none';
+                return;
+            }
+            
+            // Save all questions
+            for (const qId of editing.questions) {
+                await saveQuestion(qId, chapterId);
+            }
+            
+            // Save all vocabulary
+            for (const vId of editing.vocabulary) {
+                await saveVocabulary(vId, chapterId);
+            }
         }
+        // If user clicked Cancel, we don't save but still close
     }
     
     document.getElementById('chapter-modal').style.display = 'none';
