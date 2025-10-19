@@ -443,7 +443,7 @@ class DatabaseManager:
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
-                    UPDATE draft_book 
+                    UPDATE draft_books 
                     SET tag_status = %s,
                         updated_at = NOW()
                     WHERE id = %s
