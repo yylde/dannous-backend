@@ -634,6 +634,14 @@ function clearChapter() {
     updateUndoButton();
 }
 
+function updateAllChapterStatusesToGenerating() {
+    // Immediately update all chapters to 'generating' status in the UI
+    chapters.forEach(chapter => {
+        chapter.question_status = 'generating';
+    });
+    updateChaptersList();
+}
+
 function updateChaptersList() {
     const container = document.getElementById('chapters-container');
     document.getElementById('chapter-count').textContent = chapters.length;
@@ -1736,6 +1744,9 @@ async function saveTagsAndUrl() {
         
         showStatus('Tags and cover URL saved successfully! Regenerating questions...', 'success');
         
+        // Immediately update all chapter statuses to "generating" in the UI
+        updateAllChapterStatusesToGenerating();
+        
         // Automatically trigger question regeneration after saving tags
         setTimeout(async () => {
             try {
@@ -1801,6 +1812,9 @@ async function regenerateQuestions() {
         
         // Then trigger question regeneration
         showStatus('Regenerating questions for grade changes...', 'info');
+        
+        // Immediately update all chapter statuses to "generating" in the UI
+        updateAllChapterStatusesToGenerating();
         
         const regenResponse = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
             method: 'POST',
@@ -1917,6 +1931,9 @@ async function triggerQuestionRegenAfterTags() {
     try {
         showLoading(true);
         showStatus('Regenerating questions based on new tags...', 'info');
+        
+        // Immediately update all chapter statuses to "generating" in the UI
+        updateAllChapterStatusesToGenerating();
         
         const response = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
             method: 'POST',
