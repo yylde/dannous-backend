@@ -1155,7 +1155,24 @@ async function viewChapter(chapterId) {
     }
 }
 
+function hasUnsavedEdits() {
+    // Check if any elements are in edit mode (contenteditable="true")
+    const modal = document.getElementById('chapter-modal');
+    if (!modal) return false;
+    
+    const editableElements = modal.querySelectorAll('[contenteditable="true"]');
+    return editableElements.length > 0;
+}
+
 function closeChapterModal() {
+    // Check for unsaved edits
+    if (hasUnsavedEdits()) {
+        const confirmClose = confirm('You have unsaved changes. Do you want to discard them and close?');
+        if (!confirmClose) {
+            return; // User cancelled, don't close
+        }
+    }
+    
     document.getElementById('chapter-modal').style.display = 'none';
 }
 
