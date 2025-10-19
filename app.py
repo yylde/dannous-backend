@@ -537,7 +537,10 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
                     WHERE id = %s
                 """, (html_with_abbr, chapter_id))
         
-        logger.info(f"✓ Generated questions for {len(grade_levels)} grade levels with {len(all_vocabulary)} total vocabulary items")
+        # Mark chapter as ready - ALL grades have been processed
+        db.update_chapter_question_status(chapter_id, 'ready')
+        
+        logger.info(f"✓ Generated questions for {len(grade_levels)} grade levels with {len(all_vocabulary)} total vocabulary items - STATUS: READY")
         
     except Exception as e:
         logger.exception(f"Failed to generate questions for chapter {chapter_id}")
