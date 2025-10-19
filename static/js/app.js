@@ -257,8 +257,12 @@ async function downloadBook() {
         // Clear form values for new book
         document.getElementById('age-range').value = '8-12';
         document.getElementById('reading-level').value = 'intermediate';
-        document.getElementById('genre').value = 'fiction';
-        document.getElementById('cover-image-url').value = '';  // Clear cover URL for new book
+        document.getElementById('cover-image-url').value = '';
+        
+        // Initialize tags as empty
+        currentTags = [];
+        renderTags();
+        updateTagStatusBadge(null);
         
         // Auto-save as draft
         await saveDraft();
@@ -862,8 +866,17 @@ async function loadDraft(draftId) {
         // Set form values
         document.getElementById('age-range').value = draft.age_range || '8-12';
         document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
-        document.getElementById('genre').value = draft.genre || 'fiction';
         document.getElementById('cover-image-url').value = draft.cover_image_url || '';
+        
+        // Load tags and tag status
+        currentTags = draft.tags || [];
+        renderTags();
+        updateTagStatusBadge(draft.tag_status);
+        
+        // Start tag status polling if generating
+        if (draft.tag_status === 'pending' || draft.tag_status === 'generating') {
+            startTagStatusPolling(draftId);
+        }
         
         // Show draft info
         document.getElementById('draft-title').textContent = `${draft.title} by ${draft.author}`;
@@ -898,7 +911,6 @@ async function saveDraft() {
     try {
         const ageRange = document.getElementById('age-range').value;
         const readingLevel = document.getElementById('reading-level').value;
-        const genre = document.getElementById('genre').value;
         let coverImageUrl = document.getElementById('cover-image-url').value.trim();
         
         // If cover URL is empty and we're creating a new draft, ask user
@@ -925,7 +937,6 @@ async function saveDraft() {
                 full_html: bookData.full_html,
                 age_range: ageRange,
                 reading_level: readingLevel,
-                genre: genre,
                 cover_image_url: coverImageUrl,
                 metadata: bookData.metadata
             })
@@ -1157,3 +1168,162 @@ document.addEventListener('click', (e) => {
         closeChapterModal();
     }
 });
+
+// ==================== TAG MANAGEMENT ====================
+
+let currentTags = [];
+let tagStatusPollingInterval = null;
+
+function showAddTagInput() {
+    document.getElementById('add-tag-input-container').style.display = 'flex';
+    document.getElementById('new-tag-input').focus();
+}
+
+function hideAddTagInput() {
+    document.getElementById('add-tag-input-container').style.display = 'none';
+    document.getElementById('new-tag-input').value = '';
+}
+
+function handleTagKeyPress(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        addNewTag();
+    }
+}
+
+function addNewTag() {
+    const input = document.getElementById('new-tag-input');
+    const tagValue = input.value.trim().toLowerCase();
+    
+    if (!tagValue) {
+        return;
+    }
+    
+    if (currentTags.includes(tagValue)) {
+        showStatus('Tag already exists', 'error');
+        return;
+    }
+    
+    currentTags.push(tagValue);
+    renderTags();
+    hideAddTagInput();
+}
+
+function removeTag(tag) {
+    currentTags = currentTags.filter(t => t !== tag);
+    renderTags();
+}
+
+function renderTags() {
+    const container = document.getElementById('tags-container');
+    container.innerHTML = '';
+    
+    currentTags.forEach(tag => {
+        const tagChip = document.createElement('div');
+        tagChip.className = 'tag-chip';
+        tagChip.innerHTML = `
+            ${tag}
+            <span class="remove-tag" onclick="removeTag('${tag}')">&times;</span>
+        `;
+        container.appendChild(tagChip);
+    });
+    
+    const addChip = document.createElement('div');
+    addChip.className = 'tag-chip add-tag-chip';
+    addChip.textContent = '+ Add Tag';
+    addChip.onclick = showAddTagInput;
+    container.appendChild(addChip);
+}
+
+function updateTagStatusBadge(status) {
+    const badge = document.getElementById('tag-status-badge');
+    
+    if (!status || status === 'ready') {
+        badge.style.display = 'none';
+        return;
+    }
+    
+    badge.style.display = 'inline-block';
+    badge.className = 'tag-status-badge ' + status;
+    
+    const statusText = {
+        'pending': 'Pending',
+        'generating': 'Generating...',
+        'error': 'Error'
+    };
+    
+    badge.textContent = statusText[status] || status;
+}
+
+async function saveTagsAndUrl() {
+    if (!currentDraftId) {
+        showStatus('No draft selected', 'error');
+        return;
+    }
+    
+    try {
+        const coverUrl = document.getElementById('cover-image-url').value.trim();
+        
+        showLoading(true);
+        showStatus('Saving tags and cover URL...', 'info');
+        
+        const response = await fetch(`/api/draft-tags-url/${currentDraftId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                tags: currentTags,
+                cover_image_url: coverUrl
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to save');
+        }
+        
+        showStatus('Tags and cover URL saved successfully!', 'success');
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function startTagStatusPolling(draftId) {
+    if (tagStatusPollingInterval) {
+        clearInterval(tagStatusPollingInterval);
+    }
+    
+    tagStatusPollingInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/draft/${draftId}`);
+            const data = await response.json();
+            
+            if (data.success && data.draft) {
+                const tagStatus = data.draft.tag_status;
+                updateTagStatusBadge(tagStatus);
+                
+                if (tagStatus === 'ready' && data.draft.tags && data.draft.tags.length > 0) {
+                    currentTags = data.draft.tags;
+                    renderTags();
+                    stopTagStatusPolling();
+                } else if (tagStatus === 'error') {
+                    stopTagStatusPolling();
+                }
+            }
+        } catch (error) {
+            console.error('Tag status polling error:', error);
+        }
+    }, 2000);
+}
+
+function stopTagStatusPolling() {
+    if (tagStatusPollingInterval) {
+        clearInterval(tagStatusPollingInterval);
+        tagStatusPollingInterval = null;
+    }
+}
