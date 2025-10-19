@@ -37,6 +37,14 @@ header p {
     opacity: 0.9;
 }
 
+#current-draft-info {
+    color: #2d3748 !important;
+}
+
+#current-draft-info strong {
+    color: #1a365d !important;
+}
+
 .card {
     background: white;
     border-radius: 12px;
@@ -438,24 +446,25 @@ select:focus {
     background: #38a169;
 }
 
-/* Contenteditable styling for inline editing */
+/* Contenteditable styling for inline editing - looks like regular text with subtle border */
 [contenteditable="true"] {
-    background: white !important;
+    background: transparent !important;
     color: #2d3748 !important;
-    border: 2px solid #4299e1 !important;
+    border: 1px dashed #cbd5e0 !important;
     border-radius: 4px;
-    padding: 4px 8px;
+    padding: 2px 4px;
     min-height: 20px;
     outline: none;
+    display: inline-block;
 }
 
 [contenteditable="true"]:focus {
     background: #f7fafc !important;
-    border-color: #667eea !important;
-    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+    border: 2px solid #4299e1 !important;
+    box-shadow: 0 0 0 2px rgba(66, 153, 225, 0.1);
 }
 
-/* Ensure editable text is always visible */
+/* Ensure editable text is always visible and looks like regular text */
 [contenteditable="true"] * {
     color: #2d3748 !important;
 }
