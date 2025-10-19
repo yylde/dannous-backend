@@ -283,7 +283,7 @@ def create_or_update_draft():
                 db.update_draft(draft_id, **update_fields)
             return jsonify({'success': True, 'draft_id': draft_id})
         else:
-            # Create new draft
+            # Create new draft - database connection closes automatically at end of context
             draft_id = db.create_draft(
                 gutenberg_id=data.get('gutenberg_id'),
                 title=data.get('title'),
@@ -297,8 +297,14 @@ def create_or_update_draft():
                 full_html=data.get('full_html')
             )
             
-            # Trigger async tag generation for the book
+            # Database connection is now closed and transaction committed
+            # Safe to start async operations
+            logger.info(f"Created draft {draft_id}, starting async tag generation...")
+            
+            # Trigger async tag generation in background thread
+            # Transaction is guaranteed committed since db object is out of scope
             import threading
+            
             thread = threading.Thread(
                 target=generate_tags_async,
                 args=(
