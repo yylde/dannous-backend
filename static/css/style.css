@@ -931,3 +931,126 @@ abbr[title] {
         font-size: 11px;
     }
 }
+
+/* Tags and URL Section */
+.tags-url-section {
+    background: #f7fafc;
+    padding: 20px;
+    border-radius: 8px;
+    margin-top: 20px;
+    border: 2px solid #e2e8f0;
+}
+
+.tags-group {
+    margin-bottom: 15px;
+}
+
+.tag-status-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 12px;
+    margin-left: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.tag-status-badge.pending {
+    background: #feebc8;
+    color: #c05621;
+}
+
+.tag-status-badge.generating {
+    background: #bee3f8;
+    color: #2c5282;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.tag-status-badge.ready {
+    background: #c6f6d5;
+    color: #22543d;
+}
+
+.tag-status-badge.error {
+    background: #fed7d7;
+    color: #9b2c2c;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    min-height: 50px;
+    align-items: center;
+}
+
+.tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #667eea;
+    color: white;
+    border-radius: 16px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s;
+}
+
+.tag-chip:hover {
+    background: #5568d3;
+    transform: translateY(-1px);
+}
+
+.tag-chip .remove-tag {
+    cursor: pointer;
+    font-weight: bold;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.tag-chip .remove-tag:hover {
+    opacity: 1;
+}
+
+.add-tag-chip {
+    background: #e2e8f0;
+    color: #4a5568;
+    cursor: pointer;
+    border: 2px dashed #cbd5e0;
+}
+
+.add-tag-chip:hover {
+    background: #cbd5e0;
+    border-color: #a0aec0;
+}
+
+.add-tag-input-container {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.add-tag-input-container input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 2px solid #e2e8f0;
+    border-radius: 6px;
+    font-size: 0.875rem;
+}
+
+.btn-small {
+    padding: 8px 16px;
+    font-size: 0.875rem;
+}

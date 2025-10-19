@@ -167,13 +167,32 @@
                                 <option value="advanced">Advanced</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label for="genre">Genre:</label>
-                            <input type="text" id="genre" value="fiction" placeholder="e.g., fiction, adventure">
+                    </div>
+                    
+                    <!-- Tags and Cover URL Section -->
+                    <div class="tags-url-section">
+                        <div class="form-group tags-group">
+                            <label>
+                                Tags:
+                                <span id="tag-status-badge" class="tag-status-badge" style="display: none;"></span>
+                            </label>
+                            <div id="tags-container" class="tags-container">
+                                <div class="tag-chip add-tag-chip" onclick="showAddTagInput()">+ Add Tag</div>
+                            </div>
+                            <div id="add-tag-input-container" class="add-tag-input-container" style="display: none;">
+                                <input type="text" id="new-tag-input" placeholder="e.g., adventure, grade-3" onkeypress="handleTagKeyPress(event)">
+                                <button onclick="addNewTag()" class="btn btn-small">Add</button>
+                                <button onclick="hideAddTagInput()" class="btn btn-small btn-secondary">Cancel</button>
+                            </div>
                         </div>
                         <div class="form-group">
                             <label for="cover-image-url">Book Cover URL (optional):</label>
                             <input type="url" id="cover-image-url" placeholder="https://example.com/cover.jpg">
+                        </div>
+                        <div class="form-group">
+                            <button onclick="saveTagsAndUrl()" class="btn btn-primary" id="save-tags-url-btn">
+                                💾 Save Tags & URL
+                            </button>
                         </div>
                     </div>
                     <div id="difficulty-info" class="difficulty-info"></div>
