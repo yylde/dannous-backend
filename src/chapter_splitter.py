@@ -404,6 +404,12 @@ Respond with ONLY the title, nothing else. Do not include quotes or "Chapter X:"
             
             title = response['response'].strip()
             
+            # Remove thinking tags if present (for thinking models)
+            title = re.sub(r'<think>.*?</think>', '', title, flags=re.DOTALL | re.IGNORECASE)
+            title = re.sub(r'<thinking>.*?</thinking>', '', title, flags=re.DOTALL | re.IGNORECASE)
+            title = re.sub(r'<answer>|</answer>', '', title, flags=re.IGNORECASE)
+            title = title.strip()
+            
             # Clean up the title
             title = re.sub(r'^["\'`]+|["\'`]+$', '', title)  # Remove quotes
             title = re.sub(r'^(Chapter|Section)\s+\d+:?\s*', '', title, flags=re.IGNORECASE)  # Remove prefix

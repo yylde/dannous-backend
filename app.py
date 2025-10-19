@@ -296,6 +296,25 @@ def create_or_update_draft():
                 metadata=data.get('metadata', {}),
                 full_html=data.get('full_html')
             )
+            
+            # Trigger async tag generation for the book
+            import threading
+            thread = threading.Thread(
+                target=generate_tags_async,
+                args=(
+                    draft_id,
+                    data.get('title'),
+                    data.get('author'),
+                    data.get('full_text'),
+                    data.get('age_range', settings.default_age_range),
+                    data.get('reading_level', settings.default_reading_level)
+                )
+            )
+            thread.daemon = True
+            thread.start()
+            
+            logger.info(f"Started async tag generation for draft {draft_id}")
+            
             return jsonify({'success': True, 'draft_id': draft_id})
     
     except Exception as e:
@@ -431,32 +450,58 @@ def finalize_draft(draft_id):
         return jsonify({'error': str(e)}), 500
 
 def generate_questions_async(chapter_id, draft_id, title, content, html_content, age_range, reading_level):
-    """Generate questions asynchronously in background."""
+    """Generate questions asynchronously in background for all detected grade levels."""
     try:
         db = DatabaseManager()
         db.update_chapter_question_status(chapter_id, 'generating')
         
+        # Get book tags to determine grade levels
+        draft = db.get_draft(draft_id)
+        tags = draft.get('tags', [])
+        
+        # Extract grade-level tags from book tags
+        grade_levels = [tag for tag in tags if tag.startswith('grade-')]
+        
+        # If no grade tags found, use reading level as fallback
+        if not grade_levels:
+            grade_levels = [reading_level or settings.default_reading_level]
+            logger.warning(f"No grade tags found for draft {draft_id}, using reading level: {grade_levels[0]}")
+        else:
+            logger.info(f"Generating questions for {len(grade_levels)} grade levels: {grade_levels}")
+        
         generator = QuestionGenerator()
-        questions_data, vocabulary_data, tags_data = generator.generate_questions(
-            title="Book Draft",
-            author="Unknown",
-            chapter_number=1,
-            chapter_title=title,
-            chapter_text=content,
-            reading_level=reading_level or settings.default_reading_level,
-            age_range=age_range or settings.default_age_range,
-            num_questions=settings.questions_per_chapter
-        )
+        all_vocabulary = []
         
-        db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data)
+        # Generate questions and vocabulary for each grade level
+        for grade_level in grade_levels:
+            logger.info(f"Generating for {grade_level}...")
+            
+            questions_data, vocabulary_data = generator.generate_questions(
+                title=draft.get('title', 'Book Draft'),
+                author=draft.get('author', 'Unknown'),
+                chapter_number=1,
+                chapter_title=title,
+                chapter_text=content,
+                reading_level=reading_level or settings.default_reading_level,
+                age_range=age_range or settings.default_age_range,
+                grade_level=grade_level,
+                num_questions=settings.questions_per_chapter,
+                vocab_count=8  # 8 words per grade level
+            )
+            
+            # Add grade_level to each vocabulary item (as requested by user)
+            for vocab_item in vocabulary_data:
+                vocab_item['grade_level'] = grade_level
+            
+            all_vocabulary.extend(vocabulary_data)
+            
+            # Save questions for this grade level
+            db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data, grade_level=grade_level)
+            
+            logger.info(f"✓ Saved {len(questions_data)} questions and {len(vocabulary_data)} vocabulary for {grade_level}")
         
-        # Save tags to the draft (only if this is the first chapter)
-        draft_chapters = db.get_draft_chapters(draft_id)
-        if len(draft_chapters) == 1 and tags_data:
-            db.update_draft(draft_id, tags=tags_data)
-        
-        # Apply vocabulary abbr tags to HTML content (not plain text)
-        html_with_abbr = inject_vocabulary_abbr(html_content or content, vocabulary_data)
+        # Apply vocabulary abbr tags to HTML content (combine all vocabulary)
+        html_with_abbr = inject_vocabulary_abbr(html_content or content, all_vocabulary)
         
         with db.get_connection() as conn:
             with conn.cursor() as cur:
@@ -466,12 +511,41 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
                     WHERE id = %s
                 """, (html_with_abbr, chapter_id))
         
-        logger.info(f"Generated {len(questions_data)} questions and {len(vocabulary_data)} vocabulary for chapter {chapter_id}")
+        logger.info(f"✓ Generated questions for {len(grade_levels)} grade levels with {len(all_vocabulary)} total vocabulary items")
         
     except Exception as e:
         logger.exception(f"Failed to generate questions for chapter {chapter_id}")
         db = DatabaseManager()
         db.update_chapter_question_status(chapter_id, 'error')
+
+def generate_tags_async(draft_id, title, author, full_text, age_range, reading_level):
+    """Generate tags asynchronously in background for a book."""
+    try:
+        db = DatabaseManager()
+        db.update_draft_tag_status(draft_id, 'generating')
+        
+        generator = QuestionGenerator()
+        tags_data = generator.generate_tags(
+            title=title,
+            author=author,
+            book_text=full_text,
+            reading_level=reading_level or settings.default_reading_level,
+            age_range=age_range or settings.default_age_range
+        )
+        
+        # Save tags to the draft
+        if tags_data:
+            db.update_draft(draft_id, tags=tags_data)
+            db.update_draft_tag_status(draft_id, 'ready')
+            logger.info(f"Generated {len(tags_data)} tags for draft {draft_id}: {tags_data}")
+        else:
+            db.update_draft_tag_status(draft_id, 'error')
+            logger.warning(f"No tags generated for draft {draft_id}")
+        
+    except Exception as e:
+        logger.exception(f"Failed to generate tags for draft {draft_id}")
+        db = DatabaseManager()
+        db.update_draft_tag_status(draft_id, 'error')
 
 def split_into_pages(text, words_per_page=500):
     """Split text into pages for easier navigation, preserving paragraph structure."""
