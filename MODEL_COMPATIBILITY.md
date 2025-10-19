@@ -1,6 +1,8 @@
 # Model Compatibility Guide
 
-This system is designed to work with **ANY Ollama model** - whether it's a thinking model (like DeepSeek-R1) or a standard model (like Llama, Mistral, Gemma).
+This system is **100% model-agnostic** and works with **ANY Ollama model** - whether it's a thinking model (like DeepSeek-R1) or a standard model (like Llama, Mistral, Gemma).
+
+**All Ollama API calls** throughout the entire codebase use intelligent retry strategies and automatic thinking-tag removal.
 
 ## Supported Model Types
 
@@ -27,6 +29,24 @@ Models that directly output responses without thinking tags:
 - Tries free-form output first (2 attempts)
 - Falls back to `format='json'` if parsing fails
 - Robust JSON extraction handles various formats
+
+## Model-Agnostic API Calls
+
+**Every** Ollama API call in the system is now model-agnostic:
+
+### Question Generation (`src/question_generator.py`)
+- ✅ **Question generation** - Generates comprehension questions for each grade level
+- ✅ **Vocabulary generation** - Generates grade-appropriate vocabulary
+- ✅ **Tag generation** - Extracts genre and grade-level tags from books
+
+### Content Analysis (`src/content_analyzer.py`)
+- ✅ **Front matter analysis** - Detects Gutenberg headers and book metadata
+- ✅ **Back matter analysis** - Detects Gutenberg footers and appendices
+
+### Chapter Processing (`src/chapter_splitter.py`)
+- ✅ **Title generation** - Generates engaging chapter titles
+
+**Result:** You can switch models at any time without breaking any functionality!
 
 ## How It Works
 

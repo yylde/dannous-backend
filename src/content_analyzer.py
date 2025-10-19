@@ -2,11 +2,39 @@
 
 import json
 import logging
+import re
+import time
 from typing import Dict, List, Tuple
 import ollama
 from .config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def remove_thinking_tokens(response: str) -> str:
+    """
+    Remove thinking tokens/tags from LLM responses.
+    Works with any model - thinking or non-thinking.
+    """
+    # Remove <think> tags and their content
+    response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    response = re.sub(r'<thinking>.*?</thinking>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    response = re.sub(r'<thought>.*?</thought>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <answer> tags (but keep the content)
+    response = re.sub(r'<answer>', '', response, flags=re.IGNORECASE)
+    response = re.sub(r'</answer>', '', response, flags=re.IGNORECASE)
+    
+    # Remove special DeepSeek thinking tokens
+    response = re.sub(r'<｜begin▁of▁thinking｜>.*?<｜end▁of▁thinking｜>', '', response, flags=re.DOTALL)
+    response = re.sub(r'<｜begin▁of▁sentence｜>', '', response)
+    response = re.sub(r'<｜end▁of▁sentence｜>', '', response)
+    
+    # Clean up extra whitespace
+    response = re.sub(r'\n\s*\n+', '\n\n', response)
+    response = response.strip()
+    
+    return response
 
 
 class ContentAnalyzer:
@@ -15,6 +43,39 @@ class ContentAnalyzer:
     def __init__(self, model: str = None):
         """Initialize content analyzer."""
         self.model = model or settings.ollama_model
+    
+    def _call_ollama(self, prompt: str, force_json_format: bool = False) -> str:
+        """Call Ollama API with model-agnostic settings.
+        
+        Works with ANY Ollama model - thinking or non-thinking.
+        """
+        try:
+            options = {
+                'temperature': 0.3,
+                'num_predict': 200
+            }
+            
+            generate_params = {
+                'model': self.model,
+                'prompt': prompt,
+                'options': options
+            }
+            
+            if force_json_format:
+                generate_params['format'] = 'json'
+                logger.debug(f"Using format='json' for model: {self.model}")
+            else:
+                logger.debug(f"Using free-form output for model: {self.model}")
+            
+            response = ollama.generate(**generate_params)
+            raw_response = response['response']
+            
+            logger.debug(f"Model: {self.model}, Response length: {len(raw_response)} chars")
+            return raw_response
+            
+        except Exception as e:
+            logger.error(f"Ollama API call failed with model {self.model}: {e}")
+            raise
     
     def analyze_book_structure(self, text: str) -> Dict:
         """
@@ -90,24 +151,39 @@ Page numbers should be 1-indexed. If Gutenberg text appears on pages 1-2, then d
 If no Gutenberg text found, delete_pages should be empty [].
 If no metadata (TOC/Preface/etc), metadata_pages should be empty []."""
 
-        try:
-            response = ollama.generate(
-                model=self.model,
-                prompt=prompt,
-                options={'temperature': 0.3, 'num_predict': 200}
-            )
-            
-            result = self._parse_json_response(response['response'])
-            
-            if result:
-                logger.info(f"Front matter analysis: {result.get('reasoning', 'No reasoning provided')}")
-                logger.info(f"Delete pages: {result.get('delete_pages', [])}")
-                logger.info(f"Metadata pages: {result.get('metadata_pages', [])}")
-                logger.info(f"Content starts at page: {result.get('content_start_page', 1)}")
-                return result
-            
-        except Exception as e:
-            logger.error(f"Front matter analysis failed: {e}")
+        # Use intelligent retry strategy (model-agnostic)
+        max_retries = 3
+        strategies = [
+            ('free-form', False),      # Try 1: Free-form (works with thinking models)
+            ('free-form', False),      # Try 2: Retry free-form
+            ('json-format', True)      # Try 3: Force JSON format (for non-thinking models)
+        ]
+        
+        for attempt in range(max_retries):
+            strategy_name, use_json_format = strategies[attempt]
+            try:
+                logger.debug(f"Front matter analysis attempt {attempt + 1}/{max_retries} using {strategy_name}")
+                response = self._call_ollama(prompt, force_json_format=use_json_format)
+                result = self._parse_json_response(response)
+                
+                if result:
+                    logger.info(f"✓ Success with {strategy_name}!")
+                    logger.info(f"Front matter analysis: {result.get('reasoning', 'No reasoning provided')}")
+                    logger.info(f"Delete pages: {result.get('delete_pages', [])}")
+                    logger.info(f"Metadata pages: {result.get('metadata_pages', [])}")
+                    logger.info(f"Content starts at page: {result.get('content_start_page', 1)}")
+                    return result
+                else:
+                    logger.warning(f"Attempt {attempt + 1}: No valid result parsed")
+                
+            except json.JSONDecodeError as e:
+                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): JSON parsing failed - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): {type(e).__name__} - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
         
         # Fallback: assume first 2 pages are Gutenberg
         logger.warning("Using fallback front matter detection")
@@ -155,24 +231,39 @@ Page numbers should match the actual page numbers in the book (e.g., if book is 
 If no Gutenberg text found, delete_pages should be empty [].
 If no back matter (Epilogue/Appendix/etc), metadata_pages should be empty []."""
 
-        try:
-            response = ollama.generate(
-                model=self.model,
-                prompt=prompt,
-                options={'temperature': 0.3, 'num_predict': 200}
-            )
-            
-            result = self._parse_json_response(response['response'])
-            
-            if result:
-                logger.info(f"Back matter analysis: {result.get('reasoning', 'No reasoning provided')}")
-                logger.info(f"Delete pages: {result.get('delete_pages', [])}")
-                logger.info(f"Metadata pages: {result.get('metadata_pages', [])}")
-                logger.info(f"Content ends at page: {result.get('content_end_page', total_pages)}")
-                return result
-            
-        except Exception as e:
-            logger.error(f"Back matter analysis failed: {e}")
+        # Use intelligent retry strategy (model-agnostic)
+        max_retries = 3
+        strategies = [
+            ('free-form', False),      # Try 1: Free-form (works with thinking models)
+            ('free-form', False),      # Try 2: Retry free-form
+            ('json-format', True)      # Try 3: Force JSON format (for non-thinking models)
+        ]
+        
+        for attempt in range(max_retries):
+            strategy_name, use_json_format = strategies[attempt]
+            try:
+                logger.debug(f"Back matter analysis attempt {attempt + 1}/{max_retries} using {strategy_name}")
+                response = self._call_ollama(prompt, force_json_format=use_json_format)
+                result = self._parse_json_response(response)
+                
+                if result:
+                    logger.info(f"✓ Success with {strategy_name}!")
+                    logger.info(f"Back matter analysis: {result.get('reasoning', 'No reasoning provided')}")
+                    logger.info(f"Delete pages: {result.get('delete_pages', [])}")
+                    logger.info(f"Metadata pages: {result.get('metadata_pages', [])}")
+                    logger.info(f"Content ends at page: {result.get('content_end_page', total_pages)}")
+                    return result
+                else:
+                    logger.warning(f"Attempt {attempt + 1}: No valid result parsed")
+                
+            except json.JSONDecodeError as e:
+                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): JSON parsing failed - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): {type(e).__name__} - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
         
         # Fallback: assume last 2 pages are Gutenberg
         logger.warning("Using fallback back matter detection")
@@ -184,16 +275,46 @@ If no back matter (Epilogue/Appendix/etc), metadata_pages should be empty []."""
         }
     
     def _parse_json_response(self, response: str) -> Dict:
-        """Parse JSON response from LLM."""
+        """Parse JSON response from LLM.
+        Works with ANY Ollama model - thinking or non-thinking."""
         try:
-            # Remove markdown code blocks if present
-            response = response.strip()
-            if response.startswith('```'):
-                lines = response.split('\n')
-                response = '\n'.join(lines[1:-1]) if len(lines) > 2 else response
-                if response.startswith('json'):
-                    response = response[4:]
+            # STEP 1: Remove thinking tokens (safe even if no thinking tags present)
+            response = remove_thinking_tokens(response)
             
+            # STEP 2: Clean up response
+            response = response.strip()
+            
+            # Remove markdown code blocks if present
+            if '```json' in response:
+                response = response.split('```json')[1].split('```')[0].strip()
+            elif '```' in response:
+                parts = response.split('```')
+                for part in parts:
+                    part = part.strip()
+                    if part.startswith('{') and part.endswith('}'):
+                        response = part
+                        break
+            
+            # STEP 3: Extract JSON using regex (more robust)
+            json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+            json_matches = re.findall(json_pattern, response, re.DOTALL)
+            
+            if json_matches:
+                # Take the longest match (usually the complete JSON)
+                response = max(json_matches, key=len)
+            else:
+                # Fallback: try to find JSON boundaries manually
+                if not response.startswith('{'):
+                    start_idx = response.find('{')
+                    if start_idx != -1:
+                        response = response[start_idx:]
+                
+                if not response.endswith('}'):
+                    end_idx = response.rfind('}')
+                    if end_idx != -1:
+                        response = response[:end_idx + 1]
+            
+            # STEP 4: Parse JSON
             data = json.loads(response)
             return data
             
