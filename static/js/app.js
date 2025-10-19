@@ -871,6 +871,8 @@ async function deleteDraft(draftId, event) {
     }
     
     try {
+        showLoading(true);
+        
         const response = await fetch(`/api/draft/${draftId}`, {
             method: 'DELETE'
         });
@@ -881,18 +883,26 @@ async function deleteDraft(draftId, event) {
             throw new Error(data.error || 'Failed to delete draft');
         }
         
+        // If we just deleted the currently open draft, clear the UI
         if (currentDraftId === draftId) {
             currentDraftId = null;
             bookData = null;
             chapters = [];
-            updateUI();
+            currentTags = [];
+            document.getElementById('book-section').style.display = 'none';
+            document.getElementById('current-draft-info').style.display = 'none';
         }
         
+        // Force refresh the sidebar list
+        console.log('Draft deleted, refreshing sidebar...');
         await loadDraftsInSidebar();
+        
         showStatus('Book deleted successfully', 'success');
     } catch (error) {
         console.error('Error deleting draft:', error);
         showStatus(`Error deleting book: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
     }
 }
 
