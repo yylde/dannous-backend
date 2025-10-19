@@ -1778,7 +1778,11 @@ async function saveTagsAndUrl() {
                 }
                 
                 showStatus('Question regeneration started! Updating chapters...', 'success');
-                startStatusPolling();
+                
+                // Wait a bit then refresh to get backend status
+                setTimeout(() => {
+                    startStatusPolling();
+                }, 500);
                 
             } catch (regenError) {
                 showStatus(`Error regenerating questions: ${regenError.message}`, 'error');

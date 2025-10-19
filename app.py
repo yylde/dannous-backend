@@ -746,6 +746,12 @@ def regenerate_questions_for_draft_async(draft_id):
             logger.warning(f"No chapters found for draft {draft_id}")
             return
         
+        # IMPORTANT: Set ALL chapters to 'generating' status immediately
+        # This gives instant UI feedback that regeneration has started
+        logger.info(f"Setting all {len(chapters)} chapters to 'generating' status")
+        for chapter in chapters:
+            db.update_chapter_question_status(chapter['id'], 'generating')
+        
         # Generate questions for new grades
         if grades_to_add:
             logger.info(f"Generating questions for new grades: {grades_to_add}")
