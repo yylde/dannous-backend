@@ -30,6 +30,88 @@
         </div>
     </div>
 
+    <!-- Reading Info Modal -->
+    <div id="reading-info-modal" class="modal" style="display: none;">
+        <div class="modal-content reading-modal-content">
+            <span class="close" onclick="closeReadingInfoModal()">&times;</span>
+            <h2 style="color: #667eea; margin-bottom: 20px;">Reading Benchmarks by Grade</h2>
+            <div class="reading-table-container">
+                <table class="reading-benchmarks-table">
+                    <thead>
+                        <tr>
+                            <th>Grade</th>
+                            <th>Silent Reading (WPM)</th>
+                            <th>Total Words in 30 Min</th>
+                            <th>Pages in 30 Min</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1st</td>
+                            <td>80</td>
+                            <td>2,400</td>
+                            <td>5-7.5</td>
+                        </tr>
+                        <tr>
+                            <td>2nd</td>
+                            <td>80-110</td>
+                            <td>2,400-3,300</td>
+                            <td>7.5-12.5</td>
+                        </tr>
+                        <tr>
+                            <td>3rd</td>
+                            <td>110-130</td>
+                            <td>3,300-3,900</td>
+                            <td>10-14</td>
+                        </tr>
+                        <tr>
+                            <td>4th</td>
+                            <td>130-150</td>
+                            <td>3,900-4,500</td>
+                            <td>12.5-15</td>
+                        </tr>
+                        <tr>
+                            <td>5th</td>
+                            <td>150-160</td>
+                            <td>4,500-4,800</td>
+                            <td>16-19</td>
+                        </tr>
+                        <tr>
+                            <td>6th</td>
+                            <td>160-175</td>
+                            <td>4,800-5,250</td>
+                            <td>20-22.5</td>
+                        </tr>
+                        <tr>
+                            <td>7th</td>
+                            <td>175-185</td>
+                            <td>5,250-5,550</td>
+                            <td>20-22.5</td>
+                        </tr>
+                        <tr>
+                            <td>8th</td>
+                            <td>185-200</td>
+                            <td>5,550-6,000</td>
+                            <td>20-22.5</td>
+                        </tr>
+                        <tr>
+                            <td>9th</td>
+                            <td>200-230</td>
+                            <td>6,000-6,900</td>
+                            <td>22.5-30</td>
+                        </tr>
+                        <tr>
+                            <td>Adult</td>
+                            <td>238-260</td>
+                            <td>7,140-7,800</td>
+                            <td>30-40</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>📚 Manual Chapter Splitter</h1>
@@ -75,7 +157,10 @@
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="reading-level">Reading Level:</label>
+                            <label for="reading-level">
+                                Reading Level:
+                                <button type="button" class="info-icon-btn" onclick="showReadingInfoModal()" title="View reading benchmarks">ℹ️</button>
+                            </label>
                             <select id="reading-level" onchange="updateDifficultyRange()">
                                 <option value="beginner">Beginner</option>
                                 <option value="intermediate" selected>Intermediate</option>

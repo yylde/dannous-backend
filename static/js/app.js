@@ -1115,3 +1115,45 @@ async function finalizeBook() {
         showLoading(false);
     }
 }
+
+function showReadingInfoModal() {
+    const modal = document.getElementById('reading-info-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeReadingInfoModal() {
+    const modal = document.getElementById('reading-info-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const readingModal = document.getElementById('reading-info-modal');
+        const chapterModal = document.getElementById('chapter-modal');
+        
+        if (readingModal && readingModal.style.display === 'flex') {
+            closeReadingInfoModal();
+        }
+        
+        if (chapterModal && chapterModal.style.display === 'flex') {
+            closeChapterModal();
+        }
+    }
+});
+
+document.addEventListener('click', (e) => {
+    const readingModal = document.getElementById('reading-info-modal');
+    const chapterModal = document.getElementById('chapter-modal');
+    
+    if (readingModal && e.target === readingModal) {
+        closeReadingInfoModal();
+    }
+    
+    if (chapterModal && e.target === chapterModal) {
+        closeChapterModal();
+    }
+});
