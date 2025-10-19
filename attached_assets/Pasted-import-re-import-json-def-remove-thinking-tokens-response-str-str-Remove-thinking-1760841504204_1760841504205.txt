@@ -1,0 +1,78 @@
+import re
+import json
+
+def remove_thinking_tokens(response: str) -> str:
+    """
+    Remove thinking tokens/tags from LLM responses.
+    
+    Handles various thinking tag formats used by different models:
+    - <think>...</think>
+    - <thinking>...</thinking>
+    - <thought>...</thought>
+    - And variations with attributes
+    
+    Args:
+        response: Raw response string from the model
+        
+    Returns:
+        Cleaned response with thinking tokens removed
+    """
+    # Remove <think> tags and their content
+    response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <thinking> tags and their content
+    response = re.sub(r'<thinking>.*?</thinking>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <thought> tags and their content
+    response = re.sub(r'<thought>.*?</thought>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove any remaining thinking-related tags with attributes
+    response = re.sub(r'<think[^>]*>.*?</think>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    response = re.sub(r'<thinking[^>]*>.*?</thinking>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Clean up extra whitespace
+    response = re.sub(r'\n\s*\n', '\n\n', response)
+    response = response.strip()
+    
+    return response
+
+
+def extract_json_from_response(response: str) -> dict:
+    """
+    Remove thinking tokens and extract JSON from model response.
+    
+    Args:
+        response: Raw response string from the model
+        
+    Returns:
+        Parsed JSON object
+        
+    Raises:
+        json.JSONDecodeError: If no valid JSON found after cleaning
+    """
+    # Remove thinking tokens
+    cleaned = remove_thinking_tokens(response)
+    
+    # Try to find JSON in the cleaned response
+    # Look for JSON object or array
+    json_match = re.search(r'(\{.*\}|\[.*\])', cleaned, re.DOTALL)
+    
+    if json_match:
+        json_str = json_match.group(1)
+        return json.loads(json_str)
+    else:
+        # If no JSON pattern found, try parsing the whole cleaned response
+        return json.loads(cleaned)
+
+
+# Example usage with Ollama
+def query_ollama_with_cleaning(model: str, prompt: str) -> dict:
+    """
+    Example function showing how to use this with Ollama.
+    """
+    import requests
+    
+    response = requests.post('http://localhost:11434/api/generate', 
+                            json={
+                                'model': model,
+                                'prompt': prompt,

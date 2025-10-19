@@ -2,12 +2,59 @@
 
 import json
 import logging
+import re
 import time
 from typing import List, Dict, Tuple
 import ollama
 from .config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def remove_thinking_tokens(response: str) -> str:
+    """
+    Remove thinking tokens/tags from LLM responses.
+    
+    Handles various thinking tag formats used by different models:
+    - <think>...</think>
+    - <thinking>...</thinking>
+    - <thought>...</thought>
+    - Special tokens like <｜begin▁of▁thinking｜>
+    - And variations with attributes
+    
+    Args:
+        response: Raw response string from the model
+        
+    Returns:
+        Cleaned response with thinking tokens removed
+    """
+    # Remove <think> tags and their content
+    response = re.sub(r'<think>.*?</think>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <thinking> tags and their content
+    response = re.sub(r'<thinking>.*?</thinking>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <thought> tags and their content
+    response = re.sub(r'<thought>.*?</thought>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove <answer> tags (but keep the content)
+    response = re.sub(r'<answer>', '', response, flags=re.IGNORECASE)
+    response = re.sub(r'</answer>', '', response, flags=re.IGNORECASE)
+    
+    # Remove any remaining thinking-related tags with attributes
+    response = re.sub(r'<think[^>]*>.*?</think>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    response = re.sub(r'<thinking[^>]*>.*?</thinking>', '', response, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Remove special DeepSeek thinking tokens
+    response = re.sub(r'<｜begin▁of▁thinking｜>.*?<｜end▁of▁thinking｜>', '', response, flags=re.DOTALL)
+    response = re.sub(r'<｜begin▁of▁sentence｜>', '', response)
+    response = re.sub(r'<｜end▁of▁sentence｜>', '', response)
+    
+    # Clean up extra whitespace
+    response = re.sub(r'\n\s*\n+', '\n\n', response)
+    response = response.strip()
+    
+    return response
 
 
 class QuestionGenerator:
@@ -62,12 +109,16 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
     def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict], List[str]]:
         """
         Parse JSON response from LLM with robust error handling.
+        Handles thinking models that output <think>...</think> tags.
         
         Returns:
             Tuple of (questions, vocabulary, tags)
         """
         try:
-            # Clean up response
+            # STEP 1: Remove thinking tokens (critical for thinking models)
+            response = remove_thinking_tokens(response)
+            
+            # STEP 2: Clean up response
             response = response.strip()
             
             # Remove markdown code blocks if present
@@ -237,7 +288,11 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         return self._generate_fallback_questions(chapter_title, num_questions), []
     
     def _call_ollama(self, prompt: str) -> str:
-        """Call Ollama API with improved settings."""
+        """Call Ollama API with improved settings.
+        
+        Note: We do NOT use format='json' because it's incompatible with thinking models.
+        Instead, we manually parse JSON after removing thinking tokens.
+        """
         try:
             response = ollama.generate(
                 model=self.model,
@@ -245,13 +300,11 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                 options={
                     'temperature': 0.7,
                     'top_p': 0.9,
-                    'hidethinking': True,
-                    'num_predict': 4000, 
-                     "think": False # Ensure enough tokens for response
-                },
-                format='json'  # Request JSON format
+                    'num_predict': 4000  # Ensure enough tokens for response
+                }
+                # NOT using format='json' - it disables thinking mode!
             )
-            print(response['response'])
+            logger.debug(f"Raw Ollama response (first 500 chars): {response['response'][:500]}")
             return response['response']
         except Exception as e:
             logger.error(f"Ollama API call failed: {e}")
@@ -376,9 +429,13 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         return self._generate_fallback_tags(reading_level)
     
     def _parse_tags_response(self, response: str) -> List[str]:
-        """Parse tags-only response from LLM."""
+        """Parse tags-only response from LLM.
+        Handles thinking models that output <think>...</think> tags."""
         try:
-            # Clean up response
+            # STEP 1: Remove thinking tokens (critical for thinking models)
+            response = remove_thinking_tokens(response)
+            
+            # STEP 2: Clean up response
             response = response.strip()
             
             # Remove markdown code blocks if present
