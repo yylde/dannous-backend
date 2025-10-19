@@ -438,6 +438,28 @@ select:focus {
     background: #38a169;
 }
 
+/* Contenteditable styling for inline editing */
+[contenteditable="true"] {
+    background: white !important;
+    color: #2d3748 !important;
+    border: 2px solid #4299e1 !important;
+    border-radius: 4px;
+    padding: 4px 8px;
+    min-height: 20px;
+    outline: none;
+}
+
+[contenteditable="true"]:focus {
+    background: #f7fafc !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.1);
+}
+
+/* Ensure editable text is always visible */
+[contenteditable="true"] * {
+    color: #2d3748 !important;
+}
+
 .delete-btn {
     background: #fc8181;
     color: white;
