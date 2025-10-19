@@ -450,29 +450,30 @@ class DatabaseManager:
                 """, (status, draft_id))
     
     def save_draft_questions(self, chapter_id: str, draft_id: str, 
-                            questions: List[dict], vocabulary: List[dict]) -> None:
+                            questions: List[dict], vocabulary: List[dict], grade_level: str = None) -> None:
         """Save generated questions and vocabulary for a draft chapter."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                # Delete existing questions and vocabulary
-                cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s", (chapter_id,))
-                cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s", (chapter_id,))
+                # Delete existing questions and vocabulary for this grade level only
+                if grade_level:
+                    cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
+                    cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s", (chapter_id,))  # Vocabulary gets regenerated for all grades
                 
-                # Insert questions
+                # Insert questions with grade_level
                 for i, q in enumerate(questions, 1):
                     cur.execute("""
                         INSERT INTO draft_questions (
                             draft_id, chapter_id, question_text, question_type,
                             difficulty_level, expected_keywords, min_word_count,
-                            max_word_count, order_index
-                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            max_word_count, order_index, grade_level
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         draft_id, chapter_id, q['text'], q.get('type', 'comprehension'),
                         q.get('difficulty', 'medium'), json.dumps(q.get('keywords', [])),
-                        q.get('min_words', 20), q.get('max_words', 200), i
+                        q.get('min_words', 20), q.get('max_words', 200), i, grade_level
                     ))
                 
-                # Insert vocabulary
+                # Insert vocabulary with grade_level in the word data itself (as requested)
                 for v in vocabulary:
                     cur.execute("""
                         INSERT INTO draft_vocabulary (chapter_id, word, definition, example)

@@ -23,28 +23,29 @@ class QuestionGenerator:
         self.prompt_template = self._load_prompt_template()
     
     def _load_prompt_template(self) -> str:
-        """Load question generation prompt template."""
-        return """You are an expert educator creating reading comprehension questions for children.
+        """Load question generation prompt template for a specific grade level."""
+        return """You are an expert educator creating reading comprehension questions for children in {grade_level}.
 
 Book: "{title}" by {author}
 Chapter {chapter_number}: {chapter_title}
+Target Grade: {grade_level}
 Reading Level: {reading_level}
 Age Range: {age_range}
 
 Chapter Text:
 {chapter_text}
 
-Generate exactly {num_questions} open-ended comprehension questions that:
+Generate exactly {num_questions} open-ended comprehension questions appropriate for {grade_level} students:
 1. Are NOT multiple choice or yes/no questions
 2. Start with "Why" or "How" to encourage critical thinking
 3. Require {min_words}-{max_words} word thoughtful answers
 4. Test understanding beyond simple recall
-5. Are appropriate for {age_range} year old children
+5. Are specifically tailored for {grade_level} reading and comprehension abilities
 6. Focus on themes, character motivation, cause-and-effect, or inference
 
-Additionally, identify 5-8 words that might be difficult for a child at reading level "{reading_level}" and age range "{age_range}". For each word, provide:
+Additionally, identify {vocab_count} words that might be difficult for a {grade_level} student. For each word, provide:
 - word: the difficult word (must appear in the chapter text)
-- definition: a child-friendly definition
+- definition: a child-friendly definition appropriate for {grade_level}
 - example: a simple example sentence using the word in context
 
 CRITICAL INSTRUCTIONS:
@@ -53,13 +54,8 @@ CRITICAL INSTRUCTIONS:
 - Each question must have: "text", "keywords" (array), "difficulty"
 - Each vocabulary item must have: "word", "definition", "example"
 
-Additionally, analyze the text and provide:
-- Genre tags (e.g., "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction")
-- Grade-appropriate tags based on content complexity (e.g., "grades-1-3", "grades-4-6", "grades-7-9", "grades-10-12")
-- Select 2-4 tags total that best describe the content
-
 EXACT FORMAT (copy this structure):
-{{"questions":[{{"text":"Why did the character...","keywords":["character","action"],"difficulty":"medium"}},{{"text":"How does the setting...","keywords":["setting","mood"],"difficulty":"easy"}}],"vocabulary":[{{"word":"example","definition":"simple meaning","example":"Sample sentence using example."}}],"tags":["adventure","fantasy","grades-4-6"]}}
+{{"questions":[{{"text":"Why did the character...","keywords":["character","action"],"difficulty":"medium"}},{{"text":"How does the setting...","keywords":["setting","mood"],"difficulty":"easy"}}],"vocabulary":[{{"word":"example","definition":"simple meaning","example":"Sample sentence using example."}}]}}
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
 
@@ -172,20 +168,29 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         chapter_text: str,
         reading_level: str,
         age_range: str,
-        num_questions: int = None
-    ) -> Tuple[List[Dict[str, any]], List[Dict[str, str]], List[str]]:
+        grade_level: str = None,
+        num_questions: int = None,
+        vocab_count: int = 8
+    ) -> Tuple[List[Dict[str, any]], List[Dict[str, str]]]:
         """
-        Generate questions, vocabulary, and tags for a chapter.
+        Generate questions and vocabulary for a chapter at a specific grade level.
+        
+        Args:
+            grade_level: Target grade (e.g., "grade-3", "grade-4")
+            vocab_count: Number of vocabulary words to generate
         
         Returns:
-            Tuple of (questions_list, vocabulary_list, tags_list)
+            Tuple of (questions_list, vocabulary_list)
         """
         if num_questions is None:
             num_questions = settings.questions_per_chapter
         
+        if grade_level is None:
+            grade_level = reading_level
+        
         logger.info(
-            f"Generating {num_questions} questions and vocabulary for "
-            f"Chapter {chapter_number}: {chapter_title}"
+            f"Generating {num_questions} questions and {vocab_count} vocabulary words for "
+            f"{grade_level} - Chapter {chapter_number}: {chapter_title}"
         )
         
         # Truncate chapter text if too long (to avoid context limits)
@@ -204,7 +209,9 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             chapter_text=chapter_text,
             reading_level=reading_level,
             age_range=age_range,
+            grade_level=grade_level,
             num_questions=num_questions,
+            vocab_count=vocab_count,
             min_words=settings.min_answer_words,
             max_words=settings.max_answer_words
         )
@@ -214,20 +221,20 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         for attempt in range(max_retries):
             try:
                 response = self._call_ollama(prompt)
-                questions, vocabulary, tags = self._parse_response(response, num_questions)
+                questions, vocabulary, _ = self._parse_response(response, num_questions)
                 
                 if questions:
-                    logger.info(f"✓ Generated {len(questions)} questions, {len(vocabulary)} vocabulary words, and {len(tags)} tags")
-                    return questions, vocabulary, tags
+                    logger.info(f"✓ Generated {len(questions)} questions and {len(vocabulary)} vocabulary words for {grade_level}")
+                    return questions, vocabulary
                 
             except Exception as e:
                 logger.warning(f"Attempt {attempt + 1} failed: {e}")
                 if attempt < max_retries - 1:
                     time.sleep(2 ** attempt)  # Exponential backoff
         
-        # Fallback: generate generic questions, empty vocabulary, and empty tags
+        # Fallback: generate generic questions and empty vocabulary
         logger.warning("Using fallback questions")
-        return self._generate_fallback_questions(chapter_title, num_questions), [], []
+        return self._generate_fallback_questions(chapter_title, num_questions), []
     
     def _call_ollama(self, prompt: str) -> str:
         """Call Ollama API with improved settings."""
@@ -334,15 +341,17 @@ Book Sample:
 
 Analyze this book and provide appropriate tags:
 1. Genre tags (2-3 tags): Select from: "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction", "humor", "horror", "romance", "poetry", "biography", "educational"
-2. Grade-level tags (1 tag): Select from: "grades-K-2", "grades-1-3", "grades-4-6", "grades-7-9", "grades-10-12"
+2. Individual grade-level tags: Select ALL appropriate grades from: "grade-K", "grade-1", "grade-2", "grade-3", "grade-4", "grade-5", "grade-6", "grade-7", "grade-8", "grade-9", "grade-10", "grade-11", "grade-12"
+   - Include MULTIPLE grade tags if the book is appropriate for multiple grades
+   - For example, if suitable for 2nd-4th graders, include: "grade-2", "grade-3", "grade-4"
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
 - Return a simple array of strings
-- Select 3-5 tags total
+- Include 2-3 genre tags + as many individual grade tags as appropriate (typically 2-5 grade tags)
 
 EXACT FORMAT (copy this structure):
-{{"tags":["adventure","fantasy","grades-4-6"]}}
+{{"tags":["adventure","fantasy","grade-2","grade-3","grade-4"]}}
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
         
@@ -411,17 +420,17 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
     
     def _generate_fallback_tags(self, reading_level: str) -> List[str]:
         """Generate fallback tags based on reading level."""
-        # Map reading level to grade tags
+        # Map reading level to individual grade tags
         level_map = {
-            'beginner': 'grades-K-2',
-            'early-reader': 'grades-1-3',
-            'intermediate': 'grades-4-6',
-            'advanced': 'grades-7-9',
-            'young-adult': 'grades-10-12'
+            'beginner': ['grade-K', 'grade-1', 'grade-2'],
+            'early-reader': ['grade-1', 'grade-2', 'grade-3'],
+            'intermediate': ['grade-4', 'grade-5', 'grade-6'],
+            'advanced': ['grade-7', 'grade-8', 'grade-9'],
+            'young-adult': ['grade-10', 'grade-11', 'grade-12']
         }
         
-        grade_tag = level_map.get(reading_level, 'grades-4-6')
-        return ['fiction', grade_tag]
+        grade_tags = level_map.get(reading_level, ['grade-4', 'grade-5', 'grade-6'])
+        return ['fiction'] + grade_tags
 
 
 def save_prompt_template(filepath: str = "prompts/question_generation.txt"):
