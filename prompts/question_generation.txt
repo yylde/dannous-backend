@@ -18,9 +18,10 @@ Generate exactly {num_questions} open-ended comprehension questions that:
 
 For each question, provide 3-5 expected keywords that would appear in a good answer.
 
-Additionally, analyze the text and provide:
-- Genre tags (e.g., "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction")
-- Grade-appropriate tags based on content complexity (e.g., "grades-1-3", "grades-4-6", "grades-7-9", "grades-10-12")
+Additionally:
+- Extract 5-10 challenging vocabulary words from the text with definitions and example sentences
+- Analyze the text and provide genre tags (e.g., "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction")
+- Add grade-appropriate tags based on content complexity (e.g., "grades-1-3", "grades-4-6", "grades-7-9", "grades-10-12")
 - Select 2-4 tags total that best describe the content
 
 Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
@@ -30,6 +31,13 @@ Respond ONLY with valid JSON in this exact format (no markdown, no code blocks):
       "text": "Why did [character/event]...",
       "keywords": ["keyword1", "keyword2", "keyword3"],
       "difficulty": "medium"
+    }}
+  ],
+  "vocabulary": [
+    {{
+      "word": "example",
+      "definition": "a thing characteristic of its kind",
+      "example": "This is an example sentence using the word."
     }}
   ],
   "tags": ["adventure", "fantasy", "grades-4-6"]
