@@ -82,6 +82,8 @@ Age Range: {age_range}
 Chapter Text:
 {chapter_text}
 
+CRITICAL: All content MUST be strictly age-appropriate for {grade_level} students (ages {age_range}). Use vocabulary, concepts, and themes that match their developmental stage and cognitive abilities.
+
 Generate exactly {num_questions} open-ended comprehension questions appropriate for {grade_level} students:
 1. Are NOT multiple choice or yes/no questions
 2. Start with "Why" or "How" to encourage critical thinking
@@ -89,6 +91,8 @@ Generate exactly {num_questions} open-ended comprehension questions appropriate 
 4. Test understanding beyond simple recall
 5. Are specifically tailored for {grade_level} reading and comprehension abilities
 6. Focus on themes, character motivation, cause-and-effect, or inference
+7. Use language and concepts that are developmentally appropriate for ages {age_range}
+8. Avoid abstract or complex themes beyond {grade_level} comprehension
 
 Additionally, identify {vocab_count} words that might be difficult for a {grade_level} student. For each word, provide:
 - word: the difficult word (must appear in the chapter text)
@@ -99,6 +103,9 @@ IMPORTANT for vocabulary selection:
 - DO NOT include character names (e.g., "Alice", "Hatter", "Queen") - these are proper nouns and don't need definitions
 - DO include country names and geographical locations (e.g., "Wonderland", "England") - these help students learn geography
 - Focus on challenging adjectives, verbs, and descriptive words that enhance comprehension
+- Select vocabulary that is challenging yet achievable for {grade_level} students
+- Ensure definitions use simple language appropriate for ages {age_range}
+- Examples should relate to situations and experiences familiar to {grade_level} children
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
