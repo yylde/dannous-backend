@@ -95,6 +95,11 @@ Additionally, identify {vocab_count} words that might be difficult for a {grade_
 - definition: a child-friendly definition appropriate for {grade_level}
 - example: a simple example sentence using the word in context
 
+IMPORTANT for vocabulary selection:
+- DO NOT include character names (e.g., "Alice", "Hatter", "Queen") - these are proper nouns and don't need definitions
+- DO include country names and geographical locations (e.g., "Wonderland", "England") - these help students learn geography
+- Focus on challenging adjectives, verbs, and descriptive words that enhance comprehension
+
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
 - DO NOT nest "questions" arrays inside questions - keep it flat
