@@ -178,7 +178,10 @@
                         </div>
                         <div class="form-group">
                             <label for="cover-image-url">Book Cover URL (optional):</label>
-                            <input type="url" id="cover-image-url" placeholder="https://example.com/cover.jpg">
+                            <input type="url" id="cover-image-url" placeholder="https://example.com/cover.jpg" oninput="updateCoverPreview()">
+                            <div id="cover-preview-container" style="margin-top: 10px; display: none;">
+                                <img id="cover-preview-img" src="" alt="Cover preview" style="max-width: 100px; max-height: 150px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onerror="this.parentElement.style.display='none'">
+                            </div>
                         </div>
                         <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
                             <button onclick="saveTagsAndUrl()" class="btn btn-primary" id="save-tags-url-btn">

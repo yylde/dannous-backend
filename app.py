@@ -751,20 +751,24 @@ def regenerate_questions_for_draft_async(draft_id):
             logger.warning(f"No chapters found for draft {draft_id}")
             return
         
-        # IMPORTANT: Set ALL chapters to 'generating' status immediately
-        # This gives instant UI feedback that regeneration has started
-        logger.info(f"Setting all {len(chapters)} chapters to 'generating' status")
-        for chapter in chapters:
-            db.update_chapter_question_status(chapter['id'], 'generating')
-        
         # Generate questions for new grades
         if grades_to_add:
             logger.info(f"Generating questions for new grades: {grades_to_add}")
             
             generator = QuestionGenerator()
             
+            if not PARALLEL_GENERATION:
+                logger.info(f"[SEQUENTIAL MODE] Processing {len(chapters)} chapters one at a time")
+            else:
+                logger.info(f"[PARALLEL MODE] Processing all {len(chapters)} chapters in parallel")
+                # In parallel mode, set ALL chapters to 'generating' immediately for UI feedback
+                for chapter in chapters:
+                    db.update_chapter_question_status(chapter['id'], 'generating')
+            
+            chapters_to_process = chapters
+            
             # Process each chapter
-            for chapter in chapters:
+            for chapter in chapters_to_process:
                 chapter_id = chapter['id']
                 logger.info(f"Processing chapter {chapter['chapter_number']}: {chapter['title']}")
                 

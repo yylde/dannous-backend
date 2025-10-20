@@ -960,6 +960,7 @@ async function loadDraft(draftId) {
         // Set form values
         document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
         document.getElementById('cover-image-url').value = draft.cover_image_url || '';
+        updateCoverPreview(); // Show preview if URL exists
         
         // Load tags and tag status
         currentTags = draft.tags || [];
@@ -2022,5 +2023,27 @@ function stopTagStatusPolling() {
     if (tagStatusPollingInterval) {
         clearInterval(tagStatusPollingInterval);
         tagStatusPollingInterval = null;
+    }
+}
+
+function updateCoverPreview() {
+    const urlInput = document.getElementById('cover-image-url');
+    const previewContainer = document.getElementById('cover-preview-container');
+    const previewImg = document.getElementById('cover-preview-img');
+    
+    const url = urlInput.value.trim();
+    
+    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+        previewImg.src = url;
+        previewContainer.style.display = 'block';
+    } else {
+        hideCoverPreview();
+    }
+}
+
+function hideCoverPreview() {
+    const previewContainer = document.getElementById('cover-preview-container');
+    if (previewContainer) {
+        previewContainer.style.display = 'none';
     }
 }
