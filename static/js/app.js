@@ -1757,6 +1757,9 @@ async function saveTagsAndUrl() {
         
         showStatus('Tags and cover URL saved successfully! Regenerating questions...', 'success');
         
+        // Update cover preview after saving
+        updateCoverPreview();
+        
         // Immediately update all chapter statuses to "generating" in the UI
         updateAllChapterStatusesToGenerating();
         
@@ -2031,12 +2034,21 @@ function updateCoverPreview() {
     const previewContainer = document.getElementById('cover-preview-container');
     const previewImg = document.getElementById('cover-preview-img');
     
-    const url = urlInput.value.trim();
+    // Check if elements exist
+    if (!urlInput || !previewContainer || !previewImg) {
+        console.warn('Cover preview elements not found');
+        return;
+    }
     
-    if (url && (url.startsWith('http://') || url.startsWith('https://'))) {
+    const url = urlInput.value ? urlInput.value.trim() : '';
+    
+    // Show preview if URL is not empty and looks valid
+    if (url && url.length > 0) {
+        console.log('Setting cover preview URL:', url);
         previewImg.src = url;
         previewContainer.style.display = 'block';
     } else {
+        console.log('Hiding cover preview - no URL');
         hideCoverPreview();
     }
 }
