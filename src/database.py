@@ -253,20 +253,20 @@ class DatabaseManager:
     def create_draft(self, gutenberg_id: Optional[int], title: str, author: str, 
                      full_text: str, age_range: str, reading_level: str, 
                      genre: str, metadata: dict, full_html: str = None, 
-                     cover_image_url: str = None) -> str:
+                     cover_image_url: str = None, word_count: int = None) -> str:
         """Create a new book draft. Returns draft_id."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO draft_books (
                         gutenberg_id, title, author, full_text, full_html, age_range, 
-                        reading_level, genre, cover_image_url, metadata
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        reading_level, genre, cover_image_url, metadata, word_count
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (gutenberg_id, title, author, full_text, full_html, age_range, 
-                      reading_level, genre, cover_image_url, json.dumps(metadata)))
+                      reading_level, genre, cover_image_url, json.dumps(metadata), word_count))
                 draft_id = cur.fetchone()[0]
-                logger.info(f"Created draft: {title} (ID: {draft_id})")
+                logger.info(f"Created draft: {title} (ID: {draft_id}, {word_count or 'unknown'} words)")
                 return str(draft_id)
     
     def update_draft(self, draft_id: str, **kwargs) -> None:
@@ -625,14 +625,14 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 # Get draft data
                 cur.execute("""
-                    SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata, tags
+                    SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata, tags, word_count
                     FROM draft_books WHERE id = %s
                 """, (draft_id,))
                 draft = cur.fetchone()
                 if not draft:
                     raise ValueError(f"Draft {draft_id} not found")
                 
-                title, author, age_range, reading_level, genre, cover_image_url, metadata, tags = draft
+                title, author, age_range, reading_level, genre, cover_image_url, metadata, tags, word_count = draft
                 # JSONB fields are already parsed by psycopg2
                 if isinstance(metadata, str):
                     metadata = json.loads(metadata)
@@ -660,10 +660,10 @@ class DatabaseManager:
                 cur.execute("""
                     INSERT INTO books (
                         id, title, author, age_range, reading_level, genre,
-                        total_chapters, cover_image_url, isbn, publication_year, tags
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        total_chapters, cover_image_url, isbn, publication_year, tags, word_count
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (book_id, title, author, age_range, reading_level, genre,
-                      total_chapters, cover_image_url, metadata.get('isbn'), metadata.get('publication_year'), json.dumps(tags)))
+                      total_chapters, cover_image_url, metadata.get('isbn'), metadata.get('publication_year'), json.dumps(tags), word_count))
                 
                 # Copy chapters
                 chapter_id_map = {}

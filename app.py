@@ -305,18 +305,23 @@ def create_or_update_draft():
                         'existing_draft_id': existing_draft['id']
                     }), 409
             
+            # Calculate word count
+            full_text = data.get('full_text', '')
+            word_count = len(full_text.split()) if full_text else 0
+            
             # Create new draft - database connection closes automatically at end of context
             draft_id = db.create_draft(
                 gutenberg_id=data.get('gutenberg_id'),
                 title=data.get('title'),
                 author=data.get('author'),
-                full_text=data.get('full_text'),
+                full_text=full_text,
                 age_range=data.get('age_range', settings.default_age_range),
                 reading_level=data.get('reading_level', settings.default_reading_level),
                 genre=data.get('genre', settings.default_genre),
                 cover_image_url=data.get('cover_image_url'),
                 metadata=data.get('metadata', {}),
-                full_html=data.get('full_html')
+                full_html=data.get('full_html'),
+                word_count=word_count
             )
             
             # Database connection is now closed and transaction committed
