@@ -419,17 +419,15 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         self,
         title: str,
         author: str,
-        book_text: str,
         reading_level: str,
         age_range: str
     ) -> List[str]:
         """
-        Generate tags (genre + grade level) for an entire book.
+        Generate tags (genre + grade level) for a book using only the title.
         
         Args:
             title: Book title
             author: Book author
-            book_text: Full book text or sample
             reading_level: Reading level
             age_range: Age range
         
@@ -438,30 +436,14 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         """
         logger.info(f"Generating tags for book: {title} by {author}")
         
-        # Take a sample from the beginning and middle of the book (max 3000 words)
-        words = book_text.split()
-        sample_size = min(3000, len(words))
-        
-        # Take 60% from beginning, 40% from middle
-        beginning_size = int(sample_size * 0.6)
-        middle_start = len(words) // 2
-        middle_size = sample_size - beginning_size
-        
-        beginning_text = ' '.join(words[:beginning_size])
-        middle_text = ' '.join(words[middle_start:middle_start + middle_size])
-        sample_text = beginning_text + '\n\n[...]\n\n' + middle_text
-        
-        # Build prompt for tag generation
+        # Build prompt for tag generation (using only title)
         prompt = f"""You are an expert librarian and educator analyzing children's books.
 
 Book: "{title}" by {author}
 Reading Level: {reading_level}
 Age Range: {age_range}
 
-Book Sample:
-{sample_text}
-
-Analyze this book and provide appropriate tags:
+Based on the book title and author, provide appropriate tags:
 1. Genre tags (as many as applicable, 1-4 tags): Select from: "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction", "humor", "horror", "romance", "poetry", "biography", "educational"
 2. Individual grade-level tags (MAXIMUM 4 GRADES): Select the 4 most likely grades from: "grade-K", "grade-1", "grade-2", "grade-3", "grade-4", "grade-5", "grade-6", "grade-7", "grade-8", "grade-9", "grade-10", "grade-11", "grade-12"
    - Include ONLY the 4 most appropriate consecutive grades for this book
@@ -569,6 +551,81 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             logger.error(f"Error parsing tags response: {e}")
             logger.debug(f"Response was: {response[:500]}")
             return []
+    
+    def generate_description(
+        self,
+        title: str,
+        author: str,
+        synopsis: str = None
+    ) -> str:
+        """
+        Generate a book description using only the title, author, and optional synopsis.
+        
+        Args:
+            title: Book title
+            author: Book author
+            synopsis: Optional synopsis or brief information about the book
+        
+        Returns:
+            Generated description string (200-500 characters)
+        """
+        logger.info(f"Generating description for book: {title} by {author}")
+        
+        # Build prompt for description generation
+        synopsis_text = f"\nSynopsis: {synopsis}" if synopsis else ""
+        
+        prompt = f"""You are an expert librarian writing book descriptions for children's books.
+
+Book: "{title}" by {author}{synopsis_text}
+
+Based on the title, author{', and synopsis' if synopsis else ''}, write an engaging description for this book (200-500 characters).
+
+The description should:
+- Be engaging and appropriate for children
+- Capture the essence and appeal of the book
+- Be 200-500 characters long
+- Not use quotation marks
+- Be a single paragraph
+
+CRITICAL INSTRUCTIONS:
+- Respond with ONLY the description text
+- NO markdown, NO code blocks, NO explanations
+- Just the description paragraph itself
+
+Your response:"""
+        
+        # Call Ollama with retries
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Description generation attempt {attempt + 1}/{max_retries}")
+                response = self._call_ollama(prompt, force_json_format=False)
+                
+                # Clean up response
+                description = remove_thinking_tokens(response).strip()
+                
+                # Remove quotes if present
+                description = description.strip('"').strip("'")
+                
+                # Truncate if too long
+                if len(description) > 500:
+                    description = description[:500].rsplit(' ', 1)[0] + '...'
+                
+                # Ensure minimum length
+                if len(description) >= 50:
+                    logger.info(f"✓ Generated description ({len(description)} chars): {description[:100]}...")
+                    return description
+                else:
+                    logger.warning(f"Attempt {attempt + 1}: Description too short ({len(description)} chars)")
+                
+            except Exception as e:
+                logger.warning(f"Description attempt {attempt + 1}: {type(e).__name__} - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+        
+        # Fallback: return a generic description
+        logger.warning("Using fallback description")
+        return f"{title} by {author} is a captivating children's book that engages young readers with its compelling story and memorable characters."
     
     def _generate_fallback_tags(self, reading_level: str) -> List[str]:
         """Generate fallback tags based on reading level."""

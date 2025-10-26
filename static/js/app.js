@@ -31,39 +31,53 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load drafts in sidebar on page load
     loadDraftsInSidebar();
 
-    // Auto-add selected text from book
-    document.addEventListener('mouseup', (e) => {
-        // Only auto-add if selection is from the book text area
-        const bookTextArea = document.getElementById('book-text-scroll');
-        if (bookTextArea && bookTextArea.contains(e.target)) {
-            setTimeout(() => {
-                const selection = window.getSelection();
-                const selectedText = selection.toString().trim();
-
-                if (selectedText && selectedText.length > 10) { // Only add if meaningful text
-                    // Get the selected paragraphs indices
-                    const selectedIndices = getSelectedParagraphIndices(selection);
-                    autoAddSelectedText(selectedText, selectedIndices);
-                    selection.removeAllRanges();
-                }
-            }, 100);
-        }
-    });
-
-    // Listen for manual edits to chapter content - NOW HANDLES DELETIONS
+    // Listen for manual edits to chapter content
     const chapterContent = document.getElementById('current-chapter-content');
     if (chapterContent) {
-        let previousContent = chapterContent.innerText.trim();
-
         chapterContent.addEventListener('input', () => {
-            const currentContent = chapterContent.innerText.trim();
-
-            // Check if text was deleted
-            if (currentContent.length < previousContent.length) {
-                handleChapterTextDeletion(previousContent, currentContent);
+            updateChapterFromEditable();
+        });
+        
+        // Handle paste events to preserve HTML formatting
+        chapterContent.addEventListener('paste', (e) => {
+            e.preventDefault();
+            
+            // Get the pasted data
+            const clipboardData = e.clipboardData || window.clipboardData;
+            const htmlData = clipboardData.getData('text/html');
+            const textData = clipboardData.getData('text/plain');
+            
+            // If HTML is available, use it; otherwise use plain text
+            const pastedContent = htmlData || textData;
+            
+            // Insert the content at the cursor position
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                range.deleteContents();
+                
+                if (htmlData) {
+                    // Create a temporary div to parse the HTML
+                    const temp = document.createElement('div');
+                    temp.innerHTML = htmlData;
+                    const fragment = document.createDocumentFragment();
+                    while (temp.firstChild) {
+                        fragment.appendChild(temp.firstChild);
+                    }
+                    range.insertNode(fragment);
+                } else {
+                    // Plain text
+                    const textNode = document.createTextNode(textData);
+                    range.insertNode(textNode);
+                }
+                
+                // Move cursor to end of pasted content
+                range.collapse(false);
+                selection.removeAllRanges();
+                selection.addRange(range);
             }
-
-            previousContent = currentContent;
+            
+            // Update the chapter data
             updateChapterFromEditable();
         });
     }
@@ -1110,7 +1124,10 @@ async function viewChapter(chapterId) {
         
         // Build modal content
         let modalHTML = `
-            <h2>${chapter.title}</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                <h2 id="chapter-title-${chapter.id}" style="margin: 0;">${chapter.title}</h2>
+                <button id="edit-chapter-btn-${chapter.id}" onclick="toggleEditChapter('${chapter.id}')" class="edit-btn">Edit Chapter</button>
+            </div>
             <p><strong>Word Count:</strong> ${chapter.word_count}</p>
             <p><strong>Status:</strong> <span class="status-badge status-${chapter.question_status}">${chapter.question_status.toUpperCase()}</span></p>
             <hr style="margin: 20px 0;">
@@ -1119,7 +1136,13 @@ async function viewChapter(chapterId) {
         if (chapter.html_formatting) {
             modalHTML += `
                 <h3>Chapter Content</h3>
-                <div class="chapter-html-content">${chapter.html_formatting}</div>
+                <div id="chapter-content-${chapter.id}" class="chapter-html-content">${chapter.html_formatting}</div>
+                <hr style="margin: 20px 0;">
+            `;
+        } else if (chapter.content) {
+            modalHTML += `
+                <h3>Chapter Content</h3>
+                <div id="chapter-content-${chapter.id}" class="chapter-html-content">${chapter.content.replace(/\n\n/g, '</p><p>').replace(/^/, '<p>').replace(/$/, '</p>')}</div>
                 <hr style="margin: 20px 0;">
             `;
         }
@@ -1548,6 +1571,100 @@ async function deleteVocabularyItem(vocabId, chapterId) {
     }
 }
 
+function toggleEditChapter(chapterId) {
+    const contentElem = document.getElementById(`chapter-content-${chapterId}`);
+    const titleElem = document.getElementById(`chapter-title-${chapterId}`);
+    const btn = document.getElementById(`edit-chapter-btn-${chapterId}`);
+    
+    if (!contentElem || !btn) return;
+    
+    // Check if currently in edit mode
+    if (contentElem.contentEditable === 'true') {
+        // Save mode
+        saveChapter(chapterId);
+    } else {
+        // Edit mode
+        contentElem.contentEditable = 'true';
+        titleElem.contentEditable = 'true';
+        
+        contentElem.style.backgroundColor = '#fff';
+        contentElem.style.padding = '10px';
+        contentElem.style.borderRadius = '5px';
+        contentElem.style.border = '2px solid #667eea';
+        
+        titleElem.style.backgroundColor = '#fff';
+        titleElem.style.padding = '5px';
+        titleElem.style.borderRadius = '3px';
+        titleElem.style.border = '2px solid #667eea';
+        
+        btn.textContent = 'Save Chapter';
+        btn.classList.remove('edit-btn');
+        btn.classList.add('save-btn');
+        
+        titleElem.focus();
+    }
+}
+
+async function saveChapter(chapterId) {
+    const contentElem = document.getElementById(`chapter-content-${chapterId}`);
+    const titleElem = document.getElementById(`chapter-title-${chapterId}`);
+    const btn = document.getElementById(`edit-chapter-btn-${chapterId}`);
+    
+    const newTitle = titleElem.innerText.trim();
+    const newContent = contentElem.innerText.trim();
+    const newHtml = contentElem.innerHTML;
+    
+    if (!newTitle) {
+        showStatus('Chapter title cannot be empty', 'error');
+        return;
+    }
+    
+    if (!newContent) {
+        showStatus('Chapter content cannot be empty', 'error');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch(`/api/chapter/${chapterId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                title: newTitle,
+                content: newContent,
+                html_formatting: newHtml
+            })
+        });
+        
+        const data = await response.json();
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to update chapter');
+        }
+        
+        // Exit edit mode
+        contentElem.contentEditable = 'false';
+        titleElem.contentEditable = 'false';
+        
+        contentElem.style.backgroundColor = '';
+        contentElem.style.padding = '';
+        contentElem.style.border = '';
+        titleElem.style.backgroundColor = '';
+        titleElem.style.padding = '';
+        titleElem.style.border = '';
+        
+        btn.textContent = 'Edit Chapter';
+        btn.classList.remove('save-btn');
+        btn.classList.add('edit-btn');
+        
+        showStatus('Chapter updated successfully', 'success');
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 async function finalizeBook() {
     if (!currentDraftId) {
         showStatus('No draft to finalize', 'error');
@@ -1797,6 +1914,47 @@ async function saveTagsAndUrl() {
         
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
+        showLoading(false);
+    }
+}
+
+async function generateDescription() {
+    if (!currentDraftId) {
+        showStatus('No draft selected', 'error');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        showStatus('Generating book description with AI...', 'info');
+        
+        const synopsis = document.getElementById('book-synopsis').value.trim();
+        
+        const response = await fetch(`/api/draft/${currentDraftId}/generate-description`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                synopsis: synopsis
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to generate description');
+        }
+        
+        // Update the description display
+        const descriptionDiv = document.getElementById('book-description');
+        descriptionDiv.textContent = data.description;
+        
+        showStatus('Description generated successfully!', 'success');
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
         showLoading(false);
     }
 }

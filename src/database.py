@@ -410,6 +410,46 @@ class DatabaseManager:
                 columns = [desc[0] for desc in cur.description]
                 return [dict(zip(columns, row)) for row in cur.fetchall()]
     
+    def update_draft_chapter(self, chapter_id: str, title: str = None, 
+                            content: str = None, html_formatting: str = None) -> bool:
+        """Update a draft chapter's content and/or HTML by ID. Returns True if successful."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Build dynamic update query based on provided parameters
+                update_fields = []
+                params = []
+                
+                if title is not None:
+                    update_fields.append("title = %s")
+                    params.append(title)
+                
+                if content is not None:
+                    update_fields.append("content = %s")
+                    params.append(content)
+                    # Update word count if content is provided
+                    word_count = len(content.split()) if content else 0
+                    update_fields.append("word_count = %s")
+                    params.append(word_count)
+                
+                if html_formatting is not None:
+                    update_fields.append("html_formatting = %s")
+                    params.append(html_formatting)
+                
+                if not update_fields:
+                    return False
+                
+                params.append(chapter_id)
+                query = f"UPDATE draft_chapters SET {', '.join(update_fields)} WHERE id = %s"
+                cur.execute(query, params)
+                
+                # Update draft timestamp
+                cur.execute("""
+                    UPDATE draft_books SET updated_at = NOW() 
+                    WHERE id = (SELECT draft_id FROM draft_chapters WHERE id = %s)
+                """, (chapter_id,))
+                
+                return cur.rowcount > 0
+    
     def get_draft_chapter(self, chapter_id: str) -> Optional[dict]:
         """Get a specific draft chapter with questions and vocabulary."""
         with self.get_connection() as conn:

@@ -338,7 +338,6 @@ def create_or_update_draft():
                     draft_id,
                     data.get('title'),
                     data.get('author'),
-                    data.get('full_text'),
                     data.get('age_range', settings.default_age_range),
                     data.get('reading_level', settings.default_reading_level)
                 )
@@ -460,6 +459,28 @@ def delete_draft(draft_id):
         logger.exception("Failed to delete draft")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/chapter/<chapter_id>', methods=['PUT'])
+def update_chapter(chapter_id):
+    """Update a draft chapter's content and HTML."""
+    try:
+        data = request.json
+        db = DatabaseManager()
+        
+        success = db.update_draft_chapter(
+            chapter_id,
+            title=data.get('title'),
+            content=data.get('content'),
+            html_formatting=data.get('html_formatting')
+        )
+        
+        if not success:
+            return jsonify({'error': 'Chapter not found or no changes made'}), 404
+        
+        return jsonify({'success': True, 'message': 'Chapter updated successfully'})
+    except Exception as e:
+        logger.exception("Failed to update chapter")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/question/<question_id>', methods=['PUT'])
 def update_question(question_id):
     """Update a draft question."""
@@ -570,7 +591,6 @@ def regenerate_tags(draft_id):
                 draft_id,
                 draft.get('title'),
                 draft.get('author'),
-                draft.get('full_text'),
                 draft.get('age_range'),
                 draft.get('reading_level')
             )
@@ -586,6 +606,40 @@ def regenerate_tags(draft_id):
         })
     except Exception as e:
         logger.exception("Failed to start tag regeneration")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/draft/<draft_id>/generate-description', methods=['POST'])
+def generate_description(draft_id):
+    """Generate a book description using AI based on title and author."""
+    try:
+        db = DatabaseManager()
+        
+        # Get the draft to verify it exists
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # Get optional synopsis from request
+        data = request.json or {}
+        synopsis = data.get('synopsis', '')
+        
+        # Generate description
+        generator = QuestionGenerator()
+        description = generator.generate_description(
+            title=draft.get('title'),
+            author=draft.get('author'),
+            synopsis=synopsis
+        )
+        
+        # Update draft with new description
+        db.update_draft(draft_id, description=description)
+        
+        return jsonify({
+            'success': True,
+            'description': description
+        })
+    except Exception as e:
+        logger.exception("Failed to generate description")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/draft/<draft_id>/regenerate-questions', methods=['POST'])
@@ -830,7 +884,7 @@ def regenerate_questions_for_draft_async(draft_id):
     except Exception as e:
         logger.exception(f"✗ Failed to regenerate questions for draft {draft_id}: {e}")
 
-def generate_tags_async(draft_id, title, author, full_text, age_range, reading_level):
+def generate_tags_async(draft_id, title, author, age_range, reading_level):
     """Generate tags asynchronously in background for a book."""
     try:
         db = DatabaseManager()
@@ -840,7 +894,6 @@ def generate_tags_async(draft_id, title, author, full_text, age_range, reading_l
         tags_data = generator.generate_tags(
             title=title,
             author=author,
-            book_text=full_text,
             reading_level=reading_level or settings.default_reading_level,
             age_range=age_range or settings.default_age_range
         )
