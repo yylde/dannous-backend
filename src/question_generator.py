@@ -552,24 +552,120 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             logger.debug(f"Response was: {response[:500]}")
             return []
     
-    def generate_description(
+    def generate_synopsis(
         self,
         title: str,
         author: str,
-        synopsis: str = None
+        book_text_sample: str
     ) -> str:
         """
-        Generate a book description using only the title, author, and optional synopsis.
+        Generate a concise synopsis from book content.
         
         Args:
             title: Book title
             author: Book author
-            synopsis: Optional synopsis or brief information about the book
+            book_text_sample: Sample of book text (e.g., first 2000 words)
+        
+        Returns:
+            Generated synopsis string (max 10-12 sentences)
+        """
+        logger.info(f"Generating synopsis for book: {title} by {author}")
+        
+        # Truncate sample if too long
+        words = book_text_sample.split()
+        if len(words) > 2000:
+            book_text_sample = ' '.join(words[:2000]) + "..."
+            logger.debug(f"Truncated book sample to 2000 words")
+        
+        # Build prompt for synopsis generation
+        prompt = f"""You are an expert librarian writing synopses for children's books.
+
+Book: "{title}" by {author}
+
+Here is the beginning of the book:
+
+{book_text_sample}
+
+Based on this excerpt, write a concise synopsis of the book (maximum 10-12 sentences).
+
+The synopsis should:
+- Summarize the main plot or themes
+- Be appropriate for children
+- Capture what makes the book engaging
+- Be factual based on the text provided
+- Be 10-12 sentences maximum
+- Not use quotation marks
+- Be clear and concise
+
+CRITICAL INSTRUCTIONS:
+- Respond with ONLY the synopsis text
+- NO markdown, NO code blocks, NO explanations
+- Just the synopsis paragraph itself
+- Maximum 10-12 sentences
+
+Your response:"""
+        
+        # Call Ollama with retries
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Synopsis generation attempt {attempt + 1}/{max_retries}")
+                response = self._call_ollama(prompt, force_json_format=False)
+                
+                # Clean up response
+                synopsis = remove_thinking_tokens(response).strip()
+                
+                # Remove quotes if present
+                synopsis = synopsis.strip('"').strip("'")
+                
+                # Count sentences (rough estimate)
+                sentence_count = len([s for s in synopsis.split('.') if s.strip()])
+                
+                # Truncate if too many sentences
+                if sentence_count > 12:
+                    sentences = [s.strip() + '.' for s in synopsis.split('.') if s.strip()]
+                    synopsis = ' '.join(sentences[:12])
+                
+                # Ensure minimum length
+                if len(synopsis) >= 100:
+                    logger.info(f"✓ Generated synopsis ({sentence_count} sentences, {len(synopsis)} chars)")
+                    return synopsis
+                else:
+                    logger.warning(f"Attempt {attempt + 1}: Synopsis too short ({len(synopsis)} chars)")
+                
+            except Exception as e:
+                logger.warning(f"Synopsis attempt {attempt + 1}: {type(e).__name__} - {e}")
+                if attempt < max_retries - 1:
+                    time.sleep(2 ** attempt)
+        
+        # Fallback: return a generic synopsis
+        logger.warning("Using fallback synopsis")
+        return f"{title} by {author} is a children's book with engaging characters and an interesting storyline."
+    
+    def generate_description(
+        self,
+        title: str,
+        author: str,
+        book_text_sample: str = None
+    ) -> str:
+        """
+        Generate a book description, optionally auto-generating synopsis from book content.
+        
+        Args:
+            title: Book title
+            author: Book author
+            book_text_sample: Optional sample of book text for auto-generating synopsis
         
         Returns:
             Generated description string (200-500 characters)
         """
         logger.info(f"Generating description for book: {title} by {author}")
+        
+        # First, generate synopsis if book text sample is provided
+        synopsis = None
+        if book_text_sample:
+            logger.info("Auto-generating synopsis from book content")
+            synopsis = self.generate_synopsis(title, author, book_text_sample)
         
         # Build prompt for description generation
         synopsis_text = f"\nSynopsis: {synopsis}" if synopsis else ""

@@ -608,9 +608,30 @@ def regenerate_tags(draft_id):
         logger.exception("Failed to start tag regeneration")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/draft/<draft_id>/marker', methods=['PUT'])
+def update_marker_position(draft_id):
+    """Update the marker position for a draft."""
+    try:
+        data = request.json
+        marker_position = data.get('marker_position')
+        
+        if marker_position is None:
+            return jsonify({'error': 'marker_position is required'}), 400
+        
+        db = DatabaseManager()
+        db.update_draft(draft_id, last_marker_position=marker_position)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Marker position saved'
+        })
+    except Exception as e:
+        logger.exception("Failed to update marker position")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/draft/<draft_id>/generate-description', methods=['POST'])
 def generate_description(draft_id):
-    """Generate a book description using AI based on title and author."""
+    """Generate a book description using AI, auto-generating synopsis from book content."""
     try:
         db = DatabaseManager()
         
@@ -619,16 +640,19 @@ def generate_description(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Get optional synopsis from request
-        data = request.json or {}
-        synopsis = data.get('synopsis', '')
+        # Extract book text sample (first 2000 words)
+        book_text = draft.get('full_text') or draft.get('full_html', '')
         
-        # Generate description
+        # Extract first 2000 words
+        words = book_text.split()
+        book_text_sample = ' '.join(words[:2000]) if words else ''
+        
+        # Generate description (which will auto-generate synopsis internally)
         generator = QuestionGenerator()
         description = generator.generate_description(
             title=draft.get('title'),
             author=draft.get('author'),
-            synopsis=synopsis
+            book_text_sample=book_text_sample if book_text_sample else None
         )
         
         # Update draft with new description
