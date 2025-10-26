@@ -279,7 +279,7 @@ class DatabaseManager:
                 for key, value in kwargs.items():
                     if key == 'cover_image_url' and (value is None or value == ''):
                         continue
-                    if key in ('metadata', 'tags'):
+                    if key in ('metadata', 'tags', 'last_marker_position'):
                         set_clauses.append(f"{key} = %s")
                         values.append(json.dumps(value))
                     else:

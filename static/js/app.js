@@ -399,8 +399,8 @@ function displayFullBook() {
 
     const scrollDiv = document.getElementById('book-text-scroll');
 
-    // Get original parts and filter out deleted ones
-    const originalParts = bookData.full_text.split('\n\n').filter(p => p.trim());
+    // Use full_html to display images and formatting
+    const originalParts = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
 
     scrollDiv.innerHTML = originalParts.map((part, idx) => {
         // Skip if this index is deleted
@@ -410,10 +410,15 @@ function displayFullBook() {
 
         const trimmedPart = part.trim();
 
-        // Check if this is a heading tag
-        if (trimmedPart.startsWith('<h') && trimmedPart.includes('>')) {
+        // Check if this is already an HTML tag (heading, paragraph, image, etc.)
+        if (trimmedPart.startsWith('<') && trimmedPart.includes('>')) {
+            // Add data-para-index to paragraphs for tracking
+            if (trimmedPart.startsWith('<p')) {
+                return trimmedPart.replace('<p', `<p data-para-index="${idx}"`);
+            }
             return trimmedPart;
         } else {
+            // Wrap plain text in paragraph tag
             return `<p data-para-index="${idx}">${trimmedPart}</p>`;
         }
     }).join('');
