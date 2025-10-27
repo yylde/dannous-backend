@@ -451,29 +451,27 @@ function assignChapterColors() {
     // Sort chapters by chapter number
     const sortedChapters = [...chapters].sort((a, b) => a.chapter_number - b.chapter_number);
     
+    console.log('Assigning colors for chapters:', sortedChapters.map(c => c.chapter_number));
+    
     sortedChapters.forEach((chapter, index) => {
-        if (index === 0) {
-            // First chapter gets first color
-            chapterColors[chapter.chapter_number] = colors[0];
-        } else {
-            // Get previous chapter's color
+        // Use index modulo to cycle through colors
+        let colorIndex = index % colors.length;
+        
+        // If we have more than 5 chapters and would reuse a color adjacent to the previous,
+        // shift by 1 to avoid same color for adjacent chapters
+        if (index > 0 && index >= colors.length) {
             const prevChapterNum = sortedChapters[index - 1].chapter_number;
-            const prevColor = chapterColors[prevChapterNum];
-            
-            // Find a different color than the previous one
-            let colorIndex = 0;
-            for (let i = 0; i < colors.length; i++) {
-                if (colors[i] !== prevColor) {
-                    colorIndex = i;
-                    break;
-                }
+            const prevColorIndex = colors.indexOf(chapterColors[prevChapterNum]);
+            if (colorIndex === prevColorIndex) {
+                colorIndex = (colorIndex + 1) % colors.length;
             }
-            
-            chapterColors[chapter.chapter_number] = colors[colorIndex];
         }
+        
+        chapterColors[chapter.chapter_number] = colors[colorIndex];
+        console.log(`Chapter ${chapter.chapter_number} → Color ${colorIndex}: ${colors[colorIndex]}`);
     });
     
-    console.log('Assigned chapter colors:', chapterColors);
+    console.log('Final chapter colors:', chapterColors);
 }
 
 async function fetchUsageData() {
