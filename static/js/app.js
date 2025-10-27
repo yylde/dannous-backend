@@ -1075,6 +1075,8 @@ async function deleteDraft(draftId, event) {
             currentTags = [];
             usedParagraphs.clear();
             stopUsagePolling();
+            stopTagStatusPolling();
+            stopDescriptionStatusPolling();
             document.getElementById('book-section').style.display = 'none';
             document.getElementById('current-draft-info').style.display = 'none';
         }
@@ -1158,6 +1160,18 @@ async function loadDraft(draftId) {
         if (draft.tag_status === 'pending' || draft.tag_status === 'generating') {
             console.log('Starting tag status polling...');
             startTagStatusPolling(draftId);
+        }
+        
+        // Load description and description status
+        const descriptionDiv = document.getElementById('book-description');
+        descriptionDiv.textContent = draft.description || '';
+        console.log('Draft loaded - Description status:', draft.description_status);
+        updateDescriptionStatusBadge(draft.description_status);
+        
+        // Start description status polling if generating
+        if (draft.description_status === 'pending' || draft.description_status === 'generating') {
+            console.log('Starting description status polling...');
+            startDescriptionStatusPolling(draftId);
         }
         
         // Load marker position if available
@@ -1942,6 +1956,7 @@ document.addEventListener('click', (e) => {
 
 let currentTags = [];
 let tagStatusPollingInterval = null;
+let descriptionStatusPollingInterval = null;
 
 function showAddTagInput() {
     document.getElementById('add-tag-input-container').style.display = 'flex';
@@ -2107,8 +2122,9 @@ async function generateDescription() {
     
     try {
         showLoading(true);
-        showStatus('Generating book description with AI (auto-generating synopsis from book content)...', 'info');
+        showStatus('Generating book description with AI...', 'info');
         
+        // Trigger description generation
         const response = await fetch(`/api/draft/${currentDraftId}/generate-description`, {
             method: 'POST',
             headers: {
@@ -2119,14 +2135,18 @@ async function generateDescription() {
         const data = await response.json();
         
         if (!response.ok) {
+            // Handle 409 Conflict specifically (description generation already in progress)
+            if (response.status === 409) {
+                showStatus('Description generation is already in progress. Please wait...', 'warning');
+                return;
+            }
             throw new Error(data.error || 'Failed to generate description');
         }
         
-        // Update the description display
-        const descriptionDiv = document.getElementById('book-description');
-        descriptionDiv.textContent = data.description;
+        showStatus('Description generation started! AI is analyzing the book...', 'success');
         
-        showStatus('Description generated successfully!', 'success');
+        // Start polling for description status
+        startDescriptionStatusPolling(currentDraftId);
         
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
@@ -2360,6 +2380,78 @@ function stopTagStatusPolling() {
     if (tagStatusPollingInterval) {
         clearInterval(tagStatusPollingInterval);
         tagStatusPollingInterval = null;
+    }
+}
+
+// ==================== DESCRIPTION STATUS POLLING ====================
+
+function startDescriptionStatusPolling(draftId) {
+    // Always stop existing polling first to prevent dangling intervals
+    stopDescriptionStatusPolling();
+    
+    console.log('Started description status polling for draft:', draftId);
+    
+    descriptionStatusPollingInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/draft/${draftId}`);
+            const data = await response.json();
+            
+            if (data.success && data.draft) {
+                const descriptionStatus = data.draft.description_status;
+                console.log('Description status:', descriptionStatus);
+                updateDescriptionStatusBadge(descriptionStatus);
+                
+                if (descriptionStatus === 'ready') {
+                    if (data.draft.description) {
+                        const descriptionDiv = document.getElementById('book-description');
+                        descriptionDiv.textContent = data.draft.description;
+                        console.log('✓ Description loaded');
+                        stopDescriptionStatusPolling();
+                        showStatus('Description generated successfully!', 'success');
+                    } else {
+                        console.warn('⚠ Description status is ready but no description returned');
+                        stopDescriptionStatusPolling();
+                        showStatus('Description generated but empty.', 'warning');
+                    }
+                } else if (descriptionStatus === 'error') {
+                    stopDescriptionStatusPolling();
+                    console.error('✗ Description generation failed - check if Ollama is running');
+                    showStatus('Description generation failed. Check if Ollama is running.', 'error');
+                }
+            }
+        } catch (error) {
+            console.error('Description status polling error:', error);
+        }
+    }, 2000);
+}
+
+function stopDescriptionStatusPolling() {
+    if (descriptionStatusPollingInterval) {
+        clearInterval(descriptionStatusPollingInterval);
+        descriptionStatusPollingInterval = null;
+    }
+}
+
+function updateDescriptionStatusBadge(status) {
+    const badge = document.getElementById('description-status-badge');
+    if (!badge) return;
+    
+    badge.className = 'status-badge';
+    
+    if (status === 'pending' || status === 'generating') {
+        badge.classList.add('status-generating');
+        badge.textContent = status === 'pending' ? '⏳ Pending' : '⚙️ Generating';
+        badge.style.display = 'inline-block';
+    } else if (status === 'ready') {
+        badge.classList.add('status-ready');
+        badge.textContent = '✓ Ready';
+        badge.style.display = 'inline-block';
+    } else if (status === 'error') {
+        badge.classList.add('status-error');
+        badge.textContent = '✗ Error';
+        badge.style.display = 'inline-block';
+    } else {
+        badge.style.display = 'none';
     }
 }
 
