@@ -651,6 +651,7 @@ def get_text_usage(draft_id):
     try:
         from rapidfuzz import fuzz
         from rapidfuzz.distance import Levenshtein
+        from bs4 import BeautifulSoup
         
         db = DatabaseManager()
         
@@ -659,13 +660,15 @@ def get_text_usage(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Get book text
-        book_text = draft.get('full_text', '')
+        # CRITICAL: Use full_html to match frontend display, fallback to full_text
+        book_text = draft.get('full_html') or draft.get('full_text', '')
         if not book_text:
             return jsonify({'used_paragraphs': []})
         
-        # Split book into paragraphs
+        # Split book into paragraphs (same way as frontend does)
         book_paragraphs = [p.strip() for p in book_text.split('\n\n') if p.strip()]
+        
+        logger.info(f"Usage tracking for draft {draft_id}: {len(book_paragraphs)} total paragraphs")
         
         # Get all chapters
         chapters = db.get_draft_chapters(draft_id)
@@ -677,11 +680,16 @@ def get_text_usage(draft_id):
         
         # Helper function to normalize text for comparison
         def normalize(text):
-            """Normalize text for fuzzy matching - lowercase, remove extra whitespace."""
-            return ' '.join(text.lower().split())
+            """Normalize text for fuzzy matching - strip HTML, lowercase, remove extra whitespace."""
+            # Strip HTML tags using BeautifulSoup
+            soup = BeautifulSoup(text, 'html.parser')
+            clean_text = soup.get_text(separator=' ')
+            # Normalize whitespace and lowercase
+            return ' '.join(clean_text.lower().split())
         
         # Normalize paragraphs once (for performance)
         normalized_paragraphs = [normalize(p) for p in book_paragraphs]
+        logger.info(f"Normalized {len(normalized_paragraphs)} book paragraphs for matching")
         
         # For each chapter, find matching paragraphs in the book
         for chapter in chapters:
