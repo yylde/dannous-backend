@@ -2023,8 +2023,7 @@ function editDescription() {
     
     // Enable editing
     descDiv.contentEditable = 'true';
-    descDiv.style.background = '#ffffff';
-    descDiv.style.borderColor = '#4299e1';
+    descDiv.classList.add('description-editing');
     descDiv.focus();
     
     // Toggle buttons
@@ -2088,8 +2087,7 @@ function exitDescriptionEditMode() {
     
     // Disable editing
     descDiv.contentEditable = 'false';
-    descDiv.style.background = '#f7fafc';
-    descDiv.style.borderColor = '#e2e8f0';
+    descDiv.classList.remove('description-editing');
     
     // Toggle buttons
     editBtn.style.display = 'inline-block';
