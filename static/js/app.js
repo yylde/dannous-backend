@@ -669,7 +669,8 @@ async function finishChapter() {
         html_content: currentChapter.html_content,
         word_count: currentChapter.word_count,
         textChunks: currentChapter.textChunks,
-        question_status: 'generating'
+        question_status: 'pending',
+        chapter_number: chapters.length + 1  // Track chapter number in local state too
     };
     
     // Save to draft and trigger async question generation
@@ -678,15 +679,18 @@ async function finishChapter() {
         chapterData.id = chapterId;
     }
 
-    // Save chapter (with metadata)
+    // Save chapter (with metadata) - now includes chapter_number
     chapters.push(chapterData);
 
     // Reset for next chapter
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
-    document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
+    const nextChapterNumber = chapters.length + 1;
+    document.getElementById('chapter-title').value = `Chapter ${nextChapterNumber}`;
 
     updateChapterDisplay();
     updateChapterStats();
+    
+    console.log(`✓ Chapter ${chapterData.chapter_number} saved. Ready for Chapter ${nextChapterNumber}.`);
     updateChaptersList();
     updateUndoButton();
     
@@ -1094,6 +1098,28 @@ async function loadDraft(draftId) {
         showBookInfo(bookData);
         displayFullBook();
         updateChaptersList();
+        
+        // IMPORTANT: Reset current chapter editor state for next chapter
+        // This ensures when user returns after saving chapters, they can continue splitting
+        currentChapter = { 
+            title: '', 
+            content: '', 
+            html_content: '', 
+            word_count: 0, 
+            textChunks: [] 
+        };
+        
+        // Set chapter title to next chapter number (based on existing chapters)
+        const nextChapterNumber = chapters.length + 1;
+        document.getElementById('chapter-title').value = `Chapter ${nextChapterNumber}`;
+        
+        // Clear the chapter editor
+        const chapterEditor = document.getElementById('current-chapter-content');
+        if (chapterEditor) {
+            chapterEditor.innerHTML = '';
+        }
+        
+        // Update chapter stats to show empty state
         updateChapterStats();
         
         document.getElementById('book-section').style.display = 'block';
@@ -1104,6 +1130,7 @@ async function loadDraft(draftId) {
         // Start polling for chapter status updates
         startStatusPolling();
         
+        console.log(`✓ Draft loaded with ${chapters.length} existing chapters. Ready for Chapter ${nextChapterNumber}.`);
         showStatus(`Loaded draft: ${draft.title}`, 'success');
         
     } catch (error) {
@@ -1178,12 +1205,17 @@ async function saveDraftChapter(chapterData) {
         const ageRange = '8-12'; // Default age range
         const readingLevel = document.getElementById('reading-level').value;
         
+        // Calculate the next chapter number based on existing chapters
+        const nextChapterNumber = chapters.length + 1;
+        
+        console.log(`Saving chapter ${nextChapterNumber} for draft ${currentDraftId}`);
+        
         const response = await fetch('/api/draft-chapter', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 draft_id: currentDraftId,
-                chapter_number: chapters.length + 1,
+                chapter_number: nextChapterNumber,
                 title: chapterData.title,
                 content: chapterData.content,
                 html_content: chapterData.html_content,
