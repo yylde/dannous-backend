@@ -731,10 +731,10 @@ class DatabaseManager:
                     
                     # Get vocabulary for this chapter
                     cur.execute("""
-                        SELECT word, definition, example
+                        SELECT word, definition, example, grade_level
                         FROM draft_vocabulary WHERE chapter_id = %s
                     """, (str(old_id),))
-                    vocab = [{'word': r[0], 'definition': r[1], 'example': r[2]} 
+                    vocab = [{'word': r[0], 'definition': r[1], 'example': r[2], 'grade_level': r[3]} 
                             for r in cur.fetchall()]
                     
                     cur.execute("""
