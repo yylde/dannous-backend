@@ -1061,6 +1061,9 @@ async function loadDraft(draftId) {
         document.getElementById('draft-title').textContent = `${draft.title} by ${draft.author}`;
         document.getElementById('current-draft-info').style.display = 'block';
         
+        // Fetch usage data BEFORE displaying the book to ensure highlighting is applied
+        await fetchUsageData();
+        
         // Update UI
         showBookInfo(bookData);
         displayFullBook();
@@ -1074,9 +1077,6 @@ async function loadDraft(draftId) {
         
         // Start polling for chapter status updates
         startStatusPolling();
-        
-        // Fetch usage data on initial load
-        fetchUsageData();
         
         showStatus(`Loaded draft: ${draft.title}`, 'success');
         

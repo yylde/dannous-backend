@@ -326,13 +326,13 @@ def create_or_update_draft():
             
             # Database connection is now closed and transaction committed
             # Safe to start async operations
-            logger.info(f"Created draft {draft_id}, starting async tag generation...")
+            logger.info(f"Created draft {draft_id}, starting async tag and description generation...")
             
             # Trigger async tag generation in background thread
             # Transaction is guaranteed committed since db object is out of scope
             import threading
             
-            thread = threading.Thread(
+            tag_thread = threading.Thread(
                 target=generate_tags_async,
                 args=(
                     draft_id,
@@ -342,10 +342,26 @@ def create_or_update_draft():
                     data.get('reading_level', settings.default_reading_level)
                 )
             )
-            thread.daemon = True
-            thread.start()
+            tag_thread.daemon = True
+            tag_thread.start()
             
             logger.info(f"Started async tag generation for draft {draft_id}")
+            
+            # Trigger async description generation in background thread
+            book_text_sample = ' '.join(full_text.split()[:2000]) if full_text else ''
+            description_thread = threading.Thread(
+                target=generate_description_async,
+                args=(
+                    draft_id,
+                    data.get('title'),
+                    data.get('author'),
+                    book_text_sample
+                )
+            )
+            description_thread.daemon = True
+            description_thread.start()
+            
+            logger.info(f"Started async description generation for draft {draft_id}")
             
             return jsonify({'success': True, 'draft_id': draft_id})
     
