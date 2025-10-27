@@ -850,6 +850,7 @@ function updateChaptersList() {
                 <div class="chapter-header">
                     <span class="chapter-title">${chapter.title}</span>
                     ${statusBadge}
+                    ${chapter.id ? `<button onclick="event.stopPropagation(); regenerateChapterQuestions('${chapter.id}')" class="btn btn-secondary" style="margin-right: 5px; padding: 4px 8px; font-size: 12px;">🔄 Regen</button>` : ''}
                     <button onclick="event.stopPropagation(); deleteChapter(${index})" class="delete-btn">Delete</button>
                 </div>
                 <div class="chapter-stats">
