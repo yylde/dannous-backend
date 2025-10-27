@@ -260,11 +260,13 @@ class DatabaseManager:
                 cur.execute("""
                     INSERT INTO draft_books (
                         gutenberg_id, title, author, full_text, full_html, age_range, 
-                        reading_level, genre, cover_image_url, metadata, word_count
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        reading_level, genre, cover_image_url, metadata, word_count,
+                        tag_status, description_status
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (gutenberg_id, title, author, full_text, full_html, age_range, 
-                      reading_level, genre, cover_image_url, json.dumps(metadata), word_count))
+                      reading_level, genre, cover_image_url, json.dumps(metadata), word_count,
+                      'pending', 'pending'))
                 draft_id = cur.fetchone()[0]
                 logger.info(f"Created draft: {title} (ID: {draft_id}, {word_count or 'unknown'} words)")
                 return str(draft_id)

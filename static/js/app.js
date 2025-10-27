@@ -1033,16 +1033,10 @@ async function loadDraft(draftId) {
             question_status: ch.question_status
         }));
         
-        // Mark deleted indices based on chapters
+        // IMPORTANT: Don't mark indices as deleted when loading a draft
+        // The deletedIndices set is only used during manual chapter creation
+        // When reloading a draft, we want to show ALL paragraphs so fuzzy matching can highlight them
         deletedIndices = new Set();
-        chapters.forEach(ch => {
-            const content = ch.content;
-            bookTextParts.forEach((part, idx) => {
-                if (content.includes(part)) {
-                    deletedIndices.add(idx);
-                }
-            });
-        });
         
         // Set form values
         document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
