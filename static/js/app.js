@@ -10,7 +10,6 @@ let chapters = [];
 let undoStack = [];
 let bookTextParts = []; // Store plain text parts for display
 let bookHtmlParts = []; // Store HTML parts for storage
-let deletedIndices = new Set(); // Track which indices have been deleted
 let currentDraftId = null; // Track current draft
 let statusPollingInterval = null; // Track polling interval for chapter status updates
 let usedParagraphs = new Set(); // Track which paragraphs have been used in chapters
@@ -102,15 +101,7 @@ function handleChapterTextDeletion(oldText, newText) {
     undoStack.push({
         bookTextParts: [...bookTextParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
-        deletedIndices: new Set(deletedIndices),
         action: 'restore_text'
-    });
-
-    // Restore the chunks back to bookTextParts
-    chunksToRestore.forEach(chunk => {
-        chunk.originalIndices.forEach(index => {
-            deletedIndices.delete(index);
-        });
     });
 
     // Rebuild bookTextParts with restored content
@@ -135,8 +126,8 @@ function rebuildBookTextParts() {
     const originalTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
     const originalHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
     
-    bookTextParts = originalTextParts.filter((part, idx) => !deletedIndices.has(idx));
-    bookHtmlParts = originalHtmlParts.filter((part, idx) => !deletedIndices.has(idx));
+    bookTextParts = [...originalTextParts];
+    bookHtmlParts = [...originalHtmlParts];
 }
 
 // NEW FUNCTION: Get the indices of selected paragraphs
@@ -341,7 +332,6 @@ function setupNewBookAfterDownload() {
     chapters = [];
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
     undoStack = [];
-    deletedIndices = new Set();
 
     // Initialize book text parts (plain text for display)
     bookTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
@@ -408,11 +398,6 @@ function displayFullBook() {
 
     let highlightedCount = 0;
     scrollDiv.innerHTML = originalParts.map((part, idx) => {
-        // Skip if this index is deleted
-        if (deletedIndices.has(idx)) {
-            return '';
-        }
-
         const trimmedPart = part.trim();
         
         // Check if this paragraph has been used in a chapter
@@ -491,7 +476,6 @@ function autoAddSelectedText(selectedText, selectedIndices) {
         bookTextParts: [...bookTextParts],
         bookHtmlParts: [...bookHtmlParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
-        deletedIndices: new Set(deletedIndices),
         action: 'add_text'
     });
 
@@ -528,9 +512,6 @@ function autoAddSelectedText(selectedText, selectedIndices) {
         currentChapter.html_content = selectedHtml;
     }
 
-    // Mark these indices as deleted
-    selectedIndices.forEach(idx => deletedIndices.add(idx));
-
     currentChapter.word_count = currentChapter.content.split(/\s+/).filter(w => w.length > 0).length;
 
     updateChapterDisplay();
@@ -552,7 +533,6 @@ function undo() {
     bookTextParts = previousState.bookTextParts;
     bookHtmlParts = previousState.bookHtmlParts || bookTextParts; // Fallback for old state
     currentChapter = previousState.currentChapter;
-    deletedIndices = previousState.deletedIndices;
 
     updateChapterDisplay();
     updateChapterStats();
@@ -612,7 +592,6 @@ async function finishChapter() {
         bookTextParts: [...bookTextParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
         chapters: JSON.parse(JSON.stringify(chapters)),
-        deletedIndices: new Set(deletedIndices),
         action: 'finish_chapter'
     });
 
@@ -668,15 +647,7 @@ function discardChapter() {
         bookTextParts: [...bookTextParts],
         bookHtmlParts: [...bookHtmlParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
-        deletedIndices: new Set(deletedIndices),
         action: 'discard_chapter'
-    });
-
-    // Restore all chunks back to the book
-    currentChapter.textChunks.forEach(chunk => {
-        chunk.originalIndices.forEach(index => {
-            deletedIndices.delete(index);
-        });
     });
 
     // Clear the current chapter
@@ -701,15 +672,7 @@ function clearChapter() {
         bookTextParts: [...bookTextParts],
         bookHtmlParts: [...bookHtmlParts],
         currentChapter: JSON.parse(JSON.stringify(currentChapter)),
-        deletedIndices: new Set(deletedIndices),
         action: 'clear_chapter'
-    });
-
-    // Restore chunks to book
-    currentChapter.textChunks.forEach(chunk => {
-        chunk.originalIndices.forEach(index => {
-            deletedIndices.delete(index);
-        });
     });
 
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
@@ -767,26 +730,15 @@ function getColorForChapter(index) {
 }
 
 function deleteChapter(index) {
-    if (confirm(`Delete "${chapters[index].title}"? The text will be restored back to the book.`)) {
+    if (confirm(`Delete "${chapters[index].title}"?`)) {
         // Save state for undo
         undoStack.push({
             bookTextParts: [...bookTextParts],
             bookHtmlParts: [...bookHtmlParts],
             currentChapter: JSON.parse(JSON.stringify(currentChapter)),
             chapters: JSON.parse(JSON.stringify(chapters)),
-            deletedIndices: new Set(deletedIndices),
             action: 'delete_chapter'
         });
-
-        // Restore the deleted chapter's text back to the book
-        const deletedChapter = chapters[index];
-        if (deletedChapter.textChunks) {
-            deletedChapter.textChunks.forEach(chunk => {
-                chunk.originalIndices.forEach(idx => {
-                    deletedIndices.delete(idx);
-                });
-            });
-        }
 
         // Remove the chapter
         chapters.splice(index, 1);
@@ -794,7 +746,7 @@ function deleteChapter(index) {
         updateChaptersList();
         displayFullBook();
         updateUndoButton();
-        showStatus('Chapter deleted and text restored to book', 'info');
+        showStatus('Chapter deleted', 'info');
     }
 }
 
@@ -1033,10 +985,6 @@ async function loadDraft(draftId) {
             question_status: ch.question_status
         }));
         
-        // IMPORTANT: Don't mark indices as deleted when loading a draft
-        // The deletedIndices set is only used during manual chapter creation
-        // When reloading a draft, we want to show ALL paragraphs so fuzzy matching can highlight them
-        deletedIndices = new Set();
         
         // Set form values
         document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
