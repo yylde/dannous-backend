@@ -394,9 +394,11 @@ function displayFullBook() {
     // Use full_html to display images and formatting
     const originalParts = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
     
-    console.log('displayFullBook - Total parts:', originalParts.length);
-    console.log('displayFullBook - usedParagraphs Set size:', usedParagraphs.size);
-    console.log('displayFullBook - usedParagraphs contents:', Array.from(usedParagraphs));
+    console.log('=== DISPLAY FULL BOOK DEBUG ===');
+    console.log('Total paragraphs:', originalParts.length);
+    console.log('paragraphChapters mapping:', paragraphChapters);
+    console.log('chapterColors mapping:', chapterColors);
+    console.log('chapters array:', chapters);
 
     let highlightedCount = 0;
     scrollDiv.innerHTML = originalParts.map((part, idx) => {
@@ -406,16 +408,19 @@ function displayFullBook() {
         const chapterNum = paragraphChapters[idx];
         const isUsed = chapterNum !== undefined;
         
-        if (isUsed) {
-            highlightedCount++;
-            console.log(`Highlighting paragraph ${idx} (Chapter ${chapterNum})`);
-        }
-        
         // Apply chapter-specific color if used, otherwise no style
         let usedStyle = '';
-        if (isUsed) {
-            const bgColor = chapterColors[chapterNum] || '#d4edda'; // Fallback color
-            usedStyle = ` style="background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
+        if (isUsed && chapterNum !== null) {
+            highlightedCount++;
+            const bgColor = chapterColors[chapterNum];
+            
+            if (bgColor) {
+                console.log(`Para ${idx} → Chapter ${chapterNum} → Color ${bgColor}`);
+                usedStyle = ` style="background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
+            } else {
+                console.warn(`Para ${idx} → Chapter ${chapterNum} but NO COLOR FOUND!`);
+                usedStyle = ` style="background-color: #d4edda; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
+            }
         }
 
         // Check if this is already an HTML tag (heading, paragraph, image, etc.)
@@ -431,7 +436,8 @@ function displayFullBook() {
         }
     }).join('');
     
-    console.log('displayFullBook - Actually highlighted:', highlightedCount, 'paragraphs');
+    console.log('Total highlighted:', highlightedCount, 'paragraphs');
+    console.log('=== END DEBUG ===');
 }
 
 // ==================== USAGE TRACKING FUNCTIONS ====================
