@@ -401,7 +401,12 @@ function displayFullBook() {
 
     // Use full_html to display images and formatting
     const originalParts = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
+    
+    console.log('displayFullBook - Total parts:', originalParts.length);
+    console.log('displayFullBook - usedParagraphs Set size:', usedParagraphs.size);
+    console.log('displayFullBook - usedParagraphs contents:', Array.from(usedParagraphs));
 
+    let highlightedCount = 0;
     scrollDiv.innerHTML = originalParts.map((part, idx) => {
         // Skip if this index is deleted
         if (deletedIndices.has(idx)) {
@@ -412,6 +417,10 @@ function displayFullBook() {
         
         // Check if this paragraph has been used in a chapter
         const isUsed = usedParagraphs.has(idx);
+        if (isUsed) {
+            highlightedCount++;
+            console.log(`Highlighting paragraph ${idx}`);
+        }
         const usedStyle = isUsed ? ' style="background-color: #d4edda; border-left: 3px solid #28a745; padding-left: 8px;"' : '';
 
         // Check if this is already an HTML tag (heading, paragraph, image, etc.)
@@ -426,6 +435,8 @@ function displayFullBook() {
             return `<p data-para-index="${idx}"${usedStyle}>${trimmedPart}</p>`;
         }
     }).join('');
+    
+    console.log('displayFullBook - Actually highlighted:', highlightedCount, 'paragraphs');
 }
 
 // ==================== USAGE TRACKING FUNCTIONS ====================
@@ -445,14 +456,19 @@ async function fetchUsageData() {
         const data = await response.json();
         
         if (response.ok && data.used_paragraphs) {
+            console.log('Received used_paragraphs from server:', data.used_paragraphs);
+            
             // Update usedParagraphs set
             usedParagraphs.clear();
             data.used_paragraphs.forEach(idx => usedParagraphs.add(idx));
             
+            console.log('Updated usedParagraphs Set:', Array.from(usedParagraphs));
+            console.log('Total paragraphs in book:', (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim()).length);
+            
             // Refresh the book display to show highlighting
             displayFullBook();
             
-            showStatus('Text usage updated successfully', 'success');
+            showStatus(`Text usage updated - ${usedParagraphs.size} paragraphs highlighted`, 'success');
         }
     } catch (error) {
         console.error('Error fetching usage data:', error);
