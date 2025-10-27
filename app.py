@@ -727,30 +727,44 @@ def generate_description(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Extract book text sample (first 2000 words)
-        book_text = draft.get('full_text') or draft.get('full_html', '')
+        # Check if description generation is already in progress
+        current_description_status = draft.get('description_status')
+        if current_description_status in ('pending', 'generating'):
+            logger.info(f"Blocked duplicate description generation request for draft {draft_id} (current status: {current_description_status})")
+            return jsonify({
+                'error': 'Description generation already in progress. Please wait for it to complete.'
+            }), 409
         
-        # Extract first 2000 words
+        # Set description status to pending
+        db.update_draft_description_status(draft_id, 'pending')
+        
+        # Extract book text sample (first 2000 words) for async processing
+        book_text = draft.get('full_text') or draft.get('full_html', '')
         words = book_text.split()
         book_text_sample = ' '.join(words[:2000]) if words else ''
         
-        # Generate description (which will auto-generate synopsis internally)
-        generator = QuestionGenerator()
-        description = generator.generate_description(
-            title=draft.get('title'),
-            author=draft.get('author'),
-            book_text_sample=book_text_sample if book_text_sample else None
+        # Start async description generation
+        import threading
+        thread = threading.Thread(
+            target=generate_description_async,
+            args=(
+                draft_id,
+                draft.get('title'),
+                draft.get('author'),
+                book_text_sample
+            )
         )
+        thread.daemon = True
+        thread.start()
         
-        # Update draft with new description
-        db.update_draft(draft_id, description=description)
+        logger.info(f"Started description generation for draft {draft_id}")
         
         return jsonify({
             'success': True,
-            'description': description
+            'message': 'Description generation started'
         })
     except Exception as e:
-        logger.exception("Failed to generate description")
+        logger.exception("Failed to start description generation")
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/draft/<draft_id>/regenerate-questions', methods=['POST'])
@@ -1033,6 +1047,33 @@ def generate_tags_async(draft_id, title, author, age_range, reading_level):
                 db.update_draft_tag_status(draft_id, 'error')
         except:
             db.update_draft_tag_status(draft_id, 'error')
+
+def generate_description_async(draft_id, title, author, book_text_sample):
+    """Generate description asynchronously in background for a book."""
+    try:
+        db = DatabaseManager()
+        db.update_draft_description_status(draft_id, 'generating')
+        
+        generator = QuestionGenerator()
+        description = generator.generate_description(
+            title=title,
+            author=author,
+            book_text_sample=book_text_sample if book_text_sample else None
+        )
+        
+        # Save description to the draft
+        if description:
+            db.update_draft(draft_id, description=description)
+            db.update_draft_description_status(draft_id, 'ready')
+            logger.info(f"✓ Generated description for draft {draft_id}: {description[:100]}...")
+        else:
+            db.update_draft_description_status(draft_id, 'error')
+            logger.error(f"✗ No description generated for draft {draft_id}")
+        
+    except Exception as e:
+        logger.exception(f"✗ Failed to generate description for draft {draft_id}: {e}")
+        db = DatabaseManager()
+        db.update_draft_description_status(draft_id, 'error')
 
 def split_into_pages(text, words_per_page=500):
     """Split text into pages for easier navigation, preserving paragraph structure."""

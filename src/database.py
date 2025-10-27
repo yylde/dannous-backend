@@ -343,7 +343,7 @@ class DatabaseManager:
                 cur.execute("""
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, cover_image_url, metadata, 
-                           tags, tag_status, created_at, updated_at
+                           tags, tag_status, description_status, created_at, updated_at
                     FROM draft_books
                     WHERE id = %s
                 """, (draft_id,))
@@ -369,6 +369,10 @@ class DatabaseManager:
                 # Ensure tag_status has a default value
                 if not draft.get('tag_status'):
                     draft['tag_status'] = 'pending'
+                
+                # Ensure description_status has a default value
+                if not draft.get('description_status'):
+                    draft['description_status'] = 'pending'
                 
                 return draft
     
@@ -586,6 +590,17 @@ class DatabaseManager:
                 cur.execute("""
                     UPDATE draft_books 
                     SET tag_status = %s,
+                        updated_at = NOW()
+                    WHERE id = %s
+                """, (status, draft_id))
+    
+    def update_draft_description_status(self, draft_id: str, status: str) -> None:
+        """Update description generation status for a draft book."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_books 
+                    SET description_status = %s,
                         updated_at = NOW()
                     WHERE id = %s
                 """, (status, draft_id))
