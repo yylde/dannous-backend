@@ -498,12 +498,20 @@ async function fetchUsageData() {
             usedParagraphs.clear();
             data.used_paragraphs.forEach(idx => usedParagraphs.add(idx));
             
-            // Update paragraphChapters mapping
-            paragraphChapters = data.paragraph_chapters || {};
+            // Update paragraphChapters mapping - convert string keys to integers
+            paragraphChapters = {};
+            if (data.paragraph_chapters) {
+                for (const [key, value] of Object.entries(data.paragraph_chapters)) {
+                    paragraphChapters[parseInt(key)] = value;
+                }
+            }
+            
+            console.log('Converted paragraphChapters:', paragraphChapters);
             
             // Assign colors to chapters
             assignChapterColors();
             
+            console.log('Assigned chapter colors:', chapterColors);
             console.log('Updated usedParagraphs Set:', Array.from(usedParagraphs));
             console.log('Total paragraphs in book:', (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim()).length);
             

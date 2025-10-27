@@ -1143,22 +1143,44 @@ abbr[title] {
 
 /* Book Description Styling */
 #book-description {
-    outline: none;
+    outline: none !important;
 }
 
 #book-description:focus {
-    outline: none;
+    outline: none !important;
+}
+
+#book-description[contenteditable="true"] {
+    background: #ffffff !important;
+    border: 2px solid #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+    outline: none !important;
+}
+
+#book-description[contenteditable="true"]:focus {
+    outline: none !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
 }
 
 #book-description.description-editing {
     background: #ffffff !important;
     border: 2px solid #667eea !important;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    outline: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
+    outline: none !important;
 }
 
 #book-description.description-editing:focus {
-    outline: none;
-    border-color: #667eea;
-    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+    outline: none !important;
+    border-color: #667eea !important;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15) !important;
+}
+
+/* Force remove all contenteditable outlines globally */
+[contenteditable="true"] {
+    outline: none !important;
+}
+
+[contenteditable="true"]:focus {
+    outline: none !important;
 }
