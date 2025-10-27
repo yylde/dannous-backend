@@ -237,7 +237,12 @@
                     </div>
                 </div>
 
-                <h2>4. Book Text <span style="font-size: 0.9rem; color: #718096; font-weight: normal;">(Copy text and paste into Chapter section above - HTML formatting will be preserved)</span></h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                    <h2 style="margin: 0;">4. Book Text <span style="font-size: 0.9rem; color: #718096; font-weight: normal;">(Copy text and paste into Chapter section above - HTML formatting will be preserved)</span></h2>
+                    <button id="refresh-usage-btn" onclick="fetchUsageData()" class="btn btn-secondary btn-small" style="white-space: nowrap;">
+                        🔄 Refresh Usage
+                    </button>
+                </div>
                 <div class="editor-container">
                     <div class="text-display-full">
                         <div id="book-text-scroll" class="book-scroll-content"></div>

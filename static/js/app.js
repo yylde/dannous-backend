@@ -13,9 +13,7 @@ let bookHtmlParts = []; // Store HTML parts for storage
 let deletedIndices = new Set(); // Track which indices have been deleted
 let currentDraftId = null; // Track current draft
 let statusPollingInterval = null; // Track polling interval for chapter status updates
-let currentMarkerPosition = null; // Track current marker position
 let usedParagraphs = new Set(); // Track which paragraphs have been used in chapters
-let usagePollingInterval = null; // Track polling interval for usage updates
 
 // Helper function to escape HTML for use in attributes
 function escapeHtml(str) {
@@ -428,125 +426,19 @@ function displayFullBook() {
             return `<p data-para-index="${idx}"${usedStyle}>${trimmedPart}</p>`;
         }
     }).join('');
-    
-    // Set up click listener for marker placement
-    setupMarkerClickListener();
-    
-    // Render existing marker if present
-    renderMarker();
-}
-
-// ==================== MARKER FUNCTIONS ====================
-
-function setupMarkerClickListener() {
-    const scrollDiv = document.getElementById('book-text-scroll');
-    if (!scrollDiv) return;
-    
-    // Remove existing listener if any
-    scrollDiv.removeEventListener('click', handleMarkerClick);
-    
-    // Add click event listener
-    scrollDiv.addEventListener('click', handleMarkerClick);
-}
-
-function handleMarkerClick(e) {
-    // Only place marker if clicking on the book text, not during text selection
-    if (window.getSelection().toString().length > 0) {
-        return; // User is selecting text, don't place marker
-    }
-    
-    if (!currentDraftId) {
-        showStatus('Please save the book first before placing a marker', 'warning');
-        return;
-    }
-    
-    const scrollDiv = document.getElementById('book-text-scroll');
-    const rect = scrollDiv.getBoundingClientRect();
-    
-    // Calculate position relative to the scroll container
-    const x = e.clientX - rect.left + scrollDiv.scrollLeft;
-    const y = e.clientY - rect.top + scrollDiv.scrollTop;
-    
-    // Find the paragraph that was clicked
-    let clickedParagraph = null;
-    let paragraphIndex = null;
-    
-    if (e.target.tagName === 'P' && e.target.hasAttribute('data-para-index')) {
-        clickedParagraph = e.target;
-        paragraphIndex = parseInt(e.target.getAttribute('data-para-index'));
-    } else if (e.target.closest('p[data-para-index]')) {
-        clickedParagraph = e.target.closest('p[data-para-index]');
-        paragraphIndex = parseInt(clickedParagraph.getAttribute('data-para-index'));
-    }
-    
-    // Store marker position
-    currentMarkerPosition = {
-        x: x,
-        y: y,
-        paragraphIndex: paragraphIndex,
-        timestamp: new Date().toISOString()
-    };
-    
-    // Save to database
-    saveMarkerPosition();
-    
-    // Render marker
-    renderMarker();
-    
-    showStatus('Marker placed and saved', 'success');
-}
-
-async function saveMarkerPosition() {
-    if (!currentDraftId || !currentMarkerPosition) return;
-    
-    try {
-        const response = await fetch(`/api/draft/${currentDraftId}/marker`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                marker_position: currentMarkerPosition
-            })
-        });
-        
-        const data = await response.json();
-        
-        if (!response.ok) {
-            console.error('Failed to save marker:', data.error);
-        }
-    } catch (error) {
-        console.error('Error saving marker position:', error);
-    }
-}
-
-function renderMarker() {
-    // Remove existing marker if any
-    const existingMarker = document.querySelector('.chapter-marker');
-    if (existingMarker) {
-        existingMarker.remove();
-    }
-    
-    if (!currentMarkerPosition) return;
-    
-    const scrollDiv = document.getElementById('book-text-scroll');
-    if (!scrollDiv) return;
-    
-    // Create marker element
-    const marker = document.createElement('div');
-    marker.className = 'chapter-marker';
-    marker.title = 'Last position marker';
-    
-    // Position the marker
-    marker.style.left = `${currentMarkerPosition.x}px`;
-    marker.style.top = `${currentMarkerPosition.y}px`;
-    
-    // Add to scroll container
-    scrollDiv.appendChild(marker);
 }
 
 // ==================== USAGE TRACKING FUNCTIONS ====================
 
 async function fetchUsageData() {
     if (!currentDraftId) return;
+    
+    // Show loading state
+    const refreshBtn = document.getElementById('refresh-usage-btn');
+    if (refreshBtn) {
+        refreshBtn.disabled = true;
+        refreshBtn.textContent = '⏳ Checking...';
+    }
     
     try {
         const response = await fetch(`/api/draft/${currentDraftId}/usage`);
@@ -559,27 +451,18 @@ async function fetchUsageData() {
             
             // Refresh the book display to show highlighting
             displayFullBook();
+            
+            showStatus('Text usage updated successfully', 'success');
         }
     } catch (error) {
         console.error('Error fetching usage data:', error);
-    }
-}
-
-function startUsagePolling() {
-    // Stop any existing polling
-    stopUsagePolling();
-    
-    // Fetch immediately
-    fetchUsageData();
-    
-    // Poll every 5 seconds
-    usagePollingInterval = setInterval(fetchUsageData, 5000);
-}
-
-function stopUsagePolling() {
-    if (usagePollingInterval) {
-        clearInterval(usagePollingInterval);
-        usagePollingInterval = null;
+        showStatus('Failed to update text usage', 'error');
+    } finally {
+        // Reset button state
+        if (refreshBtn) {
+            refreshBtn.disabled = false;
+            refreshBtn.textContent = '🔄 Refresh Usage';
+        }
     }
 }
 
@@ -1075,7 +958,6 @@ async function deleteDraft(draftId, event) {
             chapters = [];
             currentTags = [];
             usedParagraphs.clear();
-            stopUsagePolling();
             stopTagStatusPolling();
             stopDescriptionStatusPolling();
             document.getElementById('book-section').style.display = 'none';
@@ -1175,9 +1057,6 @@ async function loadDraft(draftId) {
             startDescriptionStatusPolling(draftId);
         }
         
-        // Load marker position if available
-        currentMarkerPosition = draft.last_marker_position || null;
-        
         // Show draft info
         document.getElementById('draft-title').textContent = `${draft.title} by ${draft.author}`;
         document.getElementById('current-draft-info').style.display = 'block';
@@ -1196,8 +1075,8 @@ async function loadDraft(draftId) {
         // Start polling for chapter status updates
         startStatusPolling();
         
-        // Start polling for usage tracking
-        startUsagePolling();
+        // Fetch usage data on initial load
+        fetchUsageData();
         
         showStatus(`Loaded draft: ${draft.title}`, 'success');
         

@@ -1137,30 +1137,6 @@ abbr[title] {
     font-size: 0.875rem;
 }
 
-.chapter-marker {
-    position: absolute;
-    width: 14px;
-    height: 14px;
-    background: #ff6b6b;
-    border-radius: 50%;
-    border: 2px solid white;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
-    pointer-events: none;
-    z-index: 100;
-    transform: translate(-50%, -50%);
-    cursor: default;
-    animation: markerPulse 2s infinite;
-}
-
-@keyframes markerPulse {
-    0%, 100% {
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 0 rgba(255, 107, 107, 0.7);
-    }
-    50% {
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3), 0 0 0 6px rgba(255, 107, 107, 0);
-    }
-}
-
 .book-scroll-content {
     position: relative;
 }
