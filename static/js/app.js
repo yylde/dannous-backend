@@ -2216,6 +2216,53 @@ async function regenerateQuestions() {
     }
 }
 
+async function regenerateChapterQuestions(chapterId) {
+    if (!currentDraftId) {
+        showStatus('No draft selected', 'error');
+        return;
+    }
+    
+    try {
+        showLoading(true);
+        showStatus('Regenerating questions for this chapter...', 'info');
+        
+        // Update this chapter's status to "generating" in the UI
+        const chapter = chapters.find(ch => ch.id === chapterId);
+        if (chapter) {
+            chapter.question_status = 'generating';
+            updateChaptersList();
+        }
+        
+        const response = await fetch(`/api/chapter/${chapterId}/regenerate-questions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            // Handle 409 Conflict specifically (question generation already in progress)
+            if (response.status === 409) {
+                showStatus('Question generation is already in progress for this chapter. Please wait...', 'warning');
+                return;
+            }
+            throw new Error(data.error || 'Failed to regenerate questions');
+        }
+        
+        showStatus('Question regeneration started for chapter!', 'success');
+        
+        // Start polling for chapter status updates
+        startStatusPolling();
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
 async function regenerateTags() {
     if (!currentDraftId) {
         showStatus('No draft selected', 'error');
