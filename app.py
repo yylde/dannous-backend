@@ -675,8 +675,9 @@ def get_text_usage(draft_id):
         if not chapters:
             return jsonify({'used_paragraphs': []})
         
-        # Track which paragraphs are used
+        # Track which paragraphs are used and which chapter they belong to
         used_paragraph_indices = set()
+        paragraph_to_chapter = {}  # Maps paragraph_index -> chapter_number
         
         # Helper function to normalize text for comparison
         def normalize(text):
@@ -694,7 +695,8 @@ def get_text_usage(draft_id):
         # For each chapter, find matching paragraphs in the book
         for chapter in chapters:
             chapter_text = chapter.get('content', '')
-            if not chapter_text:
+            chapter_number = chapter.get('chapter_number')
+            if not chapter_text or chapter_number is None:
                 continue
             
             # Split chapter into paragraphs (to compare paragraph-to-paragraph)
@@ -730,10 +732,12 @@ def get_text_usage(draft_id):
                     # 78% threshold allows minor edits while filtering different text
                     if combined_score >= 78:
                         used_paragraph_indices.add(para_idx)
+                        paragraph_to_chapter[para_idx] = chapter_number
                         break  # Found a match, no need to check other chapter paragraphs
         
         return jsonify({
-            'used_paragraphs': sorted(list(used_paragraph_indices))
+            'used_paragraphs': sorted(list(used_paragraph_indices)),
+            'paragraph_chapters': paragraph_to_chapter  # Maps paragraph_index -> chapter_number
         })
         
     except Exception as e:

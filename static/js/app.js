@@ -13,6 +13,8 @@ let bookHtmlParts = []; // Store HTML parts for storage
 let currentDraftId = null; // Track current draft
 let statusPollingInterval = null; // Track polling interval for chapter status updates
 let usedParagraphs = new Set(); // Track which paragraphs have been used in chapters
+let paragraphChapters = {}; // Maps paragraph_index -> chapter_number
+let chapterColors = {}; // Maps chapter_number -> color
 
 // Helper function to escape HTML for use in attributes
 function escapeHtml(str) {
@@ -400,13 +402,21 @@ function displayFullBook() {
     scrollDiv.innerHTML = originalParts.map((part, idx) => {
         const trimmedPart = part.trim();
         
-        // Check if this paragraph has been used in a chapter
-        const isUsed = usedParagraphs.has(idx);
+        // Check if this paragraph belongs to a chapter
+        const chapterNum = paragraphChapters[idx];
+        const isUsed = chapterNum !== undefined;
+        
         if (isUsed) {
             highlightedCount++;
-            console.log(`Highlighting paragraph ${idx}`);
+            console.log(`Highlighting paragraph ${idx} (Chapter ${chapterNum})`);
         }
-        const usedStyle = isUsed ? ' style="background-color: #d4edda; border-left: 3px solid #28a745; padding-left: 8px;"' : '';
+        
+        // Apply chapter-specific color if used, otherwise no style
+        let usedStyle = '';
+        if (isUsed) {
+            const bgColor = chapterColors[chapterNum] || '#d4edda'; // Fallback color
+            usedStyle = ` style="background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
+        }
 
         // Check if this is already an HTML tag (heading, paragraph, image, etc.)
         if (trimmedPart.startsWith('<') && trimmedPart.includes('>')) {
@@ -426,6 +436,46 @@ function displayFullBook() {
 
 // ==================== USAGE TRACKING FUNCTIONS ====================
 
+// Assign colors to chapters, avoiding adjacent chapters with the same color
+function assignChapterColors() {
+    const colors = [
+        '#E3F2FD', // Light Blue
+        '#E8F5E9', // Light Green
+        '#FFF9C4', // Light Yellow
+        '#FCE4EC', // Light Pink
+        '#F3E5F5'  // Light Purple
+    ];
+    
+    chapterColors = {};
+    
+    // Sort chapters by chapter number
+    const sortedChapters = [...chapters].sort((a, b) => a.chapter_number - b.chapter_number);
+    
+    sortedChapters.forEach((chapter, index) => {
+        if (index === 0) {
+            // First chapter gets first color
+            chapterColors[chapter.chapter_number] = colors[0];
+        } else {
+            // Get previous chapter's color
+            const prevChapterNum = sortedChapters[index - 1].chapter_number;
+            const prevColor = chapterColors[prevChapterNum];
+            
+            // Find a different color than the previous one
+            let colorIndex = 0;
+            for (let i = 0; i < colors.length; i++) {
+                if (colors[i] !== prevColor) {
+                    colorIndex = i;
+                    break;
+                }
+            }
+            
+            chapterColors[chapter.chapter_number] = colors[colorIndex];
+        }
+    });
+    
+    console.log('Assigned chapter colors:', chapterColors);
+}
+
 async function fetchUsageData() {
     if (!currentDraftId) return;
     
@@ -442,10 +492,17 @@ async function fetchUsageData() {
         
         if (response.ok && data.used_paragraphs) {
             console.log('Received used_paragraphs from server:', data.used_paragraphs);
+            console.log('Received paragraph_chapters from server:', data.paragraph_chapters);
             
             // Update usedParagraphs set
             usedParagraphs.clear();
             data.used_paragraphs.forEach(idx => usedParagraphs.add(idx));
+            
+            // Update paragraphChapters mapping
+            paragraphChapters = data.paragraph_chapters || {};
+            
+            // Assign colors to chapters
+            assignChapterColors();
             
             console.log('Updated usedParagraphs Set:', Array.from(usedParagraphs));
             console.log('Total paragraphs in book:', (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim()).length);
