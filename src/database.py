@@ -682,14 +682,14 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 # Get draft data
                 cur.execute("""
-                    SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata, tags, word_count
+                    SELECT title, author, age_range, reading_level, genre, cover_image_url, metadata, tags, word_count, description
                     FROM draft_books WHERE id = %s
                 """, (draft_id,))
                 draft = cur.fetchone()
                 if not draft:
                     raise ValueError(f"Draft {draft_id} not found")
                 
-                title, author, age_range, reading_level, genre, cover_image_url, metadata, tags, word_count = draft
+                title, author, age_range, reading_level, genre, cover_image_url, metadata, tags, word_count, description = draft
                 # JSONB fields are already parsed by psycopg2
                 if isinstance(metadata, str):
                     metadata = json.loads(metadata)
@@ -717,10 +717,10 @@ class DatabaseManager:
                 cur.execute("""
                     INSERT INTO books (
                         id, title, author, age_range, reading_level, genre,
-                        total_chapters, cover_image_url, isbn, publication_year, tags, word_count
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        total_chapters, cover_image_url, isbn, publication_year, tags, word_count, description
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (book_id, title, author, age_range, reading_level, genre,
-                      total_chapters, cover_image_url, metadata.get('isbn'), metadata.get('publication_year'), json.dumps(tags), word_count))
+                      total_chapters, cover_image_url, metadata.get('isbn'), metadata.get('publication_year'), json.dumps(tags), word_count, description))
                 
                 # Copy chapters
                 chapter_id_map = {}

@@ -744,6 +744,39 @@ def get_text_usage(draft_id):
         logger.exception("Failed to analyze text usage")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/draft/<draft_id>/description', methods=['PUT'])
+def update_description(draft_id):
+    """Update draft description manually."""
+    try:
+        data = request.json
+        description = data.get('description', '').strip()
+        
+        db = DatabaseManager()
+        
+        # Verify draft exists
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # Update description
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_books 
+                    SET description = %s, description_status = 'ready', updated_at = NOW()
+                    WHERE id = %s
+                """, (description, draft_id))
+        
+        logger.info(f"Updated description for draft {draft_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Description updated successfully'
+        })
+    except Exception as e:
+        logger.exception("Failed to update description")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/draft/<draft_id>/generate-description', methods=['POST'])
 def generate_description(draft_id):
     """Generate a book description using AI, auto-generating synopsis from book content."""

@@ -2009,6 +2009,95 @@ async function saveTagsAndUrl() {
     }
 }
 
+let originalDescription = ''; // Store original description for cancel
+
+function editDescription() {
+    const descDiv = document.getElementById('book-description');
+    const editBtn = document.getElementById('edit-description-btn');
+    const saveBtn = document.getElementById('save-description-btn');
+    const cancelBtn = document.getElementById('cancel-description-btn');
+    const generateBtn = document.getElementById('generate-description-btn');
+    
+    // Store original description for cancel
+    originalDescription = descDiv.textContent;
+    
+    // Enable editing
+    descDiv.contentEditable = 'true';
+    descDiv.style.background = '#ffffff';
+    descDiv.style.borderColor = '#4299e1';
+    descDiv.focus();
+    
+    // Toggle buttons
+    editBtn.style.display = 'none';
+    saveBtn.style.display = 'inline-block';
+    cancelBtn.style.display = 'inline-block';
+    generateBtn.disabled = true;
+}
+
+async function saveDescription() {
+    if (!currentDraftId) {
+        showStatus('No draft selected', 'error');
+        return;
+    }
+    
+    const descDiv = document.getElementById('book-description');
+    const description = descDiv.textContent.trim();
+    
+    try {
+        showLoading(true);
+        
+        const response = await fetch(`/api/draft/${currentDraftId}/description`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ description })
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to save description');
+        }
+        
+        showStatus('Description saved successfully!', 'success');
+        exitDescriptionEditMode();
+        
+    } catch (error) {
+        showStatus(`Error: ${error.message}`, 'error');
+    } finally {
+        showLoading(false);
+    }
+}
+
+function cancelEditDescription() {
+    const descDiv = document.getElementById('book-description');
+    
+    // Restore original description
+    descDiv.textContent = originalDescription;
+    
+    exitDescriptionEditMode();
+}
+
+function exitDescriptionEditMode() {
+    const descDiv = document.getElementById('book-description');
+    const editBtn = document.getElementById('edit-description-btn');
+    const saveBtn = document.getElementById('save-description-btn');
+    const cancelBtn = document.getElementById('cancel-description-btn');
+    const generateBtn = document.getElementById('generate-description-btn');
+    
+    // Disable editing
+    descDiv.contentEditable = 'false';
+    descDiv.style.background = '#f7fafc';
+    descDiv.style.borderColor = '#e2e8f0';
+    
+    // Toggle buttons
+    editBtn.style.display = 'inline-block';
+    saveBtn.style.display = 'none';
+    cancelBtn.style.display = 'none';
+    generateBtn.disabled = false;
+}
+
 async function generateDescription() {
     if (!currentDraftId) {
         showStatus('No draft selected', 'error');
