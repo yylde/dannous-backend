@@ -14,6 +14,8 @@ let deletedIndices = new Set(); // Track which indices have been deleted
 let currentDraftId = null; // Track current draft
 let statusPollingInterval = null; // Track polling interval for chapter status updates
 let currentMarkerPosition = null; // Track current marker position
+let usedParagraphs = new Set(); // Track which paragraphs have been used in chapters
+let usagePollingInterval = null; // Track polling interval for usage updates
 
 // Helper function to escape HTML for use in attributes
 function escapeHtml(str) {
@@ -409,17 +411,21 @@ function displayFullBook() {
         }
 
         const trimmedPart = part.trim();
+        
+        // Check if this paragraph has been used in a chapter
+        const isUsed = usedParagraphs.has(idx);
+        const usedStyle = isUsed ? ' style="background-color: #d4edda; border-left: 3px solid #28a745; padding-left: 8px;"' : '';
 
         // Check if this is already an HTML tag (heading, paragraph, image, etc.)
         if (trimmedPart.startsWith('<') && trimmedPart.includes('>')) {
             // Add data-para-index to paragraphs for tracking
             if (trimmedPart.startsWith('<p')) {
-                return trimmedPart.replace('<p', `<p data-para-index="${idx}"`);
+                return trimmedPart.replace('<p', `<p data-para-index="${idx}"${usedStyle}`);
             }
             return trimmedPart;
         } else {
             // Wrap plain text in paragraph tag
-            return `<p data-para-index="${idx}">${trimmedPart}</p>`;
+            return `<p data-para-index="${idx}"${usedStyle}>${trimmedPart}</p>`;
         }
     }).join('');
     
@@ -535,6 +541,46 @@ function renderMarker() {
     
     // Add to scroll container
     scrollDiv.appendChild(marker);
+}
+
+// ==================== USAGE TRACKING FUNCTIONS ====================
+
+async function fetchUsageData() {
+    if (!currentDraftId) return;
+    
+    try {
+        const response = await fetch(`/api/draft/${currentDraftId}/usage`);
+        const data = await response.json();
+        
+        if (response.ok && data.used_paragraphs) {
+            // Update usedParagraphs set
+            usedParagraphs.clear();
+            data.used_paragraphs.forEach(idx => usedParagraphs.add(idx));
+            
+            // Refresh the book display to show highlighting
+            displayFullBook();
+        }
+    } catch (error) {
+        console.error('Error fetching usage data:', error);
+    }
+}
+
+function startUsagePolling() {
+    // Stop any existing polling
+    stopUsagePolling();
+    
+    // Fetch immediately
+    fetchUsageData();
+    
+    // Poll every 5 seconds
+    usagePollingInterval = setInterval(fetchUsageData, 5000);
+}
+
+function stopUsagePolling() {
+    if (usagePollingInterval) {
+        clearInterval(usagePollingInterval);
+        usagePollingInterval = null;
+    }
 }
 
 // IMPROVED FUNCTION: Now stores metadata about original indices and HTML
@@ -701,6 +747,9 @@ async function finishChapter() {
     
     // Start polling to track question generation progress
     startStatusPolling();
+    
+    // Update usage tracking immediately
+    fetchUsageData();
 
     showStatus(`Chapter "${title}" saved! Questions generating...`, 'success');
 }
@@ -1024,6 +1073,8 @@ async function deleteDraft(draftId, event) {
             bookData = null;
             chapters = [];
             currentTags = [];
+            usedParagraphs.clear();
+            stopUsagePolling();
             document.getElementById('book-section').style.display = 'none';
             document.getElementById('current-draft-info').style.display = 'none';
         }
@@ -1129,6 +1180,9 @@ async function loadDraft(draftId) {
         
         // Start polling for chapter status updates
         startStatusPolling();
+        
+        // Start polling for usage tracking
+        startUsagePolling();
         
         showStatus(`Loaded draft: ${draft.title}`, 'success');
         
@@ -1780,6 +1834,9 @@ async function saveChapter(chapterId) {
         btn.textContent = 'Edit Chapter';
         btn.classList.remove('save-btn');
         btn.classList.add('edit-btn');
+        
+        // Update usage tracking immediately
+        fetchUsageData();
         
         showStatus('Chapter updated successfully', 'success');
     } catch (error) {

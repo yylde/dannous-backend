@@ -41,3 +41,6 @@ pytest-mock
 python-dotenv
 requests
 rich
+alembic
+rapidfuzz
+sqlalchemy

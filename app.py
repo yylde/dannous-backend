@@ -629,6 +629,93 @@ def update_marker_position(draft_id):
         logger.exception("Failed to update marker position")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/draft/<draft_id>/usage', methods=['GET'])
+def get_text_usage(draft_id):
+    """Analyze which parts of the book text have been used in chapters using fuzzy matching."""
+    try:
+        from rapidfuzz import fuzz
+        from rapidfuzz.distance import Levenshtein
+        
+        db = DatabaseManager()
+        
+        # Get the draft
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # Get book text
+        book_text = draft.get('full_text', '')
+        if not book_text:
+            return jsonify({'used_paragraphs': []})
+        
+        # Split book into paragraphs
+        book_paragraphs = [p.strip() for p in book_text.split('\n\n') if p.strip()]
+        
+        # Get all chapters
+        chapters = db.get_draft_chapters(draft_id)
+        if not chapters:
+            return jsonify({'used_paragraphs': []})
+        
+        # Track which paragraphs are used
+        used_paragraph_indices = set()
+        
+        # Helper function to normalize text for comparison
+        def normalize(text):
+            """Normalize text for fuzzy matching - lowercase, remove extra whitespace."""
+            return ' '.join(text.lower().split())
+        
+        # Normalize paragraphs once (for performance)
+        normalized_paragraphs = [normalize(p) for p in book_paragraphs]
+        
+        # For each chapter, find matching paragraphs in the book
+        for chapter in chapters:
+            chapter_text = chapter.get('content', '')
+            if not chapter_text:
+                continue
+            
+            # Split chapter into paragraphs (to compare paragraph-to-paragraph)
+            chapter_paragraphs = [p.strip() for p in chapter_text.split('\n\n') if p.strip()]
+            normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs]
+            
+            # Check each book paragraph against each chapter paragraph
+            for para_idx, normalized_para in enumerate(normalized_paragraphs):
+                if para_idx in used_paragraph_indices:
+                    continue  # Already marked as used
+                    
+                # Skip empty paragraphs
+                if not normalized_para:
+                    continue
+                
+                # Compare against each paragraph in the chapter
+                # Use Levenshtein similarity with token-based fallback
+                for chapter_para in normalized_chapter_paras:
+                    if not chapter_para:
+                        continue
+                        
+                    # HYBRID APPROACH: Levenshtein + token-based
+                    # 1. Normalized Levenshtein similarity (order-aware, edit-tolerant)
+                    leven_sim = Levenshtein.normalized_similarity(normalized_para, chapter_para) * 100
+                    
+                    # 2. Token-based similarity (vocabulary-aware)
+                    token_sim = fuzz.token_sort_ratio(normalized_para, chapter_para)
+                    
+                    # Use weighted average: favor Levenshtein slightly for order preservation
+                    # 60% Levenshtein + 40% token = better balance
+                    combined_score = (leven_sim * 0.6) + (token_sim * 0.4)
+                    
+                    # 78% threshold allows minor edits while filtering different text
+                    if combined_score >= 78:
+                        used_paragraph_indices.add(para_idx)
+                        break  # Found a match, no need to check other chapter paragraphs
+        
+        return jsonify({
+            'used_paragraphs': sorted(list(used_paragraph_indices))
+        })
+        
+    except Exception as e:
+        logger.exception("Failed to analyze text usage")
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/draft/<draft_id>/generate-description', methods=['POST'])
 def generate_description(draft_id):
     """Generate a book description using AI, auto-generating synopsis from book content."""

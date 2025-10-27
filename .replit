@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["libxcrypt", "xcodebuild", "zlib"]
+packages = ["libxcrypt", "rapidfuzz-cpp", "taskflow", "xcodebuild", "zlib"]
 
 [workflows]
 runButton = "Project"
