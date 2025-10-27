@@ -1141,50 +1141,8 @@ abbr[title] {
     position: relative;
 }
 
-/* Book Description Styling - Remove ALL browser default styles */
-#book-description {
-    outline: none !important;
-    -webkit-user-modify: read-write-plaintext-only;
-}
-
+/* Book Description textarea - simple focus styling */
 #book-description:focus {
-    outline: none !important;
-}
-
-#book-description[contenteditable="true"] {
-    background: #ffffff !important;
-    border: 2px solid #667eea !important;
-    box-shadow: none !important;
-    outline: none !important;
-    -webkit-tap-highlight-color: transparent !important;
-    -webkit-touch-callout: none !important;
-}
-
-#book-description[contenteditable="true"]:focus {
-    outline: none !important;
-    border: 2px solid #667eea !important;
-    box-shadow: none !important;
-}
-
-#book-description.description-editing {
-    background: #ffffff !important;
-    border: 2px solid #667eea !important;
-    box-shadow: none !important;
-    outline: none !important;
-}
-
-#book-description.description-editing:focus {
-    outline: none !important;
-    border: 2px solid #667eea !important;
-    box-shadow: none !important;
-}
-
-/* Force remove all contenteditable outlines and decorations globally */
-[contenteditable="true"] {
-    outline: none !important;
-    -webkit-tap-highlight-color: transparent !important;
-}
-
-[contenteditable="true"]:focus {
-    outline: none !important;
+    outline: none;
+    border-color: #667eea;
 }

@@ -203,17 +203,16 @@
                                 Book Description: 
                                 <span id="description-status-badge" class="status-badge" style="display: none;"></span>
                             </label>
-                            <div id="book-description" contenteditable="false" style="padding: 10px; min-height: 200px; background: #f7fafc; border: 1px solid #e2e8f0; border-radius: 4px; color: #4a5568; resize: none; overflow-y: auto;"></div>
+                            <textarea 
+                                id="book-description" 
+                                rows="10" 
+                                placeholder="Enter book description or click 'Regenerate with AI' to generate one..."
+                                style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-family: inherit; font-size: 14px; resize: vertical;"
+                            ></textarea>
                         </div>
                         <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <button onclick="editDescription()" class="btn btn-secondary" id="edit-description-btn">
-                                ✏️ Edit
-                            </button>
-                            <button onclick="saveDescription()" class="btn btn-primary" id="save-description-btn" style="display: none;">
-                                💾 Save
-                            </button>
-                            <button onclick="cancelEditDescription()" class="btn btn-secondary" id="cancel-description-btn" style="display: none;">
-                                Cancel
+                            <button onclick="saveDescription()" class="btn btn-primary" id="save-description-btn">
+                                💾 Save Description
                             </button>
                             <button onclick="generateDescription()" class="btn btn-secondary" id="generate-description-btn">
                                 ✨ Regenerate with AI

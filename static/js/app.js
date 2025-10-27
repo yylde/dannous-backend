@@ -454,30 +454,28 @@ function assignChapterColors() {
     
     chapterColors = {};
     
+    if (!chapters || chapters.length === 0) {
+        console.warn('No chapters available for color assignment');
+        return;
+    }
+    
+    console.log('=== ASSIGNING CHAPTER COLORS ===');
+    console.log('Total chapters:', chapters.length);
+    console.log('Chapters data:', chapters);
+    
     // Sort chapters by chapter number
     const sortedChapters = [...chapters].sort((a, b) => a.chapter_number - b.chapter_number);
     
-    console.log('Assigning colors for chapters:', sortedChapters.map(c => c.chapter_number));
-    
     sortedChapters.forEach((chapter, index) => {
         // Use index modulo to cycle through colors
-        let colorIndex = index % colors.length;
+        const colorIndex = index % colors.length;
+        const chapterNum = chapter.chapter_number;
         
-        // If we have more than 5 chapters and would reuse a color adjacent to the previous,
-        // shift by 1 to avoid same color for adjacent chapters
-        if (index > 0 && index >= colors.length) {
-            const prevChapterNum = sortedChapters[index - 1].chapter_number;
-            const prevColorIndex = colors.indexOf(chapterColors[prevChapterNum]);
-            if (colorIndex === prevColorIndex) {
-                colorIndex = (colorIndex + 1) % colors.length;
-            }
-        }
-        
-        chapterColors[chapter.chapter_number] = colors[colorIndex];
-        console.log(`Chapter ${chapter.chapter_number} → Color ${colorIndex}: ${colors[colorIndex]}`);
+        chapterColors[chapterNum] = colors[colorIndex];
+        console.log(`Chapter ${chapterNum} → Color index ${colorIndex} → ${colors[colorIndex]}`);
     });
     
-    console.log('Final chapter colors:', chapterColors);
+    console.log('=== FINAL CHAPTER COLORS ===', chapterColors);
 }
 
 async function fetchUsageData() {
@@ -1073,8 +1071,8 @@ async function loadDraft(draftId) {
         }
         
         // Load description and description status
-        const descriptionDiv = document.getElementById('book-description');
-        descriptionDiv.textContent = draft.description || '';
+        const descriptionTextarea = document.getElementById('book-description');
+        descriptionTextarea.value = draft.description || '';
         console.log('Draft loaded - Description status:', draft.description_status);
         updateDescriptionStatusBadge(draft.description_status);
         
@@ -2023,36 +2021,19 @@ async function saveTagsAndUrl() {
 
 let originalDescription = ''; // Store original description for cancel
 
-function editDescription() {
-    const descDiv = document.getElementById('book-description');
-    const editBtn = document.getElementById('edit-description-btn');
-    const saveBtn = document.getElementById('save-description-btn');
-    const cancelBtn = document.getElementById('cancel-description-btn');
-    const generateBtn = document.getElementById('generate-description-btn');
-    
-    // Store original description for cancel
-    originalDescription = descDiv.textContent;
-    
-    // Enable editing
-    descDiv.contentEditable = 'true';
-    descDiv.classList.add('description-editing');
-    descDiv.focus();
-    
-    // Toggle buttons
-    editBtn.style.display = 'none';
-    saveBtn.style.display = 'inline-block';
-    cancelBtn.style.display = 'inline-block';
-    generateBtn.disabled = true;
-}
-
 async function saveDescription() {
     if (!currentDraftId) {
         showStatus('No draft selected', 'error');
         return;
     }
     
-    const descDiv = document.getElementById('book-description');
-    const description = descDiv.textContent.trim();
+    const descTextarea = document.getElementById('book-description');
+    const description = descTextarea.value.trim();
+    
+    if (!description) {
+        showStatus('Please enter a description', 'warning');
+        return;
+    }
     
     try {
         showLoading(true);
@@ -2072,40 +2053,12 @@ async function saveDescription() {
         }
         
         showStatus('Description saved successfully!', 'success');
-        exitDescriptionEditMode();
         
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
         showLoading(false);
     }
-}
-
-function cancelEditDescription() {
-    const descDiv = document.getElementById('book-description');
-    
-    // Restore original description
-    descDiv.textContent = originalDescription;
-    
-    exitDescriptionEditMode();
-}
-
-function exitDescriptionEditMode() {
-    const descDiv = document.getElementById('book-description');
-    const editBtn = document.getElementById('edit-description-btn');
-    const saveBtn = document.getElementById('save-description-btn');
-    const cancelBtn = document.getElementById('cancel-description-btn');
-    const generateBtn = document.getElementById('generate-description-btn');
-    
-    // Disable editing
-    descDiv.contentEditable = 'false';
-    descDiv.classList.remove('description-editing');
-    
-    // Toggle buttons
-    editBtn.style.display = 'inline-block';
-    saveBtn.style.display = 'none';
-    cancelBtn.style.display = 'none';
-    generateBtn.disabled = false;
 }
 
 async function generateDescription() {
@@ -2444,8 +2397,8 @@ function startDescriptionStatusPolling(draftId) {
                 
                 if (descriptionStatus === 'ready') {
                     if (data.draft.description) {
-                        const descriptionDiv = document.getElementById('book-description');
-                        descriptionDiv.textContent = data.draft.description;
+                        const descriptionTextarea = document.getElementById('book-description');
+                        descriptionTextarea.value = data.draft.description;
                         console.log('✓ Description loaded');
                         stopDescriptionStatusPolling();
                         showStatus('Description generated successfully!', 'success');
