@@ -800,25 +800,70 @@ function getColorForChapter(index) {
     return colors[index % colors.length];
 }
 
-function deleteChapter(index) {
-    if (confirm(`Delete "${chapters[index].title}"?`)) {
-        // Save state for undo
-        undoStack.push({
-            bookTextParts: [...bookTextParts],
-            bookHtmlParts: [...bookHtmlParts],
-            currentChapter: JSON.parse(JSON.stringify(currentChapter)),
-            chapters: JSON.parse(JSON.stringify(chapters)),
-            action: 'delete_chapter'
-        });
-
-        // Remove the chapter
-        chapters.splice(index, 1);
-
-        updateChaptersList();
-        displayFullBook();
-        updateUndoButton();
-        showStatus('Chapter deleted', 'info');
+async function deleteChapter(index) {
+    const chapter = chapters[index];
+    
+    if (!chapter) {
+        showStatus('Chapter not found', 'error');
+        return;
     }
+    
+    if (!confirm(`Delete "${chapter.title}"? This will permanently remove the chapter and its questions from the database.`)) {
+        return;
+    }
+    
+    // If chapter has an ID, it's saved in database - delete from backend
+    if (chapter.id) {
+        try {
+            showLoading(true);
+            
+            const response = await fetch(`/api/draft-chapter/${chapter.id}`, {
+                method: 'DELETE'
+            });
+            
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to delete chapter from database');
+            }
+            
+            console.log(`✓ Chapter "${chapter.title}" deleted from database`);
+            showStatus('Chapter deleted from database', 'success');
+            
+        } catch (error) {
+            showStatus(`Error deleting chapter: ${error.message}`, 'error');
+            showLoading(false);
+            return; // Don't remove from frontend if backend deletion failed
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    // Save state for undo
+    undoStack.push({
+        bookTextParts: [...bookTextParts],
+        bookHtmlParts: [...bookHtmlParts],
+        currentChapter: JSON.parse(JSON.stringify(currentChapter)),
+        chapters: JSON.parse(JSON.stringify(chapters)),
+        action: 'delete_chapter'
+    });
+
+    // Remove from local array
+    chapters.splice(index, 1);
+
+    // Update UI
+    updateChaptersList();
+    displayFullBook();
+    updateUndoButton();
+    
+    // Refresh usage data to update color highlighting
+    if (currentDraftId) {
+        await fetchUsageData();
+    }
+    
+    // Update chapter title input for next chapter
+    const nextChapterNumber = chapters.length + 1;
+    document.getElementById('chapter-title').value = `Chapter ${nextChapterNumber}`;
 }
 
 async function generateAITitle() {
