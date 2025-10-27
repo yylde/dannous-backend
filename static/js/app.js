@@ -1046,6 +1046,7 @@ async function loadDraft(draftId) {
         // Load chapters
         chapters = draft.chapters.map(ch => ({
             id: ch.id,
+            chapter_number: ch.chapter_number,
             title: ch.title,
             content: ch.content,
             word_count: ch.word_count,
