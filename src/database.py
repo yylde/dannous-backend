@@ -345,7 +345,7 @@ class DatabaseManager:
                 cur.execute("""
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, cover_image_url, metadata, 
-                           tags, tag_status, description_status, created_at, updated_at
+                           tags, tag_status, description, description_status, created_at, updated_at
                     FROM draft_books
                     WHERE id = %s
                 """, (draft_id,))
