@@ -223,37 +223,45 @@
                     <div id="difficulty-info" class="difficulty-info"></div>
                 </div>
 
-                <h2>3. Chapter Builder</h2>
-                <div class="editor-container">
-                    <div class="chapter-builder">
-                        <h3>Current Chapter</h3>
-                        <div class="form-group">
-                            <label for="chapter-title">Chapter Title:</label>
-                            <div style="display: flex; gap: 10px;">
-                                <input type="text" id="chapter-title" placeholder="Chapter 1" style="flex: 1;">
-                                <button onclick="generateAITitle()" class="btn btn-secondary"
-                                    title="Generate title with AI">✨ AI Title</button>
+                <h2>3. Chapter Builder & Book Text</h2>
+                
+                <!-- Side-by-side layout for chapter editor and book text -->
+                <div class="side-by-side-container">
+                    <!-- Left: Chapter Editor -->
+                    <div class="side-by-side-left">
+                        <div class="section-header">
+                            <h3>Current Chapter</h3>
+                        </div>
+                        <div class="chapter-builder">
+                            <div class="form-group">
+                                <label for="chapter-title">Chapter Title:</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="chapter-title" placeholder="Chapter 1" style="flex: 1;">
+                                    <button onclick="generateAITitle()" class="btn btn-secondary"
+                                        title="Generate title with AI">✨ AI Title</button>
+                                </div>
+                            </div>
+                            <div id="current-chapter-content" class="chapter-content" contenteditable="true"></div>
+                            <div id="chapter-stats" class="stats"></div>
+                            <div class="chapter-actions">
+                                <button onclick="discardChapter()" class="btn btn-danger">🗑️ Discard</button>
+                                <button onclick="clearChapter()" class="btn btn-secondary">Clear</button>
+                                <button onclick="finishChapter()" class="btn btn-success">✓ Save</button>
                             </div>
                         </div>
-                        <div id="current-chapter-content" class="chapter-content" contenteditable="true"></div>
-                        <div id="chapter-stats" class="stats"></div>
-                        <div class="chapter-actions">
-                            <button onclick="discardChapter()" class="btn btn-danger">🗑️ Discard Chapter</button>
-                            <button onclick="clearChapter()" class="btn btn-secondary">Clear Chapter</button>
-                            <button onclick="finishChapter()" class="btn btn-success">✓ Save Chapter</button>
-                        </div>
                     </div>
-                </div>
 
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                    <h2 style="margin: 0;">4. Book Text <span style="font-size: 0.9rem; color: #718096; font-weight: normal;">(Copy text and paste into Chapter section above - HTML formatting will be preserved)</span></h2>
-                    <button id="refresh-usage-btn" onclick="fetchUsageData()" class="btn btn-secondary btn-small" style="white-space: nowrap;">
-                        🔄 Refresh Usage
-                    </button>
-                </div>
-                <div class="editor-container">
-                    <div class="text-display-full">
-                        <div id="book-text-scroll" class="book-scroll-content"></div>
+                    <!-- Right: Book Text -->
+                    <div class="side-by-side-right">
+                        <div class="section-header">
+                            <h3>Book Text</h3>
+                            <button id="refresh-usage-btn" onclick="fetchUsageData()" class="btn btn-secondary btn-small" style="white-space: nowrap;">
+                                🔄 Refresh Usage
+                            </button>
+                        </div>
+                        <div class="text-display-full">
+                            <div id="book-text-scroll" class="book-scroll-content"></div>
+                        </div>
                     </div>
                 </div>
 

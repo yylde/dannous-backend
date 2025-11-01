@@ -164,13 +164,14 @@ select:focus {
 
 .text-display-full {
     width: 100%;
+    height: 100%;
 }
 
 .book-scroll-content {
     background: #f7fafc;
     padding: 30px;
     border-radius: 8px;
-    max-height: 600px;
+    height: 100%;
     overflow-y: auto;
     white-space: normal;
     line-height: 1.7;
@@ -178,6 +179,63 @@ select:focus {
     font-size: 0.95rem;
     user-select: text;
     cursor: text;
+}
+
+/* Side-by-side layout for chapter editor and book text */
+.side-by-side-container {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+    height: 700px;
+}
+
+.side-by-side-left,
+.side-by-side-right {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e2e8f0;
+}
+
+.section-header h3 {
+    margin: 0;
+    color: #2d3748;
+    font-size: 1.3rem;
+}
+
+.side-by-side-left .chapter-builder,
+.side-by-side-right .text-display-full {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.side-by-side-left .chapter-content {
+    flex: 1;
+    overflow-y: auto;
+}
+
+/* Responsive: stack vertically on smaller screens */
+@media (max-width: 1024px) {
+    .side-by-side-container {
+        flex-direction: column;
+        height: auto;
+    }
+    
+    .side-by-side-left,
+    .side-by-side-right {
+        height: 500px;
+    }
 }
 
 .book-scroll-content p {
