@@ -690,7 +690,14 @@ async function finishChapter() {
         return;
     }
 
-    const title = document.getElementById('chapter-title').value || `Chapter ${chapters.length + 1}`;
+    const title = document.getElementById('chapter-title').value.trim();
+    
+    // Validate title is not empty
+    if (!title) {
+        showStatus('Chapter title is required', 'error');
+        document.getElementById('chapter-title').focus();
+        return;
+    }
 
     // Save state for undo
     undoStack.push({
@@ -720,15 +727,14 @@ async function finishChapter() {
     // Save chapter (with metadata) - now includes chapter_number
     chapters.push(chapterData);
 
-    // Reset for next chapter
+    // Reset for next chapter - clear title field instead of setting default
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
-    const nextChapterNumber = chapters.length + 1;
-    document.getElementById('chapter-title').value = `Chapter ${nextChapterNumber}`;
+    document.getElementById('chapter-title').value = '';
 
     updateChapterDisplay();
     updateChapterStats();
     
-    console.log(`✓ Chapter ${chapterData.chapter_number} saved. Ready for Chapter ${nextChapterNumber}.`);
+    console.log(`✓ Chapter ${chapterData.chapter_number} saved. Ready for next chapter.`);
     updateChaptersList();
     updateUndoButton();
     
@@ -759,9 +765,9 @@ function discardChapter() {
         action: 'discard_chapter'
     });
 
-    // Clear the current chapter
+    // Clear the current chapter and title field
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
-    document.getElementById('chapter-title').value = `Chapter ${chapters.length + 1}`;
+    document.getElementById('chapter-title').value = '';
 
     updateChapterDisplay();
     updateChapterStats();
