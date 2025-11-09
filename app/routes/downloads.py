@@ -40,6 +40,7 @@ def download_book():
         # Use plain text for UI display and word counting
         text = epub_data['raw_text']
         html = epub_data['raw_html']
+        html_sections = epub_data['html_sections']  # Array of HTML parts
         pages = split_into_pages(text)
         
         return jsonify({
@@ -48,7 +49,8 @@ def download_book():
             'title': epub_data['metadata']['title'],
             'author': epub_data['metadata']['author'],
             'full_text': text,
-            'full_html': html,
+            'full_html': html,  # Keep for backward compatibility
+            'html_sections': html_sections,  # New: array of HTML parts
             'pages': pages,
             'total_pages': len(pages),
             'metadata': epub_data['metadata']
