@@ -8,6 +8,11 @@ The user prefers:
 - Manual control over chapter splitting instead of AI automation
 - Visual feedback for word count validation
 - Simple, intuitive UI for book processing
+- One task at a time processing (FIFO with priority ordering)
+
+## Development Notes
+- **Manual Server Restart Required:** Flask reloader is disabled (`use_reloader=False`) to prevent duplicate worker threads. Developers must manually restart the server after code changes.
+- **Single Worker Guarantee:** The QueueManagerV2 runs exactly ONE worker thread that processes tasks sequentially in priority + FIFO order. Never run via `flask run` as it may re-enable the reloader.
 
 ## System Architecture
 
