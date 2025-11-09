@@ -1198,9 +1198,8 @@ async function loadDraft(draftId) {
             textChunks: [] 
         };
         
-        // Set chapter title to next chapter number (based on existing chapters)
-        const nextChapterNumber = chapters.length + 1;
-        document.getElementById('chapter-title').value = `Chapter ${nextChapterNumber}`;
+        // Clear chapter title when switching books/drafts
+        document.getElementById('chapter-title').value = '';
         
         // Clear the chapter editor
         const chapterEditor = document.getElementById('current-chapter-content');

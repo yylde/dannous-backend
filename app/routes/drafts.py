@@ -198,7 +198,14 @@ def regenerate_tags(draft_id):
         
         # Check if tag generation is already in progress
         current_tag_status = draft.get('tag_status')
-        force = request.json.get('force', False) if request.json else False
+        
+        # Handle optional JSON body (request might not have JSON)
+        force = False
+        try:
+            if request.is_json and request.get_json(silent=True):
+                force = request.json.get('force', False)
+        except:
+            pass
         
         if current_tag_status in ('pending', 'generating') and not force:
             # Check if it's been stuck for more than 10 minutes
