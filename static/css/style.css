@@ -1305,3 +1305,22 @@ abbr[title] {
         min-width: 100%;
     }
 }
+
+/* Center all images in book display */
+#book-text-scroll img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 100%;
+    height: auto;
+}
+
+/* Center images in chapter content */
+.chapter-html-content img,
+#current-chapter-content img {
+    display: block;
+    margin-left: auto;
+    margin-right: auto;
+    max-width: 100%;
+    height: auto;
+}
