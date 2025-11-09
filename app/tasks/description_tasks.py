@@ -1,0 +1,36 @@
+"""Background tasks for description generation."""
+
+import logging
+from src.question_generator import QuestionGenerator
+from src.database import DatabaseManager
+
+logger = logging.getLogger(__name__)
+
+
+def generate_description_async(draft_id, title, author, book_text_sample):
+    """Generate description asynchronously in background for a book."""
+    try:
+        db = DatabaseManager()
+        db.update_draft_description_status(draft_id, 'generating')
+        
+        generator = QuestionGenerator()
+        description = generator.generate_description(
+            title=title,
+            author=author,
+            book_text_sample=book_text_sample if book_text_sample else None,
+            book_id=str(draft_id)
+        )
+        
+        # Save description to the draft
+        if description:
+            db.update_draft(draft_id, description=description)
+            db.update_draft_description_status(draft_id, 'ready')
+            logger.info(f"✓ Generated description for draft {draft_id}: {description[:100]}...")
+        else:
+            db.update_draft_description_status(draft_id, 'error')
+            logger.error(f"✗ No description generated for draft {draft_id}")
+        
+    except Exception as e:
+        logger.exception(f"✗ Failed to generate description for draft {draft_id}: {e}")
+        db = DatabaseManager()
+        db.update_draft_description_status(draft_id, 'error')
