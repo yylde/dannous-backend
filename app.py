@@ -4,6 +4,7 @@
 import os
 import re
 import logging
+import atexit
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from pathlib import Path
@@ -15,12 +16,20 @@ from src.database import DatabaseManager, inject_vocabulary_abbr
 from src.models import Book, Chapter, Question, ProcessedBook
 from src.config import settings
 from src.chapter_splitter import calculate_reading_time
+from src.ollama_queue import shutdown_queue_manager
 
 app = Flask(__name__)
 CORS(app)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def cleanup_queue():
+    """Cleanup queue manager on shutdown."""
+    logger.info("Shutting down Ollama queue manager...")
+    shutdown_queue_manager(wait=True, timeout=30.0)
+
+atexit.register(cleanup_queue)
 
 DOWNLOAD_DIR = Path("downloads")
 DOWNLOAD_DIR.mkdir(exist_ok=True)

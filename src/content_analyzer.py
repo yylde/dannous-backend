@@ -7,6 +7,7 @@ import time
 from typing import Dict, List, Tuple
 import ollama
 from .config import settings
+from .ollama_queue import queue_ollama_call, TaskPriority
 
 logger = logging.getLogger(__name__)
 
@@ -44,37 +45,56 @@ class ContentAnalyzer:
         """Initialize content analyzer."""
         self.model = model or settings.ollama_model
     
-    def _call_ollama(self, prompt: str, force_json_format: bool = False) -> str:
-        """Call Ollama API with model-agnostic settings.
+    def _call_ollama_direct(self, prompt: str, force_json_format: bool = False) -> str:
+        """Direct Ollama API call (internal, not queued).
         
         Works with ANY Ollama model - thinking or non-thinking.
         """
+        options = {
+            'temperature': 0.3,
+            'num_predict': 200
+        }
+        
+        generate_params = {
+            'model': self.model,
+            'prompt': prompt,
+            'options': options
+        }
+        
+        if force_json_format:
+            generate_params['format'] = 'json'
+            logger.debug(f"Using format='json' for model: {self.model}")
+        else:
+            logger.debug(f"Using free-form output for model: {self.model}")
+        
+        response = ollama.generate(**generate_params)
+        raw_response = response['response']
+        
+        logger.debug(f"Model: {self.model}, Response length: {len(raw_response)} chars")
+        return raw_response
+    
+    def _call_ollama(self, prompt: str, force_json_format: bool = False, priority: TaskPriority = TaskPriority.QUESTION, task_name: str = "") -> str:
+        """Call Ollama API through the priority queue.
+        
+        Args:
+            prompt: The prompt to send to the model
+            force_json_format: If True, uses format='json' (disables thinking mode)
+            priority: Task priority level (GENRE_TAG=1, DESCRIPTION=2, QUESTION=3)
+            task_name: Descriptive name for queue logging
+        
+        Returns:
+            Raw model response string
+        """
         try:
-            options = {
-                'temperature': 0.3,
-                'num_predict': 200
-            }
-            
-            generate_params = {
-                'model': self.model,
-                'prompt': prompt,
-                'options': options
-            }
-            
-            if force_json_format:
-                generate_params['format'] = 'json'
-                logger.debug(f"Using format='json' for model: {self.model}")
-            else:
-                logger.debug(f"Using free-form output for model: {self.model}")
-            
-            response = ollama.generate(**generate_params)
-            raw_response = response['response']
-            
-            logger.debug(f"Model: {self.model}, Response length: {len(raw_response)} chars")
-            return raw_response
-            
+            return queue_ollama_call(
+                self._call_ollama_direct,
+                priority,
+                task_name or "content_analyzer",
+                prompt,
+                force_json_format
+            )
         except Exception as e:
-            logger.error(f"Ollama API call failed with model {self.model}: {e}")
+            logger.error(f"Queued Ollama API call failed: {e}")
             raise
     
     def analyze_book_structure(self, text: str) -> Dict:
@@ -163,7 +183,12 @@ If no metadata (TOC/Preface/etc), metadata_pages should be empty []."""
             strategy_name, use_json_format = strategies[attempt]
             try:
                 logger.debug(f"Front matter analysis attempt {attempt + 1}/{max_retries} using {strategy_name}")
-                response = self._call_ollama(prompt, force_json_format=use_json_format)
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=use_json_format,
+                    priority=TaskPriority.QUESTION,
+                    task_name="analyze_front_matter"
+                )
                 result = self._parse_json_response(response)
                 
                 if result:
@@ -243,7 +268,12 @@ If no back matter (Epilogue/Appendix/etc), metadata_pages should be empty []."""
             strategy_name, use_json_format = strategies[attempt]
             try:
                 logger.debug(f"Back matter analysis attempt {attempt + 1}/{max_retries} using {strategy_name}")
-                response = self._call_ollama(prompt, force_json_format=use_json_format)
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=use_json_format,
+                    priority=TaskPriority.QUESTION,
+                    task_name="analyze_back_matter"
+                )
                 result = self._parse_json_response(response)
                 
                 if result:

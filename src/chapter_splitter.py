@@ -5,6 +5,7 @@ import logging
 from typing import List, Dict, Optional
 import ollama
 from .config import settings
+from .ollama_queue import queue_ollama_call, TaskPriority
 
 logger = logging.getLogger(__name__)
 
@@ -380,8 +381,17 @@ class ChapterSplitter:
         
         return sections
     
+    def _generate_title_direct(self, prompt: str) -> str:
+        """Direct Ollama call for title generation (internal, not queued)."""
+        response = ollama.generate(
+            model=settings.ollama_model,
+            prompt=prompt,
+            options={'temperature': 0.7, 'num_predict': 20}
+        )
+        return response['response'].strip()
+    
     def _generate_llm_title(self, content_preview: str, section_num: int) -> Optional[str]:
-        """Generate a concise, descriptive title using LLM."""
+        """Generate a concise, descriptive title using LLM via queue."""
         prompt = f"""Based on this excerpt from a children's book, create a short, engaging chapter title (maximum 6 words).
 
 The title should:
@@ -396,13 +406,12 @@ Excerpt:
 Respond with ONLY the title, nothing else. Do not include quotes or "Chapter X:" prefix."""
 
         try:
-            response = ollama.generate(
-                model=settings.ollama_model,
-                prompt=prompt,
-                options={'temperature': 0.7, 'num_predict': 20}
+            title = queue_ollama_call(
+                self._generate_title_direct,
+                TaskPriority.QUESTION,
+                f"generate_chapter_title_section_{section_num}",
+                prompt
             )
-            
-            title = response['response'].strip()
             
             # Remove thinking tags if present (for thinking models)
             title = re.sub(r'<think>.*?</think>', '', title, flags=re.DOTALL | re.IGNORECASE)

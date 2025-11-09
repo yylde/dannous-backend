@@ -7,6 +7,7 @@ import time
 from typing import List, Dict, Tuple
 import ollama
 from .config import settings
+from .ollama_queue import queue_ollama_call, TaskPriority
 
 logger = logging.getLogger(__name__)
 
@@ -302,7 +303,12 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             strategy_name, use_json_format = strategies[attempt]
             try:
                 logger.info(f"Attempt {attempt + 1}/{max_retries} using {strategy_name} strategy")
-                response = self._call_ollama(prompt, force_json_format=use_json_format)
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=use_json_format,
+                    priority=TaskPriority.QUESTION,
+                    task_name=f"generate_questions_{title}_ch{chapter_number}"
+                )
                 questions, vocabulary, _ = self._parse_response(response, num_questions)
                 
                 if questions:
@@ -324,8 +330,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         logger.warning("Using fallback questions")
         return self._generate_fallback_questions(chapter_title, num_questions), []
     
-    def _call_ollama(self, prompt: str, force_json_format: bool = False) -> str:
-        """Call Ollama API with model-agnostic settings.
+    def _call_ollama_direct(self, prompt: str, force_json_format: bool = False) -> str:
+        """Direct Ollama API call (internal, not queued).
         
         This method is designed to work with ANY Ollama model:
         - Thinking models (DeepSeek-R1, etc.) - outputs <think> tags
@@ -339,44 +345,63 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         Returns:
             Raw model response string
         """
+        # Build request options
+        options = {
+            'temperature': 0.7,
+            'top_p': 0.9,
+            'num_predict': 4000  # Generous token limit for all models
+        }
+        
+        # Decide whether to use format='json'
+        # - If force_json_format=True: Use it (for retry attempts)
+        # - Otherwise: Don't use it (allows thinking models to work)
+        generate_params = {
+            'model': self.model,
+            'prompt': prompt,
+            'options': options
+        }
+        
+        if force_json_format:
+            generate_params['format'] = 'json'
+            logger.debug(f"Using format='json' for model: {self.model}")
+        else:
+            logger.debug(f"Using free-form output for model: {self.model}")
+        
+        # Call Ollama
+        response = ollama.generate(**generate_params)
+        raw_response = response['response']
+        
+        # Log diagnostic info
+        has_thinking_tags = '<think>' in raw_response.lower() or '<thinking>' in raw_response.lower()
+        logger.debug(f"Model: {self.model}")
+        logger.debug(f"Response length: {len(raw_response)} chars")
+        logger.debug(f"Contains thinking tags: {has_thinking_tags}")
+        logger.debug(f"First 500 chars: {raw_response[:500]}")
+        
+        return raw_response
+    
+    def _call_ollama(self, prompt: str, force_json_format: bool = False, priority: TaskPriority = TaskPriority.QUESTION, task_name: str = "") -> str:
+        """Call Ollama API through the priority queue.
+        
+        Args:
+            prompt: The prompt to send to the model
+            force_json_format: If True, uses format='json' (disables thinking mode)
+            priority: Task priority level (GENRE_TAG=1, DESCRIPTION=2, QUESTION=3)
+            task_name: Descriptive name for queue logging
+        
+        Returns:
+            Raw model response string
+        """
         try:
-            # Build request options
-            options = {
-                'temperature': 0.7,
-                'top_p': 0.9,
-                'num_predict': 4000  # Generous token limit for all models
-            }
-            
-            # Decide whether to use format='json'
-            # - If force_json_format=True: Use it (for retry attempts)
-            # - Otherwise: Don't use it (allows thinking models to work)
-            generate_params = {
-                'model': self.model,
-                'prompt': prompt,
-                'options': options
-            }
-            
-            if force_json_format:
-                generate_params['format'] = 'json'
-                logger.debug(f"Using format='json' for model: {self.model}")
-            else:
-                logger.debug(f"Using free-form output for model: {self.model}")
-            
-            # Call Ollama
-            response = ollama.generate(**generate_params)
-            raw_response = response['response']
-            
-            # Log diagnostic info
-            has_thinking_tags = '<think>' in raw_response.lower() or '<thinking>' in raw_response.lower()
-            logger.debug(f"Model: {self.model}")
-            logger.debug(f"Response length: {len(raw_response)} chars")
-            logger.debug(f"Contains thinking tags: {has_thinking_tags}")
-            logger.debug(f"First 500 chars: {raw_response[:500]}")
-            
-            return raw_response
-            
+            return queue_ollama_call(
+                self._call_ollama_direct,
+                priority,
+                task_name or "ollama_call",
+                prompt,
+                force_json_format
+            )
         except Exception as e:
-            logger.error(f"Ollama API call failed with model {self.model}: {e}")
+            logger.error(f"Queued Ollama API call failed: {e}")
             raise
     
     def _generate_fallback_questions(
@@ -473,7 +498,12 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             strategy_name, use_json_format = strategies[attempt]
             try:
                 logger.info(f"Tag generation attempt {attempt + 1}/{max_retries} using {strategy_name} strategy")
-                response = self._call_ollama(prompt, force_json_format=use_json_format)
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=use_json_format,
+                    priority=TaskPriority.GENRE_TAG,
+                    task_name=f"generate_tags_{title}"
+                )
                 tags = self._parse_tags_response(response)
                 
                 if tags:
@@ -610,7 +640,12 @@ Your response:"""
         for attempt in range(max_retries):
             try:
                 logger.info(f"Synopsis generation attempt {attempt + 1}/{max_retries}")
-                response = self._call_ollama(prompt, force_json_format=False)
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=False,
+                    priority=TaskPriority.DESCRIPTION,
+                    task_name=f"generate_synopsis_{title}"
+                )
                 
                 # Clean up response
                 synopsis = remove_thinking_tokens(response).strip()
@@ -695,7 +730,12 @@ Your response:"""
         for attempt in range(max_retries):
             try:
                 logger.info(f"Description generation attempt {attempt + 1}/{max_retries}")
-                response = self._call_ollama(prompt, force_json_format=False)
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=False,
+                    priority=TaskPriority.DESCRIPTION,
+                    task_name=f"generate_description_{title}"
+                )
                 
                 # Clean up response
                 description = remove_thinking_tokens(response).strip()

@@ -5,6 +5,7 @@ import click
 import logging
 import sys
 import json
+import atexit
 from pathlib import Path
 from rich.console import Console
 from rich.table import Table
@@ -19,8 +20,17 @@ from src.question_generator import QuestionGenerator, save_prompt_template
 from src.database import DatabaseManager
 from src.models import Book, Chapter, Question, ProcessedBook
 from src.html_formatter import format_chapter_html
+from src.ollama_queue import shutdown_queue_manager
 
 console = Console()
+
+def cleanup_queue():
+    """Cleanup queue manager on shutdown."""
+    logger = logging.getLogger(__name__)
+    logger.info("Shutting down Ollama queue manager...")
+    shutdown_queue_manager(wait=True, timeout=30.0)
+
+atexit.register(cleanup_queue)
 
 # Configure logging
 logging.basicConfig(
