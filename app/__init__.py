@@ -49,6 +49,7 @@ def create_app():
     logger.info(f"Question generation mode: {'PARALLEL' if PARALLEL_GENERATION else 'SEQUENTIAL'}")
     
     # Initialize QueueManagerV2 and start workers
+    # Note: Reloader is disabled in app.py to prevent duplicate workers
     logger.info("Initializing QueueManagerV2...")
     queue_v2 = get_queue_manager_v2()
     queue_v2.start()
@@ -73,6 +74,7 @@ def create_app():
     atexit.register(cleanup_queue)
     
     # Start the question generation watcher thread
+    # Note: Reloader is disabled in app.py to prevent duplicate watchers
     from app.tasks.question_tasks import start_question_generation_watcher
     start_question_generation_watcher()
     
