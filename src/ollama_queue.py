@@ -421,17 +421,18 @@ class OllamaQueueManager:
             'pending_tasks': combined_tasks
         }
     
-    def delete_tasks_for_book_chapter(self, book_id: Optional[str] = None, chapter_id: Optional[str] = None) -> int:
-        """Delete specific pending tasks from queue by book_id and/or chapter_id.
+    def delete_tasks_for_book_chapter(self, book_id: Optional[str] = None, chapter_id: Optional[str] = None, task_type: Optional[str] = None) -> int:
+        """Delete specific pending tasks from queue by book_id and/or chapter_id and/or task_type.
         
         Args:
             book_id: Delete tasks for this book (UUID string)
             chapter_id: Delete tasks for this chapter (UUID string)
+            task_type: Delete tasks of this type (e.g., 'tags', 'descriptions', 'questions')
             
         Returns:
             Number of tasks that were removed
         """
-        if not book_id and not chapter_id:
+        if not book_id and not chapter_id and not task_type:
             return 0
         
         deleted_count = 0
@@ -449,10 +450,14 @@ class OllamaQueueManager:
                 should_delete = False
                 if book_id and chapter_id:
                     should_delete = (task.book_id == book_id and task.chapter_id == chapter_id)
+                elif book_id and task_type:
+                    should_delete = (task.book_id == book_id and task.task_type == task_type)
                 elif book_id:
                     should_delete = (task.book_id == book_id)
                 elif chapter_id:
                     should_delete = (task.chapter_id == chapter_id)
+                elif task_type:
+                    should_delete = (task.task_type == task_type)
                 
                 if should_delete:
                     deleted_count += 1
@@ -479,12 +484,23 @@ class OllamaQueueManager:
             if conn:
                 try:
                     with conn.cursor() as cur:
-                        if book_id and chapter_id:
-                            cur.execute("DELETE FROM queue_tasks WHERE book_id = %s AND chapter_id = %s", (book_id, chapter_id))
-                        elif book_id:
-                            cur.execute("DELETE FROM queue_tasks WHERE book_id = %s", (book_id,))
-                        elif chapter_id:
-                            cur.execute("DELETE FROM queue_tasks WHERE chapter_id = %s", (chapter_id,))
+                        conditions = []
+                        params = []
+                        
+                        if book_id:
+                            conditions.append("book_id = %s")
+                            params.append(book_id)
+                        if chapter_id:
+                            conditions.append("chapter_id = %s")
+                            params.append(chapter_id)
+                        if task_type:
+                            conditions.append("task_type = %s")
+                            params.append(task_type)
+                        
+                        if conditions:
+                            where_clause = " AND ".join(conditions)
+                            cur.execute(f"DELETE FROM queue_tasks WHERE {where_clause}", tuple(params))
+                        
                         conn.commit()
                 except Exception as e:
                     logger.error(f"Failed to delete tasks from database: {e}")
@@ -492,7 +508,7 @@ class OllamaQueueManager:
                 finally:
                     conn.close()
         
-        logger.info(f"Deleted {deleted_count} tasks for book_id={book_id}, chapter_id={chapter_id}")
+        logger.info(f"Deleted {deleted_count} tasks for book_id={book_id}, chapter_id={chapter_id}, task_type={task_type}")
         return deleted_count
     
     def flush_queue(self) -> int:

@@ -212,18 +212,11 @@ def regenerate_tags(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Check if tag generation is already in progress
+        # Check if tag generation is actively generating (not pending/queued)
+        # Only block if it's been generating for less than 10 minutes to prevent spam
         current_tag_status = draft.get('tag_status')
         
-        # Handle optional JSON body (request might not have JSON)
-        force = False
-        try:
-            if request.is_json and request.get_json(silent=True):
-                force = request.json.get('force', False)
-        except:
-            pass
-        
-        if current_tag_status in ('pending', 'queued', 'generating') and not force:
+        if current_tag_status == 'generating':
             # Check if it's been stuck for more than 10 minutes
             updated_at = draft.get('updated_at')
             if updated_at:
@@ -236,21 +229,20 @@ def regenerate_tags(draft_id):
                 
                 # If it's been generating for more than 10 minutes, consider it stuck
                 if time_since_update > timedelta(minutes=10):
-                    logger.warning(f"Tag status stuck in '{current_tag_status}' for {time_since_update}. Allowing regeneration.")
+                    logger.warning(f"Tag status stuck in 'generating' for {time_since_update}. Allowing regeneration.")
                 else:
-                    logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (current status: {current_tag_status})")
+                    logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (currently generating)")
                     return jsonify({
                         'error': 'Tag generation already in progress. Please wait for it to complete or try again in a few minutes.'
                     }), 409
-            else:
-                # No timestamp, block to be safe
-                logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (current status: {current_tag_status})")
-                return jsonify({
-                    'error': 'Tag generation already in progress. Please wait for it to complete.'
-                }), 409
+        
+        # Delete any existing tag generation tasks for this book
+        queue_manager = get_queue_manager()
+        deleted_count = queue_manager.delete_tasks_for_book_chapter(book_id=draft_id, task_type="tags")
+        if deleted_count > 0:
+            logger.info(f"Deleted {deleted_count} existing tag generation task(s) for draft {draft_id}")
         
         # Enqueue tag generation task
-        queue_manager = get_queue_manager()
         title = draft.get('title', '')
         age_range = draft.get('age_range', settings.default_age_range)
         reading_level = draft.get('reading_level', settings.default_reading_level)
@@ -428,11 +420,11 @@ def generate_description(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Check if description generation is already actively generating
-        # Allow retrying if stuck for more than 10 minutes
+        # Check if description generation is actively generating (not pending/queued)
+        # Only block if it's been generating for less than 10 minutes to prevent spam
         current_description_status = draft.get('description_status')
         
-        if current_description_status in ('pending', 'queued', 'generating'):
+        if current_description_status == 'generating':
             # Check if it's been stuck for more than 10 minutes
             updated_at = draft.get('updated_at')
             if updated_at:
@@ -445,22 +437,21 @@ def generate_description(draft_id):
                 
                 # If it's been generating for more than 10 minutes, consider it stuck
                 if time_since_update > timedelta(minutes=10):
-                    logger.warning(f"Description status stuck in '{current_description_status}' for {time_since_update}. Allowing regeneration.")
+                    logger.warning(f"Description status stuck in 'generating' for {time_since_update}. Allowing regeneration.")
                 else:
-                    logger.info(f"Blocked duplicate description generation request for draft {draft_id} (current status: {current_description_status})")
+                    logger.info(f"Blocked duplicate description generation request for draft {draft_id} (currently generating)")
                     return jsonify({
-                        'error': 'Description generation already in progress. Please wait for it to complete.'
+                        'error': 'Description generation already in progress. Please wait for it to complete or try again in a few minutes.'
                     }), 409
-            else:
-                # If no updated_at timestamp, block duplicate request
-                logger.info(f"Blocked duplicate description generation request for draft {draft_id} (currently {current_description_status})")
-                return jsonify({
-                    'error': 'Description generation already in progress. Please wait for it to complete.'
-                }), 409
+        
+        # Delete any existing description generation tasks for this book
+        queue_manager = get_queue_manager()
+        deleted_count = queue_manager.delete_tasks_for_book_chapter(book_id=draft_id, task_type="descriptions")
+        if deleted_count > 0:
+            logger.info(f"Deleted {deleted_count} existing description generation task(s) for draft {draft_id}")
         
         # Enqueue description generation task
         try:
-            queue_manager = get_queue_manager()
             title = draft.get('title', '')
             age_range = draft.get('age_range', settings.default_age_range)
             reading_level = draft.get('reading_level', settings.default_reading_level)
