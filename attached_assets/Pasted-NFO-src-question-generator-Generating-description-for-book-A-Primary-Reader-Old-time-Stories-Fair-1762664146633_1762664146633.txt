@@ -1,0 +1,27 @@
+NFO:src.question_generator:Generating description for book: A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children by E. Louise Smythe
+INFO:src.question_generator:Auto-generating synopsis from book content
+INFO:src.question_generator:Generating synopsis for book: A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children by E. Louise Smythe
+INFO:src.question_generator:Synopsis generation attempt 1/2
+INFO:src.ollama_queue:Initializing OllamaQueueManager with 1 worker(s)
+INFO:src.ollama_queue:OllamaWorker-0 started and ready to process tasks
+INFO:src.ollama_queue:Started worker thread: OllamaWorker-0
+ERROR:src.question_generator:Queued Ollama API call failed: OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+WARNING:src.question_generator:Synopsis attempt 1: TypeError - OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:55:27] "GET /api/draft-chapters/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -
+INFO:src.question_generator:Synopsis generation attempt 2/2
+ERROR:src.question_generator:Queued Ollama API call failed: OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+WARNING:src.question_generator:Synopsis attempt 2: TypeError - OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+WARNING:src.question_generator:Using fallback synopsis
+INFO:src.question_generator:Description generation attempt 1/2
+ERROR:src.question_generator:Queued Ollama API call failed: OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+WARNING:src.question_generator:Description attempt 1: TypeError - OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+INFO:src.question_generator:Description generation attempt 2/2
+ERROR:src.question_generator:Queued Ollama API call failed: OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+WARNING:src.question_generator:Description attempt 2: TypeError - OllamaQueueManager.submit_task() got multiple values for argument 'task_name'
+WARNING:src.question_generator:Using fallback description
+INFO:__main__:✓ Generated description for draft 764c1caf-ec91-44aa-8f8b-80b5fa977f52: A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children by E. Louise Smythe is ...
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:55:29] "GET /api/draft-chapters/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:55:29] "GET /api/draft/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:55:31] "GET /api/draft-chapters/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:55:33] "GET /api/draft-chapters/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:55:35] "GET /api/draft-chapters/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -

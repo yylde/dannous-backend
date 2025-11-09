@@ -181,9 +181,9 @@ class OllamaQueueManager:
         self,
         func: Callable,
         priority: TaskPriority,
+        *args,
         task_name: str = "",
         timeout: Optional[float] = 300.0,
-        *args,
         **kwargs
     ) -> Any:
         """
@@ -192,9 +192,9 @@ class OllamaQueueManager:
         Args:
             func: Function to execute
             priority: Task priority (TaskPriority enum)
-            task_name: Descriptive name for logging
-            timeout: Maximum time to wait for result in seconds (default: 300)
             *args: Positional arguments for func
+            task_name: Descriptive name for logging (keyword-only)
+            timeout: Maximum time to wait for result in seconds (keyword-only, default: 300)
             **kwargs: Keyword arguments for func
         
         Returns:
@@ -323,5 +323,4 @@ def queue_ollama_call(
         Result from the Ollama function
     """
     manager = get_queue_manager()
-    # Pass task_name as keyword arg to ensure *args are properly passed to the function
-    return manager.submit_task(func, priority, task_name=task_name, *args, **kwargs)
+    return manager.submit_task(func, priority, *args, task_name=task_name, **kwargs)
