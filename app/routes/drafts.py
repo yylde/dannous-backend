@@ -9,10 +9,6 @@ from src.database import DatabaseManager
 from src.models import Book, Chapter, Question, ProcessedBook
 from src.config import settings
 from src.chapter_splitter import calculate_reading_time
-from src.ollama_queue import get_queue_manager, TaskPriority
-from app.tasks.tag_tasks import generate_tags_async
-from app.tasks.description_tasks import generate_description_async
-from app.tasks.question_tasks import regenerate_questions_for_draft_async
 
 drafts_bp = Blueprint('drafts', __name__)
 logger = logging.getLogger(__name__)
@@ -116,55 +112,6 @@ def create_or_update_draft():
             
             # Database connection is now closed and transaction committed
             logger.info(f"Created draft {draft_id}")
-            
-            # AUTOMATIC TAG AND DESCRIPTION GENERATION DISABLED
-            # User will manually trigger these from the UI
-            # 
-            # # Enqueue tag generation task
-            # queue_manager = get_queue_manager()
-            # title = data.get('title', '')
-            # age_range = data.get('age_range', settings.default_age_range)
-            # reading_level = data.get('reading_level', settings.default_reading_level)
-            # 
-            # task_id = queue_manager.enqueue_task(
-            #     generate_tags_async,
-            #     TaskPriority.GENRE_TAG,
-            #     draft_id,
-            #     title,
-            #     data.get('author'),
-            #     age_range,
-            #     reading_level,
-            #     task_name=f"Tags: {title[:30]}",
-            #     task_type="tags",
-            #     book_id=draft_id
-            # )
-            # 
-            # # Update status to 'queued'
-            # db.update_draft_tag_status(draft_id, 'queued')
-            # 
-            # logger.info(f"Enqueued tag generation for draft {draft_id} (task #{task_id})")
-            # 
-            # # Enqueue description generation task
-            # book_text_sample = ' '.join(full_text.split()[:2000]) if full_text else ''
-            # 
-            # desc_task_id = queue_manager.enqueue_task(
-            #     generate_description_async,
-            #     TaskPriority.DESCRIPTION,
-            #     draft_id,
-            #     title,
-            #     data.get('author'),
-            #     book_text_sample,
-            #     age_range,
-            #     reading_level,
-            #     task_name=f"Description: {title[:30]}",
-            #     task_type="descriptions",
-            #     book_id=draft_id
-            # )
-            # 
-            # # Update status to 'queued'
-            # db.update_draft_description_status(draft_id, 'queued')
-            # 
-            # logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
             
             return jsonify({'success': True, 'draft_id': draft_id})
     
@@ -639,15 +586,17 @@ def finalize_draft(draft_id):
         
         book = Book(
             id=uuid4(),
-            title=draft['title'],
-            author=draft['author'],
+            title=draft.get('title', ''),
+            author=draft.get('author', ''),
             description=draft.get('description', ''),
-            age_range=draft['age_range'],
-            reading_level=draft['reading_level'],
+            age_range=draft.get('age_range', settings.default_age_range),
+            reading_level=draft.get('reading_level', settings.default_reading_level),
             genre=draft.get('genre', settings.default_genre),
             total_chapters=len(chapters_data),
             estimated_reading_time_minutes=total_reading_time,
             cover_image_url=draft.get('cover_image_url'),
+            isbn=None,
+            content_rating=None,
             tags=draft.get('tags', [])
         )
         

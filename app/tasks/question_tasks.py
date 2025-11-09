@@ -17,16 +17,12 @@ PARALLEL_GENERATION = os.environ.get('PARALLEL_GENERATION', 'true').lower() == '
 def generate_questions_worker(draft_id, chapter_id, chapter_number, title, content, html_content, grade_level, book_title, book_author, age_range, reading_level):
     """
     Worker function for generating questions for a single chapter/grade.
-    This function runs in the Ollama queue worker thread and handles persistence.
+    This function runs in the queue worker thread and handles persistence.
     """
     db = DatabaseManager()
     
     try:
         logger.info(f"Worker generating questions for chapter {chapter_id}, grade {grade_level}")
-        
-        # At START: update grade status to 'generating'
-        db.update_grade_status(chapter_id, grade_level, 'generating')
-        db.compute_chapter_status(chapter_id)
         
         generator = QuestionGenerator()
         
@@ -53,21 +49,12 @@ def generate_questions_worker(draft_id, chapter_id, chapter_number, title, conte
         # Save questions for this grade level
         db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data, grade_level=grade_level)
         
-        # After saving questions: update grade status to 'ready'
-        db.update_grade_status(chapter_id, grade_level, 'ready')
-        db.compute_chapter_status(chapter_id)
-        
-        logger.info(f"✓ Worker saved {len(questions_data)} questions for chapter {chapter_id}, {grade_level} - STATUS: READY")
+        logger.info(f"✓ Worker saved {len(questions_data)} questions for chapter {chapter_id}, {grade_level}")
         
         return {'success': True, 'questions': len(questions_data), 'vocabulary': len(vocabulary_data)}
         
     except Exception as e:
         logger.exception(f"✗ Worker failed to generate questions for chapter {chapter_id}, {grade_level}: {e}")
-        
-        # On ERROR: update grade status to 'error'
-        db.update_grade_status(chapter_id, grade_level, 'error')
-        db.compute_chapter_status(chapter_id)
-        
         raise
 
 
@@ -143,7 +130,7 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
 def regenerate_questions_for_draft_async(draft_id):
     """Regenerate questions for all chapters in a draft based on current grade tags."""
     try:
-        from src.ollama_queue import get_queue_manager
+        from src.queue_manager_v2 import get_queue_manager_v2
         
         db = DatabaseManager()
         
@@ -152,11 +139,6 @@ def regenerate_questions_for_draft_async(draft_id):
         if not draft:
             logger.error(f"Draft {draft_id} not found")
             return
-        
-        # FIRST: Delete any existing pending question generation tasks for this book from the queue
-        queue_manager = get_queue_manager()
-        deleted_count = queue_manager.delete_tasks_for_book_chapter(book_id=draft_id)
-        logger.info(f"Deleted {deleted_count} pending queue tasks for draft {draft_id}")
         
         tags = draft.get('tags', [])
         new_grade_levels = [tag for tag in tags if tag.startswith('grade-')]
@@ -208,48 +190,55 @@ def regenerate_questions_for_draft_async(draft_id):
             
             logger.info(f"Enqueuing question generation for {len(chapters)} chapters x {len(grades_to_regenerate)} grades = {len(chapters) * len(grades_to_regenerate)} tasks")
             
-            # Create grade status records (status='pending') for each chapter/grade combination
-            for chapter in chapters:
-                for grade_level in grades_to_regenerate:
-                    db.create_or_reset_grade_status(chapter['id'], grade_level, status='pending')
-            
-            # Enqueue non-blocking tasks for each chapter/grade combination
-            from src.ollama_queue import TaskPriority
+            # Use QueueManagerV2 to enqueue tasks
+            queue_manager_v2 = get_queue_manager_v2()
             task_count = 0
             
+            # Delete existing queued tasks for this draft
+            with queue_manager_v2._get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("""
+                        DELETE FROM queue_tasks
+                        WHERE status = 'queued'
+                          AND task_type = 'questions'
+                          AND book_id = %s
+                          AND payload->>'grade_level' = ANY(%s)
+                    """, (draft_id, grades_to_regenerate))
+                    deleted_count = cur.rowcount
+                    conn.commit()
+            
+            if deleted_count > 0:
+                logger.info(f"Deleted {deleted_count} existing queued question tasks for draft {draft_id}")
+            
+            # Enqueue tasks for each chapter/grade combination
             for chapter in chapters:
+                payloads = []
                 for grade_level in grades_to_regenerate:
-                    # Enqueue non-blocking task
-                    # Pass worker parameters as positional args to avoid conflicts with metadata params
-                    task_id = queue_manager.enqueue_task(
-                        generate_questions_worker,
-                        TaskPriority.QUESTION,
-                        # Worker function positional arguments (in correct order)
-                        draft_id,
-                        chapter['id'],  # chapter_id
-                        chapter['chapter_number'],  # chapter_number
-                        chapter['title'],  # title
-                        chapter['content'],  # content
-                        chapter.get('html_formatting'),  # html_content
-                        grade_level,
-                        draft.get('title', 'Book Draft'),  # book_title
-                        draft.get('author', 'Unknown'),  # book_author
-                        draft.get('age_range') or settings.default_age_range,  # age_range
-                        draft.get('reading_level') or settings.default_reading_level,  # reading_level
-                        # Queue metadata (keyword-only params)
-                        task_name=f"Questions: Ch{chapter['chapter_number']} {grade_level}",
-                        task_type="questions",
-                        book_id=draft_id,
-                        chapter_id=chapter['id']
-                    )
-                    
-                    # Update grade status to 'queued' with queue_task_id
-                    db.update_grade_status(chapter['id'], grade_level, 'queued', queue_task_id=task_id)
-                    
-                    task_count += 1
+                    payload = {
+                        'book_id': draft_id,
+                        'chapter_id': chapter['id'],
+                        'title': draft.get('title', ''),
+                        'author': draft.get('author', ''),
+                        'chapter_number': chapter['chapter_number'],
+                        'chapter_title': chapter['title'],
+                        'chapter_text': chapter['content'],
+                        'reading_level': draft.get('reading_level', settings.default_reading_level),
+                        'age_range': draft.get('age_range', settings.default_age_range),
+                        'grade_level': grade_level,
+                        'num_questions': 3,
+                        'vocab_count': 8
+                    }
+                    payloads.append(payload)
                 
-                # Compute and update chapter status from grade statuses
-                db.compute_chapter_status(chapter['id'])
+                # Batch enqueue all tasks for this chapter
+                task_ids = queue_manager_v2.enqueue_tasks_batch(
+                    task_type='questions',
+                    priority=3,
+                    book_id=draft_id,
+                    chapter_id=chapter['id'],
+                    payloads=payloads
+                )
+                task_count += len(task_ids)
             
             logger.info(f"✓ Enqueued {task_count} question generation tasks for draft {draft_id} - tasks will process asynchronously")
         

@@ -8,7 +8,6 @@ from contextlib import contextmanager
 
 from .config import settings
 from .models import ProcessedBook, Book, Chapter, Question
-from .ollama_queue import get_queue_manager
 import re
 import html
 
@@ -568,20 +567,6 @@ class DatabaseManager:
                 """, (draft_id,))
                 return [row[0] for row in cur.fetchall()]
     
-    def update_chapter_question_status(self, chapter_id: str, status: str) -> None:
-        """DEPRECATED: question_status column has been dropped. Status is now calculated dynamically."""
-        logger.debug(f"DEPRECATED: update_chapter_question_status called for chapter {chapter_id} - ignoring (status columns dropped)")
-        return
-    
-    def update_draft_tag_status(self, draft_id: str, status: str) -> None:
-        """DEPRECATED: tag_status column has been dropped. Status is now calculated dynamically."""
-        logger.debug(f"DEPRECATED: update_draft_tag_status called for draft {draft_id} - ignoring (status columns dropped)")
-        return
-    
-    def update_draft_description_status(self, draft_id: str, status: str) -> None:
-        """DEPRECATED: description_status column has been dropped. Status is now calculated dynamically."""
-        logger.debug(f"DEPRECATED: update_draft_description_status called for draft {draft_id} - ignoring (status columns dropped)")
-        return
     
     def save_draft_questions(self, chapter_id: str, draft_id: str, 
                             questions: List[dict], vocabulary: List[dict], grade_level: str = None) -> None:
@@ -633,9 +618,18 @@ class DatabaseManager:
                 
                 content, chapter_number, draft_id = result
                 
-                # Delete pending queue tasks for this chapter
-                queue_manager = get_queue_manager()
-                queue_manager.delete_tasks_for_book_chapter(book_id=draft_id, chapter_id=chapter_id)
+                # Delete pending queue tasks for this chapter using queue_manager_v2
+                from .queue_manager_v2 import get_queue_manager_v2
+                queue_manager_v2 = get_queue_manager_v2()
+                with queue_manager_v2._get_connection() as qconn:
+                    with qconn.cursor() as qcur:
+                        qcur.execute("""
+                            DELETE FROM queue_tasks
+                            WHERE status = 'queued'
+                              AND book_id = %s
+                              AND chapter_id = %s
+                        """, (draft_id, chapter_id))
+                        qconn.commit()
                 
                 # Delete chapter (cascade will delete questions/vocab)
                 cur.execute("DELETE FROM draft_chapters WHERE id = %s", (chapter_id,))
@@ -760,52 +754,6 @@ class DatabaseManager:
                 
                 return book_id, total_chapters, question_count
     
-    # ==================== GRADE STATUS METHODS ====================
-    
-    def create_or_reset_grade_status(self, chapter_id: str, grade_level: str, status: str = 'pending') -> None:
-        """Initialize or reset grade status for a chapter/grade combination."""
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    INSERT INTO draft_chapter_grade_status (chapter_id, grade_level, status)
-                    VALUES (%s, %s, %s)
-                    ON CONFLICT (chapter_id, grade_level)
-                    DO UPDATE SET 
-                        status = EXCLUDED.status,
-                        queue_task_id = NULL,
-                        updated_at = CURRENT_TIMESTAMP
-                """, (chapter_id, grade_level, status))
-    
-    def update_grade_status(self, chapter_id: str, grade_level: str, status: str, queue_task_id: Optional[int] = None) -> None:
-        """Update status for a specific chapter/grade combination."""
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                if queue_task_id is not None:
-                    cur.execute("""
-                        UPDATE draft_chapter_grade_status
-                        SET status = %s, queue_task_id = %s, updated_at = CURRENT_TIMESTAMP
-                        WHERE chapter_id = %s AND grade_level = %s
-                    """, (status, queue_task_id, chapter_id, grade_level))
-                else:
-                    cur.execute("""
-                        UPDATE draft_chapter_grade_status
-                        SET status = %s, updated_at = CURRENT_TIMESTAMP
-                        WHERE chapter_id = %s AND grade_level = %s
-                    """, (status, chapter_id, grade_level))
-    
-    def get_grade_statuses_for_chapter(self, chapter_id: str) -> List[dict]:
-        """Get all grade statuses for a chapter."""
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    SELECT id, chapter_id, grade_level, status, queue_task_id, created_at, updated_at
-                    FROM draft_chapter_grade_status
-                    WHERE chapter_id = %s
-                    ORDER BY grade_level
-                """, (chapter_id,))
-                columns = [desc[0] for desc in cur.description]
-                return [dict(zip(columns, row)) for row in cur.fetchall()]
-    
     def get_chapter_vocabulary(self, chapter_id: str) -> List[dict]:
         """Get all vocabulary for a chapter. Returns list of dicts with 'word', 'definition', 'grade_level' keys."""
         with self.get_connection() as conn:
@@ -818,71 +766,6 @@ class DatabaseManager:
                 """, (chapter_id,))
                 columns = [desc[0] for desc in cur.description]
                 return [dict(zip(columns, row)) for row in cur.fetchall()]
-    
-    def compute_chapter_status(self, chapter_id: str) -> str:
-        """
-        Compute overall chapter status from grade statuses.
-        Priority: error > generating > queued > pending
-        Only if ALL grades are 'ready' → chapter status = 'ready'
-        Returns the computed status.
-        
-        When status is 'ready' and vocabulary hasn't been injected yet, injects vocabulary <abbr> tags into HTML.
-        """
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                # Read current HTML formatting
-                cur.execute("""
-                    SELECT html_formatting
-                    FROM draft_chapters
-                    WHERE id = %s
-                """, (chapter_id,))
-                result = cur.fetchone()
-                if not result:
-                    return 'pending'
-                
-                html_content = result[0]
-                
-                # Compute status from grade statuses
-                cur.execute("""
-                    SELECT status, COUNT(*) as count
-                    FROM draft_chapter_grade_status
-                    WHERE chapter_id = %s
-                    GROUP BY status
-                """, (chapter_id,))
-                status_counts = {row[0]: row[1] for row in cur.fetchall()}
-                
-                if not status_counts:
-                    computed_status = 'pending'
-                elif 'error' in status_counts:
-                    computed_status = 'error'
-                elif 'generating' in status_counts:
-                    computed_status = 'generating'
-                elif 'queued' in status_counts:
-                    computed_status = 'queued'
-                elif 'pending' in status_counts:
-                    computed_status = 'pending'
-                else:
-                    computed_status = 'ready'
-                
-                # If status is 'ready' and vocabulary hasn't been injected yet, inject it
-                if computed_status == 'ready' and html_content and '<abbr' not in html_content:
-                    # Get all vocabulary for this chapter
-                    vocabulary_list = self.get_chapter_vocabulary(chapter_id)
-                    
-                    # Inject vocabulary <abbr> tags into HTML
-                    if vocabulary_list:
-                        updated_html = inject_vocabulary_abbr(html_content, vocabulary_list)
-                        
-                        # Update chapter with injected HTML
-                        cur.execute("""
-                            UPDATE draft_chapters
-                            SET html_formatting = %s
-                            WHERE id = %s
-                        """, (updated_html, chapter_id))
-                        
-                        logger.info(f"Injected {len(vocabulary_list)} vocabulary terms into chapter {chapter_id} HTML")
-                
-                return computed_status
 
 
 def inject_vocabulary_abbr(html_content: str, vocabulary_list: List[dict]) -> str:
