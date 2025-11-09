@@ -2653,38 +2653,6 @@ async function refreshQueueStatus() {
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             document.getElementById('queue-timestamp').textContent = timeStr;
             
-            // Enable/disable flush button based on queue size
-            const flushBtn = document.getElementById('flush-queue-btn');
-            if (flushBtn) {
-                flushBtn.disabled = queue.queue_size === 0;
-            }
-            
-            // Display detailed pending tasks
-            const tasksList = document.getElementById('queue-tasks-list');
-            if (tasksList && queue.pending_tasks && queue.pending_tasks.length > 0) {
-                const tasksHTML = queue.pending_tasks.map(task => {
-                    const typeIcon = {
-                        'tags': '🏷️',
-                        'description': '📝',
-                        'synopsis': '📄',
-                        'questions': '❓'
-                    }[task.task_type] || '⚙️';
-                    
-                    let details = [];
-                    if (task.book_id) details.push(`📚 ${task.book_id.substring(0, 8)}`);
-                    if (task.chapter_id) details.push(`Ch: ${task.chapter_id.substring(0, 8)}`);
-                    
-                    return `
-                        <div style="font-size: 11px; padding: 4px; border-left: 2px solid #3b82f6; margin-bottom: 4px; background: #f8fafc;">
-                            <div style="font-weight: 600;">${typeIcon} ${task.task_type}</div>
-                            ${details.length > 0 ? `<div style="color: #64748b; margin-top: 2px;">${details.join(' • ')}</div>` : ''}
-                        </div>
-                    `;
-                }).join('');
-                tasksList.innerHTML = tasksHTML;
-            } else if (tasksList) {
-                tasksList.innerHTML = '';
-            }
         }
     } catch (error) {
         console.error('Error refreshing queue status:', error);

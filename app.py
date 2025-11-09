@@ -47,6 +47,11 @@ def index():
     """Admin UI homepage."""
     return render_template('index.html')
 
+@app.route('/queue')
+def queue_page():
+    """Queue monitoring page."""
+    return render_template('queue.html')
+
 @app.route('/api/download-book', methods=['POST'])
 def download_book():
     """Download book from Project Gutenberg."""
