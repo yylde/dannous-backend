@@ -247,7 +247,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         num_questions: int = None,
         vocab_count: int = 8,
         book_id: str = None,
-        chapter_id: str = None
+        chapter_id: str = None,
+        use_queue: bool = True
     ) -> Tuple[List[Dict[str, any]], List[Dict[str, str]]]:
         """
         Generate questions and vocabulary for a chapter at a specific grade level.
@@ -255,6 +256,9 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         Args:
             grade_level: Target grade (e.g., "grade-3", "grade-4")
             vocab_count: Number of vocabulary words to generate
+            book_id: Book ID
+            chapter_id: Chapter ID
+            use_queue: If True, use queue; if False, call Ollama directly
         
         Returns:
             Tuple of (questions_list, vocabulary_list)
@@ -293,17 +297,21 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             max_words=settings.max_answer_words
         )
         
-        # Call Ollama through queue (queue has built-in retry mechanism)
+        # Call Ollama (queue or direct based on use_queue parameter)
         try:
-            response = self._call_ollama(
-                prompt, 
-                force_json_format=False,  # Start with free-form for thinking models
-                priority=TaskPriority.QUESTION,
-                task_name=f"generate_questions_{title}_ch{chapter_number}",
-                task_type="questions",
-                book_id=book_id,
-                chapter_id=chapter_id
-            )
+            if use_queue:
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=False,
+                    priority=TaskPriority.QUESTION,
+                    task_name=f"generate_questions_{title}_ch{chapter_number}",
+                    task_type="questions",
+                    book_id=book_id,
+                    chapter_id=chapter_id
+                )
+            else:
+                response = self._call_ollama_direct(prompt, force_json_format=False)
+            
             questions, vocabulary, _ = self._parse_response(response, num_questions)
             
             if questions:
@@ -449,7 +457,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         author: str,
         reading_level: str,
         age_range: str,
-        book_id: str = None
+        book_id: str = None,
+        use_queue: bool = True
     ) -> List[str]:
         """
         Generate tags (genre + grade level) for a book using only the title.
@@ -459,6 +468,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             author: Book author
             reading_level: Reading level
             age_range: Age range
+            book_id: Book ID
+            use_queue: If True, use queue; if False, call Ollama directly
         
         Returns:
             List of tags (e.g., ["adventure", "fantasy", "grades-4-6"])
@@ -490,16 +501,20 @@ EXACT FORMAT (copy this structure):
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
         
-        # Call Ollama through queue (queue has built-in retry mechanism)
+        # Call Ollama (queue or direct based on use_queue parameter)
         try:
-            response = self._call_ollama(
-                prompt, 
-                force_json_format=False,  # Start with free-form for thinking models
-                priority=TaskPriority.GENRE_TAG,
-                task_name=f"generate_tags_{title}",
-                task_type="tags",
-                book_id=book_id
-            )
+            if use_queue:
+                response = self._call_ollama(
+                    prompt, 
+                    force_json_format=False,
+                    priority=TaskPriority.GENRE_TAG,
+                    task_name=f"generate_tags_{title}",
+                    task_type="tags",
+                    book_id=book_id
+                )
+            else:
+                response = self._call_ollama_direct(prompt, force_json_format=False)
+            
             tags = self._parse_tags_response(response)
             
             if tags:
@@ -576,7 +591,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         title: str,
         author: str,
         book_text_sample: str,
-        book_id: str = None
+        book_id: str = None,
+        use_queue: bool = True
     ) -> str:
         """
         Generate a concise synopsis from book content.
@@ -585,6 +601,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             title: Book title
             author: Book author
             book_text_sample: Sample of book text (e.g., first 2000 words)
+            book_id: Book ID
+            use_queue: If True, use queue; if False, call Ollama directly
         
         Returns:
             Generated synopsis string (max 10-12 sentences)
@@ -630,14 +648,17 @@ Your response:"""
         for attempt in range(max_retries):
             try:
                 logger.info(f"Synopsis generation attempt {attempt + 1}/{max_retries}")
-                response = self._call_ollama(
-                    prompt, 
-                    force_json_format=False,
-                    priority=TaskPriority.DESCRIPTION,
-                    task_name=f"generate_synopsis_{title}",
-                    task_type="synopsis",
-                    book_id=book_id
-                )
+                if use_queue:
+                    response = self._call_ollama(
+                        prompt, 
+                        force_json_format=False,
+                        priority=TaskPriority.DESCRIPTION,
+                        task_name=f"generate_synopsis_{title}",
+                        task_type="synopsis",
+                        book_id=book_id
+                    )
+                else:
+                    response = self._call_ollama_direct(prompt, force_json_format=False)
                 
                 # Clean up response
                 synopsis = remove_thinking_tokens(response).strip()
@@ -674,7 +695,8 @@ Your response:"""
         title: str,
         author: str,
         book_text_sample: str = None,
-        book_id: str = None
+        book_id: str = None,
+        use_queue: bool = True
     ) -> str:
         """
         Generate a book description, optionally auto-generating synopsis from book content.
@@ -683,6 +705,8 @@ Your response:"""
             title: Book title
             author: Book author
             book_text_sample: Optional sample of book text for auto-generating synopsis
+            book_id: Book ID
+            use_queue: If True, use queue; if False, call Ollama directly
         
         Returns:
             Generated description string (200-500 characters)
@@ -693,7 +717,7 @@ Your response:"""
         synopsis = None
         if book_text_sample:
             logger.info("Auto-generating synopsis from book content")
-            synopsis = self.generate_synopsis(title, author, book_text_sample)
+            synopsis = self.generate_synopsis(title, author, book_text_sample, book_id=book_id, use_queue=use_queue)
         
         # Build prompt for description generation
         synopsis_text = f"\nSynopsis: {synopsis}" if synopsis else ""
@@ -723,14 +747,17 @@ Your response:"""
         for attempt in range(max_retries):
             try:
                 logger.info(f"Description generation attempt {attempt + 1}/{max_retries}")
-                response = self._call_ollama(
-                    prompt, 
-                    force_json_format=False,
-                    priority=TaskPriority.DESCRIPTION,
-                    task_name=f"generate_description_{title}",
-                    task_type="description",
-                    book_id=book_id
-                )
+                if use_queue:
+                    response = self._call_ollama(
+                        prompt, 
+                        force_json_format=False,
+                        priority=TaskPriority.DESCRIPTION,
+                        task_name=f"generate_description_{title}",
+                        task_type="description",
+                        book_id=book_id
+                    )
+                else:
+                    response = self._call_ollama_direct(prompt, force_json_format=False)
                 
                 # Clean up response
                 description = remove_thinking_tokens(response).strip()

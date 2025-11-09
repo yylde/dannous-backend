@@ -8,6 +8,7 @@ from flask_cors import CORS
 from pathlib import Path
 
 from src.ollama_queue import shutdown_queue_manager, get_queue_manager
+from src.queue_manager_v2 import get_queue_manager_v2
 from src.config import settings
 
 # Configure logging
@@ -23,9 +24,15 @@ PARALLEL_GENERATION = os.environ.get('PARALLEL_GENERATION', 'true').lower() == '
 
 
 def cleanup_queue():
-    """Cleanup queue manager on shutdown."""
-    logger.info("Shutting down Ollama queue manager...")
+    """Cleanup queue managers on shutdown."""
+    logger.info("Shutting down queue managers...")
     shutdown_queue_manager(wait=True, timeout=30.0)
+    
+    try:
+        queue_v2 = get_queue_manager_v2()
+        queue_v2.shutdown()
+    except Exception as e:
+        logger.warning(f"Error shutting down QueueManagerV2: {e}")
 
 
 def create_app():
@@ -44,7 +51,7 @@ def create_app():
     
     logger.info(f"Question generation mode: {'PARALLEL' if PARALLEL_GENERATION else 'SEQUENTIAL'}")
     
-    # Initialize queue manager with database persistence
+    # Initialize old queue manager with database persistence (legacy)
     queue_manager = get_queue_manager()
     queue_manager._database_url = settings.database_url
     
@@ -52,6 +59,12 @@ def create_app():
     pending_tasks = queue_manager.load_persistent_tasks()
     if pending_tasks:
         logger.info(f"Loaded {len(pending_tasks)} pending tasks from database")
+    
+    # Initialize new QueueManagerV2 and start workers
+    logger.info("Initializing QueueManagerV2...")
+    queue_v2 = get_queue_manager_v2()
+    queue_v2.start()
+    logger.info("✓ QueueManagerV2 worker and watchdog started")
     
     # Register blueprints
     from app.routes.ui import ui_bp
