@@ -391,6 +391,7 @@ class OllamaQueueManager:
                         rows = cur.fetchall()
                         for row in rows:
                             db_tasks.append({
+                                'task_id': str(row[0]),  # Use db_id as task_id for UI display
                                 'db_id': str(row[0]),
                                 'task_type': row[1],
                                 'book_id': str(row[2]) if row[2] else None,

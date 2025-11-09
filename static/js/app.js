@@ -2336,7 +2336,15 @@ async function regenerateTags() {
         return;
     }
     
+    const btn = document.getElementById('regenerate-tags-btn');
+    
     try {
+        // Disable button to prevent duplicate clicks
+        if (btn) {
+            btn.disabled = true;
+            btn.style.opacity = '0.6';
+        }
+        
         showLoading(true);
         showStatus('Regenerating tags with AI...', 'info');
         
@@ -2368,6 +2376,14 @@ async function regenerateTags() {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
         showLoading(false);
+        
+        // Re-enable button after a short delay to prevent rapid re-clicking
+        if (btn) {
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.style.opacity = '1';
+            }, 1000);
+        }
     }
 }
 

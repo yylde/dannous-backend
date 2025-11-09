@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 @chapters_bp.route('/draft-chapter', methods=['POST'])
 def save_draft_chapter():
-    """Save a chapter to draft. Question generation will be triggered by background watcher when tags are ready."""
+    """Save a chapter to draft. Auto-triggers question generation if tags are ready."""
     try:
         data = request.json
         draft_id = data.get('draft_id')
@@ -36,14 +36,46 @@ def save_draft_chapter():
             html_formatting=html_content
         )
         
-        # Note: Question generation is now handled by the background watcher
-        # It will automatically trigger when tags are ready (either from AI or manual entry)
-        logger.info(f"Saved chapter {chapter_id} for draft {draft_id}. Questions will generate when tags are ready.")
+        logger.info(f"Saved chapter {chapter_id} for draft {draft_id}.")
         
+        # Check if tags are ready and auto-trigger question generation
+        draft = db.get_draft(draft_id)
+        if draft and draft.get('tag_status') == 'ready':
+            tags = draft.get('tags', [])
+            grade_tags = [tag for tag in tags if tag.startswith('grade-')]
+            
+            if grade_tags:
+                logger.info(f"Tags are ready for draft {draft_id}. Auto-triggering question generation for chapter {chapter_id}")
+                
+                # Trigger async question generation for this chapter
+                regen_thread = threading.Thread(
+                    target=regenerate_single_chapter_questions_async,
+                    args=(
+                        chapter_id,
+                        draft_id,
+                        title,
+                        content,
+                        html_content,
+                        draft.get('age_range'),
+                        draft.get('reading_level')
+                    )
+                )
+                regen_thread.daemon = True
+                regen_thread.start()
+                
+                return jsonify({
+                    'success': True,
+                    'chapter_id': chapter_id,
+                    'status': 'generating'  # Question generation started
+                })
+            else:
+                logger.warning(f"Draft {draft_id} has tags but no grade tags found")
+        
+        # Tags not ready yet - watcher will handle it later
         return jsonify({
             'success': True,
             'chapter_id': chapter_id,
-            'status': 'pending'  # Status will be updated by watcher
+            'status': 'pending'  # Waiting for tags
         })
     
     except Exception as e:
