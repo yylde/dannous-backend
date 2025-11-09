@@ -123,7 +123,10 @@ class QueueManagerV2:
                     json.dumps(payload),
                     timeout_at
                 ))
-                task_id = cur.fetchone()[0]
+                result = cur.fetchone()
+                if not result:
+                    raise Exception("Failed to insert task into queue")
+                task_id = result[0]
                 conn.commit()
         
         logger.info(f"[QUEUE] Enqueued {task_type} task: {task_id} (priority={priority})")

@@ -628,9 +628,10 @@ def finalize_draft(draft_id):
         
         # Check that all chapters have questions ready
         for ch in chapters_data:
-            if ch.get('question_status') != 'ready':
+            question_status = get_question_status(ch['id'])
+            if question_status != 'ready':
                 return jsonify({
-                    'error': f"Chapter {ch['chapter_number']} questions not ready (status: {ch.get('question_status')})"
+                    'error': f"Chapter {ch['chapter_number']} questions not ready (status: {question_status})"
                 }), 400
         
         # Create Book object
@@ -655,22 +656,28 @@ def finalize_draft(draft_id):
         questions = []
         
         for ch_data in chapters_data:
+            # Fetch full chapter data with questions from database
+            full_chapter_data = db.get_draft_chapter(ch_data['id'])
+            if not full_chapter_data:
+                logger.warning(f"Could not fetch full chapter data for {ch_data['id']}")
+                continue
+            
             chapter = Chapter(
                 id=uuid4(),
                 book_id=book.id,
-                chapter_number=ch_data['chapter_number'],
-                title=ch_data['title'],
-                content=ch_data['content'],
-                word_count=ch_data['word_count'],
-                estimated_reading_time_minutes=ch_data.get('estimated_reading_time_minutes', 0),
-                vocabulary_words=ch_data.get('vocabulary_words', []),
-                html_formatting=ch_data.get('html_formatting', ch_data['content'])
+                chapter_number=full_chapter_data['chapter_number'],
+                title=full_chapter_data['title'],
+                content=full_chapter_data['content'],
+                word_count=full_chapter_data['word_count'],
+                estimated_reading_time_minutes=full_chapter_data.get('estimated_reading_time_minutes', 0),
+                vocabulary_words=full_chapter_data.get('vocabulary', []),
+                html_formatting=full_chapter_data.get('html_formatting', full_chapter_data['content'])
             )
             chapters.append(chapter)
             
-            # Get questions for this chapter
-            ch_questions = ch_data.get('questions', [])
-            for i, q_data in enumerate(ch_questions, 1):
+            # Get questions for this chapter from database
+            ch_questions = full_chapter_data.get('questions', [])
+            for q_data in ch_questions:
                 question = Question(
                     id=uuid4(),
                     book_id=book.id,
@@ -681,7 +688,7 @@ def finalize_draft(draft_id):
                     expected_keywords=q_data.get('expected_keywords', []),
                     min_word_count=q_data.get('min_word_count', settings.min_answer_words),
                     max_word_count=q_data.get('max_word_count', settings.max_answer_words),
-                    order_index=i,
+                    order_index=q_data.get('order_index', 1),
                     grade_level=q_data.get('grade_level')
                 )
                 questions.append(question)
