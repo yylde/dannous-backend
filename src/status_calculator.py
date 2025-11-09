@@ -17,6 +17,11 @@ def get_tag_status(draft_id: str) -> str:
     """
     Calculate tag status dynamically.
     
+    Priority order:
+    1. Check queue first (queued/processing/error tasks take priority)
+    2. Check if data exists (return 'ready')
+    3. Otherwise return 'pending'
+    
     Args:
         draft_id: Draft book ID
     
@@ -29,16 +34,16 @@ def get_tag_status(draft_id: str) -> str:
     if not draft:
         return 'pending'
     
-    # Check if tags exist
-    tags = draft.get('tags', [])
-    if tags and len(tags) > 0:
-        return 'ready'
-    
-    # Check if there's a queued/processing task
+    # Check queue FIRST - active tasks take priority over existing data
     queue_mgr = get_queue_manager_v2()
     task = queue_mgr.get_task_for_book(draft_id, 'tags')
     if task:
         return task['status']  # 'queued', 'processing', 'error'
+    
+    # If no active task, check if tags exist
+    tags = draft.get('tags', [])
+    if tags and len(tags) > 0:
+        return 'ready'
     
     return 'pending'
 
@@ -47,6 +52,11 @@ def get_description_status(draft_id: str) -> str:
     """
     Calculate description status dynamically.
     
+    Priority order:
+    1. Check queue first (queued/processing/error tasks take priority)
+    2. Check if data exists (return 'ready')
+    3. Otherwise return 'pending'
+    
     Args:
         draft_id: Draft book ID
     
@@ -59,17 +69,17 @@ def get_description_status(draft_id: str) -> str:
     if not draft:
         return 'pending'
     
-    # Check if description exists (handle NULL values)
-    description = draft.get('description') or ''
-    description = description.strip() if isinstance(description, str) else ''
-    if description:
-        return 'ready'
-    
-    # Check if there's a queued/processing task
+    # Check queue FIRST - active tasks take priority over existing data
     queue_mgr = get_queue_manager_v2()
     task = queue_mgr.get_task_for_book(draft_id, 'descriptions')
     if task:
         return task['status']  # 'queued', 'processing', 'error'
+    
+    # If no active task, check if description exists (handle NULL values)
+    description = draft.get('description') or ''
+    description = description.strip() if isinstance(description, str) else ''
+    if description:
+        return 'ready'
     
     return 'pending'
 
@@ -77,6 +87,11 @@ def get_description_status(draft_id: str) -> str:
 def get_question_status(chapter_id: str) -> str:
     """
     Calculate question status for a chapter.
+    
+    Priority order:
+    1. Check queue first (queued/processing/error tasks take priority)
+    2. Check if all questions exist (num_grades × 3)
+    3. Otherwise return 'pending'
     
     Question status is 'ready' when:
     - The chapter has the expected number of questions (num_grades × 3)
@@ -110,15 +125,7 @@ def get_question_status(chapter_id: str) -> str:
     if num_grades == 0:
         return 'pending'  # No grades set yet
     
-    # Count existing questions for this chapter
-    questions = chapter.get('questions', [])
-    expected_count = num_grades * 3  # 3 questions per grade
-    actual_count = len(questions)
-    
-    if actual_count >= expected_count:
-        return 'ready'
-    
-    # Check if there are queued/processing tasks
+    # Check queue FIRST - active tasks take priority over existing data
     queue_mgr = get_queue_manager_v2()
     tasks = queue_mgr.get_tasks_for_chapter(chapter_id, 'questions')
     if tasks:
@@ -130,5 +137,13 @@ def get_question_status(chapter_id: str) -> str:
             return 'queued'
         if 'error' in statuses:
             return 'error'
+    
+    # If no active task, check if all questions exist
+    questions = chapter.get('questions', [])
+    expected_count = num_grades * 3  # 3 questions per grade
+    actual_count = len(questions)
+    
+    if actual_count >= expected_count:
+        return 'ready'
     
     return 'pending'
