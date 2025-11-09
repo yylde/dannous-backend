@@ -2615,7 +2615,7 @@ function startQueuePolling() {
         clearInterval(queuePollingInterval);
     }
     
-    queuePollingInterval = setInterval(refreshQueueStatus, 20000);
+    queuePollingInterval = setInterval(refreshQueueStatus, 30000);
     console.log('Started queue status polling');
 }
 
