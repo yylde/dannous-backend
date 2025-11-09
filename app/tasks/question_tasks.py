@@ -242,10 +242,11 @@ def regenerate_questions_for_draft_async(draft_id):
                         draft.get('author', 'Unknown'),  # book_author
                         draft.get('age_range') or settings.default_age_range,  # age_range
                         draft.get('reading_level') or settings.default_reading_level,  # reading_level
-                        # Queue metadata (keyword-only params) - NOT chapter_id to avoid duplication
+                        # Queue metadata (keyword-only params)
                         task_name=f"Questions: Ch{chapter['chapter_number']} {grade_level}",
                         task_type="questions",
-                        book_id=draft_id
+                        book_id=draft_id,
+                        chapter_id=chapter['id']
                     )
                     
                     # Update grade status to 'queued' with queue_task_id

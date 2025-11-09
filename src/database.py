@@ -8,6 +8,7 @@ from contextlib import contextmanager
 
 from .config import settings
 from .models import ProcessedBook, Book, Chapter, Question
+from .ollama_queue import get_queue_manager
 import re
 import html
 
@@ -656,6 +657,10 @@ class DatabaseManager:
                     return None
                 
                 content, chapter_number, draft_id = result
+                
+                # Delete pending queue tasks for this chapter
+                queue_manager = get_queue_manager()
+                queue_manager.delete_tasks_for_book_chapter(book_id=draft_id, chapter_id=chapter_id)
                 
                 # Delete chapter (cascade will delete questions/vocab)
                 cur.execute("DELETE FROM draft_chapters WHERE id = %s", (chapter_id,))
