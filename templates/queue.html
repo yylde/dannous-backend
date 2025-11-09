@@ -14,13 +14,13 @@
         }
 
         .queue-container {
-            max-width: 1400px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
         .queue-header {
             background: white;
-            padding: 30px;
+            padding: 20px 30px;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
@@ -32,200 +32,16 @@
         .queue-header h1 {
             margin: 0;
             color: #1f2937;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .queue-stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
-        }
-
-        .stat-card {
-            background: white;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .stat-label {
-            font-size: 14px;
-            color: #6b7280;
-            margin-bottom: 8px;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .stat-value {
-            font-size: 36px;
-            font-weight: bold;
-            color: #1f2937;
-        }
-
-        .columns-container {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .tasks-container {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .tasks-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 2px solid #e5e7eb;
-        }
-
-        .tasks-header h2 {
-            margin: 0;
-            color: #1f2937;
-        }
-
-        .tasks-list {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            max-height: 600px;
-            overflow-y: auto;
-        }
-
-        .task-item {
-            padding: 20px;
-            border: 2px solid #e5e7eb;
-            border-radius: 8px;
-            background: #f9fafb;
-            transition: all 0.2s;
-        }
-
-        .task-item:hover {
-            border-color: #3b82f6;
-            background: #eff6ff;
-        }
-
-        .task-item.ready {
-            border-color: #10b981;
-            background: #ecfdf5;
-        }
-
-        .task-item.processing {
-            border-color: #f59e0b;
-            background: #fffbeb;
-        }
-
-        .task-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 12px;
-        }
-
-        .task-icon {
             font-size: 24px;
         }
 
-        .task-type {
-            font-size: 18px;
-            font-weight: 600;
-            color: #1f2937;
-            text-transform: capitalize;
-        }
-
-        .task-priority {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-            margin-left: auto;
-        }
-
-        .task-status {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-
-        .status-queued {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-
-        .status-processing {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .status-ready {
-            background: #d1fae5;
-            color: #065f46;
-        }
-
-        .priority-1 {
-            background: #fecaca;
-            color: #991b1b;
-        }
-
-        .priority-2 {
-            background: #fed7aa;
-            color: #9a3412;
-        }
-
-        .priority-3 {
-            background: #bfdbfe;
-            color: #1e40af;
-        }
-
-        .task-details {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 12px;
-            padding-left: 36px;
-        }
-
-        .detail-item {
+        .action-buttons {
             display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 14px;
-            color: #4b5563;
-        }
-
-        .detail-label {
-            font-weight: 600;
-            color: #6b7280;
-        }
-
-        .detail-value {
-            font-family: 'Courier New', monospace;
-            color: #1f2937;
-        }
-
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: #6b7280;
-        }
-
-        .empty-state-icon {
-            font-size: 64px;
-            margin-bottom: 20px;
+            gap: 10px;
         }
 
         .btn {
-            padding: 10px 20px;
+            padding: 8px 16px;
             border: none;
             border-radius: 6px;
             font-size: 14px;
@@ -266,19 +82,216 @@
             cursor: not-allowed;
         }
 
-        .action-buttons {
+        /* Collapsible Ready Section */
+        .collapsible-section {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            overflow: hidden;
+        }
+
+        .collapsible-header {
+            padding: 15px 20px;
+            background: #ecfdf5;
+            border: 2px solid #10b981;
+            cursor: pointer;
             display: flex;
+            justify-content: space-between;
+            align-items: center;
+            user-select: none;
+            transition: all 0.2s;
+        }
+
+        .collapsible-header:hover {
+            background: #d1fae5;
+        }
+
+        .collapsible-header h2 {
+            margin: 0;
+            color: #065f46;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
             gap: 10px;
         }
 
-        .timestamp {
-            font-size: 14px;
-            color: #6b7280;
+        .collapse-icon {
+            font-size: 20px;
+            transition: transform 0.3s;
         }
 
-        @media (max-width: 1024px) {
-            .columns-container {
-                grid-template-columns: 1fr;
+        .collapse-icon.collapsed {
+            transform: rotate(-90deg);
+        }
+
+        .collapsible-content {
+            max-height: 400px;
+            overflow-y: auto;
+            transition: all 0.3s;
+        }
+
+        .collapsible-content.collapsed {
+            max-height: 0;
+            overflow: hidden;
+        }
+
+        /* Tasks Container */
+        .tasks-container {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .tasks-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .tasks-header h2 {
+            margin: 0;
+            color: #1f2937;
+            font-size: 18px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .count-badge {
+            display: inline-block;
+            background: #3b82f6;
+            color: white;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .tasks-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        /* One-line task item */
+        .task-item {
+            padding: 12px 16px;
+            border: 1px solid #e5e7eb;
+            border-radius: 6px;
+            background: #f9fafb;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .task-item:hover {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+
+        .task-item.processing {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+
+        .task-icon {
+            font-size: 20px;
+            flex-shrink: 0;
+        }
+
+        .task-type {
+            font-weight: 600;
+            color: #1f2937;
+            text-transform: capitalize;
+            min-width: 100px;
+            flex-shrink: 0;
+        }
+
+        .task-meta {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-grow: 1;
+            color: #6b7280;
+            font-size: 13px;
+        }
+
+        .task-meta span {
+            white-space: nowrap;
+        }
+
+        .task-status {
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .status-queued {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-processing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-ready {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .task-priority {
+            padding: 3px 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+            flex-shrink: 0;
+        }
+
+        .priority-1 {
+            background: #fecaca;
+            color: #991b1b;
+        }
+
+        .priority-2 {
+            background: #fed7aa;
+            color: #9a3412;
+        }
+
+        .priority-3 {
+            background: #bfdbfe;
+            color: #1e40af;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #9ca3af;
+        }
+
+        .empty-state-icon {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+
+        @media (max-width: 768px) {
+            .task-meta {
+                flex-wrap: wrap;
             }
         }
     </style>
@@ -292,7 +305,7 @@
                 <button onclick="refreshQueue()" class="btn btn-primary" id="refresh-btn">
                     ↻ Refresh
                 </button>
-                <button onclick="clearCompletedTasks()" class="btn btn-danger" id="clear-btn">
+                <button onclick="clearCompletedTasks()" class="btn btn-danger" id="clear-btn" style="display: none;">
                     🗑️ Clear Completed
                 </button>
                 <button onclick="window.location.href='/'" class="btn btn-secondary">
@@ -301,54 +314,56 @@
             </div>
         </div>
 
-        <!-- Statistics -->
-        <div class="queue-stats">
-            <div class="stat-card">
-                <div class="stat-label">Queued</div>
-                <div class="stat-value" id="queued-count">-</div>
+        <!-- Collapsible Ready Section -->
+        <div id="ready-section" class="collapsible-section" style="display: none;">
+            <div class="collapsible-header" onclick="toggleReady()">
+                <h2>
+                    <span>✅ Ready (Completed)</span>
+                    <span class="count-badge" id="ready-count-badge">0</span>
+                </h2>
+                <span class="collapse-icon" id="collapse-icon">▼</span>
             </div>
-            <div class="stat-card">
-                <div class="stat-label">Processing</div>
-                <div class="stat-value" id="processing-count">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Ready</div>
-                <div class="stat-value" id="ready-count">-</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-label">Last Updated</div>
-                <div class="stat-value" style="font-size: 18px;" id="last-updated">-</div>
+            <div class="collapsible-content collapsed" id="ready-content">
+                <div id="ready-tasks-list" class="tasks-list" style="padding: 15px;">
+                    <!-- Ready tasks will be inserted here -->
+                </div>
             </div>
         </div>
 
-        <!-- Two Column Layout -->
-        <div class="columns-container">
-            <!-- Queued/Processing Column -->
-            <div class="tasks-container">
-                <div class="tasks-header">
-                    <h2>⏳ Queued & Processing</h2>
-                </div>
-                <div id="active-tasks-list" class="tasks-list">
-                    <!-- Active tasks will be inserted here -->
-                </div>
+        <!-- Active Tasks (Full Width) -->
+        <div class="tasks-container">
+            <div class="tasks-header">
+                <h2>
+                    <span>⏳ Active Tasks</span>
+                    <span class="count-badge" id="active-count-badge">0</span>
+                </h2>
+                <span class="timestamp" id="last-updated">Last updated: -</span>
             </div>
-
-            <!-- Ready Column -->
-            <div class="tasks-container">
-                <div class="tasks-header">
-                    <h2>✅ Ready (Completed)</h2>
-                </div>
-                <div id="ready-tasks-list" class="tasks-list">
-                    <!-- Ready tasks will be inserted here -->
-                </div>
+            <div id="active-tasks-list" class="tasks-list">
+                <!-- Active tasks will be inserted here -->
             </div>
         </div>
     </div>
 
     <script>
         let autoRefreshInterval = null;
+        let readyCollapsed = true;
 
-        // Get task icon and priority label
+        function toggleReady() {
+            const content = document.getElementById('ready-content');
+            const icon = document.getElementById('collapse-icon');
+            
+            readyCollapsed = !readyCollapsed;
+            
+            if (readyCollapsed) {
+                content.classList.add('collapsed');
+                icon.classList.add('collapsed');
+            } else {
+                content.classList.remove('collapsed');
+                icon.classList.remove('collapsed');
+            }
+        }
+
         function getTaskIcon(taskType) {
             const icons = {
                 'tags': '🏷️',
@@ -361,68 +376,44 @@
         function getPriorityLabel(priority) {
             const labels = {
                 1: 'High',
-                2: 'Medium',
+                2: 'Med',
                 3: 'Low'
             };
-            return labels[priority] || 'Unknown';
+            return labels[priority] || '?';
         }
 
-        function renderTask(task) {
+        function renderTaskOneLine(task) {
             const icon = getTaskIcon(task.task_type);
             const priorityLabel = getPriorityLabel(task.priority);
             const priorityClass = `priority-${task.priority}`;
             const statusClass = `status-${task.status}`;
-            const taskClass = task.status === 'ready' ? 'ready' : (task.status === 'processing' ? 'processing' : '');
+            const taskClass = task.status === 'processing' ? 'processing' : '';
 
             // Extract grade level from payload if available
-            let gradeLevel = '';
+            let gradePart = '';
             if (task.payload && task.payload.grade_level) {
-                gradeLevel = task.payload.grade_level;
+                gradePart = `<span>📚 ${task.payload.grade_level}</span>`;
             }
+
+            // Format created time
+            const createdTime = task.created_at ? new Date(task.created_at).toLocaleTimeString() : '';
 
             return `
                 <div class="task-item ${taskClass}">
-                    <div class="task-header">
-                        <span class="task-icon">${icon}</span>
-                        <span class="task-type">${task.task_type}</span>
-                        <span class="task-status ${statusClass}">${task.status}</span>
-                        <span class="task-priority ${priorityClass}">${priorityLabel}</span>
+                    <span class="task-icon">${icon}</span>
+                    <span class="task-type">${task.task_type}</span>
+                    <div class="task-meta">
+                        ${gradePart}
+                        <span>ID: #${task.id.substring(0, 8)}</span>
+                        ${task.attempts ? `<span>Attempts: ${task.attempts}</span>` : ''}
+                        ${createdTime ? `<span>${createdTime}</span>` : ''}
                     </div>
-                    <div class="task-details">
-                        <div class="detail-item">
-                            <span class="detail-label">ID:</span>
-                            <span class="detail-value">#${task.id}</span>
-                        </div>
-                        ${gradeLevel ? `
-                            <div class="detail-item">
-                                <span class="detail-label">📚 Grade:</span>
-                                <span class="detail-value" style="font-family: inherit;">${gradeLevel}</span>
-                            </div>
-                        ` : ''}
-                        ${task.attempts ? `
-                            <div class="detail-item">
-                                <span class="detail-label">Attempts:</span>
-                                <span class="detail-value">${task.attempts}</span>
-                            </div>
-                        ` : ''}
-                        ${task.created_at ? `
-                            <div class="detail-item">
-                                <span class="detail-label">Created:</span>
-                                <span class="detail-value">${new Date(task.created_at).toLocaleString()}</span>
-                            </div>
-                        ` : ''}
-                        ${task.completed_at ? `
-                            <div class="detail-item">
-                                <span class="detail-label">Completed:</span>
-                                <span class="detail-value">${new Date(task.completed_at).toLocaleString()}</span>
-                            </div>
-                        ` : ''}
-                    </div>
+                    <span class="task-status ${statusClass}">${task.status}</span>
+                    <span class="task-priority ${priorityClass}">${priorityLabel}</span>
                 </div>
             `;
         }
 
-        // Refresh queue data
         async function refreshQueue() {
             const refreshBtn = document.getElementById('refresh-btn');
             refreshBtn.disabled = true;
@@ -435,47 +426,44 @@
                 if (response.ok && data.status) {
                     const status = data.status;
 
-                    // Update stats
-                    document.getElementById('queued-count').textContent = status.total_queued || 0;
-                    document.getElementById('processing-count').textContent = status.total_processing || 0;
-                    document.getElementById('ready-count').textContent = status.total_ready || 0;
-                    
+                    // Update timestamp
                     const now = new Date();
-                    document.getElementById('last-updated').textContent = now.toLocaleTimeString();
+                    document.getElementById('last-updated').textContent = `Last updated: ${now.toLocaleTimeString()}`;
 
-                    // Update active tasks list
+                    // Update active tasks
                     const activeTasksList = document.getElementById('active-tasks-list');
-                    const clearBtn = document.getElementById('clear-btn');
+                    const activeTasks = status.active_tasks || [];
+                    const activeCount = activeTasks.length;
+                    
+                    document.getElementById('active-count-badge').textContent = activeCount;
 
-                    if (status.active_tasks && status.active_tasks.length > 0) {
-                        const activeTasksHTML = status.active_tasks.map(task => renderTask(task)).join('');
-                        activeTasksList.innerHTML = activeTasksHTML;
+                    if (activeCount > 0) {
+                        activeTasksList.innerHTML = activeTasks.map(task => renderTaskOneLine(task)).join('');
                     } else {
                         activeTasksList.innerHTML = `
                             <div class="empty-state">
                                 <div class="empty-state-icon">✅</div>
-                                <h3>No Active Tasks</h3>
-                                <p>All tasks are either completed or none are queued.</p>
+                                <p>No active tasks</p>
                             </div>
                         `;
                     }
 
-                    // Update ready tasks list
+                    // Update ready tasks
+                    const readySection = document.getElementById('ready-section');
                     const readyTasksList = document.getElementById('ready-tasks-list');
+                    const clearBtn = document.getElementById('clear-btn');
+                    const readyTasks = status.ready_tasks || [];
+                    const readyCount = readyTasks.length;
+                    
+                    document.getElementById('ready-count-badge').textContent = readyCount;
 
-                    if (status.ready_tasks && status.ready_tasks.length > 0) {
-                        const readyTasksHTML = status.ready_tasks.map(task => renderTask(task)).join('');
-                        readyTasksList.innerHTML = readyTasksHTML;
-                        clearBtn.disabled = false;
+                    if (readyCount > 0) {
+                        readySection.style.display = 'block';
+                        clearBtn.style.display = 'block';
+                        readyTasksList.innerHTML = readyTasks.map(task => renderTaskOneLine(task)).join('');
                     } else {
-                        readyTasksList.innerHTML = `
-                            <div class="empty-state">
-                                <div class="empty-state-icon">⏳</div>
-                                <h3>No Completed Tasks</h3>
-                                <p>Completed tasks will appear here.</p>
-                            </div>
-                        `;
-                        clearBtn.disabled = true;
+                        readySection.style.display = 'none';
+                        clearBtn.style.display = 'none';
                     }
                 }
             } catch (error) {
@@ -486,7 +474,6 @@
             }
         }
 
-        // Clear completed tasks
         async function clearCompletedTasks() {
             if (!confirm('Clear all completed (ready) tasks from the queue?')) {
                 return;
@@ -516,16 +503,13 @@
             }
         }
 
-        // Start auto-refresh
         function startAutoRefresh() {
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
             }
-            autoRefreshInterval = setInterval(refreshQueue, 5000); // 5 seconds
-            console.log('Auto-refresh started (5s interval)');
+            autoRefreshInterval = setInterval(refreshQueue, 5000);
         }
 
-        // Stop auto-refresh
         function stopAutoRefresh() {
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
@@ -533,13 +517,11 @@
             }
         }
 
-        // Initialize on page load
         window.addEventListener('load', () => {
             refreshQueue();
             startAutoRefresh();
         });
 
-        // Stop auto-refresh when leaving page
         window.addEventListener('beforeunload', () => {
             stopAutoRefresh();
         });
