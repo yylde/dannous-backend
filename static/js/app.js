@@ -977,7 +977,7 @@ async function saveChapters() {
     }
 
     const ageRange = '8-12'; // Default age range
-    const readingLevel = document.getElementById('reading-level').value;
+    const readingLevel = 'intermediate'; // Always use intermediate as default
 
     showLoading(true);
     showStatus('Saving chapters and generating questions...', 'info');
@@ -1038,8 +1038,8 @@ function showStatus(message, type = 'info') {
 // ==================== DRAFT FUNCTIONS ====================
 
 function showNewBookForm() {
-    document.getElementById('download-section').scrollIntoView({ behavior: 'smooth' });
-    document.getElementById('gutenberg-id').focus();
+    // Navigate to home page where download section is now located
+    window.location.href = '/';
 }
 
 async function loadDraftsInSidebar() {
@@ -1169,10 +1169,12 @@ async function loadDraft(draftId) {
         }));
         
         
-        // Set form values
-        document.getElementById('reading-level').value = draft.reading_level || 'intermediate';
-        document.getElementById('cover-image-url').value = draft.cover_image_url || '';
-        updateCoverPreview(); // Show preview if URL exists
+        // Set form values (only if elements exist)
+        const coverUrlInput = document.getElementById('cover-image-url');
+        if (coverUrlInput) {
+            coverUrlInput.value = draft.cover_image_url || '';
+            updateCoverPreview(); // Show preview if URL exists
+        }
         
         // Load tags and tag status
         currentTags = draft.tags || [];
@@ -1255,8 +1257,9 @@ async function saveDraft() {
     
     try {
         const ageRange = '8-12'; // Default age range
-        const readingLevel = document.getElementById('reading-level').value;
-        let coverImageUrl = document.getElementById('cover-image-url').value.trim();
+        const readingLevel = 'intermediate'; // Always use intermediate as default
+        const coverUrlInput = document.getElementById('cover-image-url');
+        let coverImageUrl = coverUrlInput ? coverUrlInput.value.trim() : '';
         
         // If cover URL is empty and we're creating a new draft, ask user
         if (!coverImageUrl && !currentDraftId) {
@@ -1313,7 +1316,7 @@ async function saveDraftChapter(chapterData) {
     
     try {
         const ageRange = '8-12'; // Default age range
-        const readingLevel = document.getElementById('reading-level').value;
+        const readingLevel = 'intermediate'; // Always use intermediate as default
         
         // Calculate the next chapter number based on existing chapters
         const nextChapterNumber = chapters.length + 1;
