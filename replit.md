@@ -36,6 +36,28 @@ The core application is a Flask web application (`app.py`) providing a REST API.
 ### System Design Choices
 The architecture separates concerns into an EPUB parser, a question generator, and a database manager. Data persistence is managed by PostgreSQL. The system relies on `ON DELETE CASCADE` constraints in the database for data integrity during draft deletion. AI prompt engineering is used to ensure consistent output from the LLM, with robust parsing to handle flexible LLM responses.
 
+### Ollama Priority Queue System
+All Ollama LLM API calls are managed through a priority-based FIFO queue system (`src/ollama_queue.py`) to ensure efficient resource utilization and proper task ordering:
+
+- **Priority Levels:**
+  - Priority 1 (HIGHEST): Genre and tag generation - processed first as tags determine which questions to generate
+  - Priority 2 (MEDIUM): Description and synopsis generation - important for book metadata
+  - Priority 3 (LOWEST): Question generation and chapter title generation - can wait as they're generated in bulk
+
+- **Implementation:**
+  - Singleton `OllamaQueueManager` with configurable worker threads (default: 1)
+  - FIFO ordering within each priority level via `(priority, task_id)` tuple ordering
+  - Background worker threads with automatic retry/backoff (3 retries with exponential backoff)
+  - Thread-safe execution using Python's `PriorityQueue` with proper locking
+  - Graceful shutdown via `atexit` handlers in both Flask (`app.py`) and CLI (`cli.py`) entry points
+  - Structured logging with task IDs, priorities, and execution times
+
+- **Integration:**
+  - `QuestionGenerator`: All LLM calls (`generate_questions`, `generate_tags`, `generate_description`, `generate_synopsis`) route through queue
+  - `ChapterSplitter`: Chapter title generation uses queue with QUESTION priority
+  - `ContentAnalyzer`: Front/back matter analysis uses queue with QUESTION priority
+  - Existing code signatures preserved via wrapper methods for seamless integration
+
 ## Environment Variables
 - **PARALLEL_GENERATION** (optional): Controls question generation mode for GPU-limited environments.
   - `true` (default): Process multiple chapters in parallel (faster, requires more GPU memory)
