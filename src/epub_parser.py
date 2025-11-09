@@ -7,8 +7,52 @@ from typing import Dict, List, Optional, Tuple
 import logging
 import re
 import base64
+import bleach
+from bleach.css_sanitizer import CSSSanitizer
 
 logger = logging.getLogger(__name__)
+
+# Allowed HTML tags - comprehensive list for book formatting
+ALLOWED_TAGS = [
+    'p', 'br', 'hr', 'div', 'span', 'pre', 'blockquote',
+    'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+    'em', 'i', 'strong', 'b', 'u', 's', 'strike', 'del', 'ins',
+    'sub', 'sup', 'small', 'big', 'mark', 'abbr', 'cite', 'code', 'kbd', 'samp', 'var',
+    'ul', 'ol', 'li', 'dl', 'dt', 'dd',
+    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption', 'colgroup', 'col',
+    'img', 'figure', 'figcaption',
+    'a', 'q', 'dfn', 'time', 'address', 'article', 'section', 'header', 'footer', 'main', 'aside', 'nav'
+]
+
+# Allowed attributes - preserve all formatting attributes
+ALLOWED_ATTRIBUTES = {
+    '*': ['class', 'id', 'style', 'title', 'dir', 'lang'],
+    'img': ['src', 'alt', 'width', 'height', 'align'],
+    'a': ['href', 'name'],
+    'table': ['border', 'cellpadding', 'cellspacing', 'align', 'width'],
+    'td': ['colspan', 'rowspan', 'align', 'valign', 'width', 'height'],
+    'th': ['colspan', 'rowspan', 'align', 'valign', 'width', 'height'],
+    'col': ['span', 'width'],
+    'colgroup': ['span', 'width'],
+}
+
+# Allowed CSS properties - preserve all formatting styles (Bleach 6.x uses CSSSanitizer)
+ALLOWED_STYLES = [
+    'color', 'background-color', 'background',
+    'font-family', 'font-size', 'font-weight', 'font-style', 'font-variant',
+    'text-align', 'text-decoration', 'text-indent', 'text-transform',
+    'line-height', 'letter-spacing', 'word-spacing',
+    'margin', 'margin-top', 'margin-right', 'margin-bottom', 'margin-left',
+    'padding', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left',
+    'border', 'border-top', 'border-right', 'border-bottom', 'border-left',
+    'border-width', 'border-style', 'border-color',
+    'width', 'height', 'max-width', 'max-height', 'min-width', 'min-height',
+    'display', 'float', 'clear', 'position', 'top', 'right', 'bottom', 'left',
+    'vertical-align', 'white-space', 'overflow',
+]
+
+# Create CSS sanitizer for Bleach 6.x
+css_sanitizer = CSSSanitizer(allowed_css_properties=ALLOWED_STYLES)
 
 
 class EPUBParser:
@@ -187,19 +231,30 @@ class EPUBParser:
                                 img['src'] = image_map[filename]
                 
                 # Find the body element and extract its innerHTML
-                # This preserves EXACTLY the Gutenberg formatting including div, span, br, pre, etc.
+                # This preserves Gutenberg formatting including div, span, br, pre, etc.
                 body = soup.find('body')
                 if body:
-                    # Get the raw HTML from the body, preserving all formatting
+                    # Get the raw HTML from the body
                     html_content = str(body)
                     # Remove the <body> wrapper tags, keep only inner content
-                    # Extract inner HTML by removing opening and closing body tags
                     html_content = re.sub(r'^<body[^>]*>', '', html_content)
                     html_content = re.sub(r'</body>$', '', html_content)
                     html_content = html_content.strip()
                 else:
                     # No body tag, use the entire cleaned content
                     html_content = str(soup).strip()
+                
+                # Sanitize HTML to remove dangerous elements while preserving ALL formatting
+                # This keeps class names, styles, images, tables, etc. while removing XSS risks
+                html_content = bleach.clean(
+                    html_content,
+                    tags=ALLOWED_TAGS,
+                    attributes=ALLOWED_ATTRIBUTES,
+                    css_sanitizer=css_sanitizer,  # Bleach 6.x API
+                    protocols=['http', 'https', 'data'],  # Allow data URIs for images
+                    strip=True,  # Strip disallowed tags instead of escaping
+                    strip_comments=True
+                )
                 
                 # Extract plain text version (for searching, word counts, etc.)
                 text_content = soup.get_text(separator=' ', strip=True)

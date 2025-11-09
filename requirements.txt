@@ -46,3 +46,4 @@ rapidfuzz
 sqlalchemy
 beautifulsoup4
 rapidfuzz
+bleach
