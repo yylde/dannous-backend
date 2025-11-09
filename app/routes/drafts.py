@@ -187,6 +187,8 @@ def update_draft_tags_url(draft_id):
 def regenerate_tags(draft_id):
     """Regenerate tags for a draft using AI."""
     try:
+        from datetime import datetime, timedelta
+        
         db = DatabaseManager()
         
         # Get the draft to verify it exists
@@ -196,11 +198,33 @@ def regenerate_tags(draft_id):
         
         # Check if tag generation is already in progress
         current_tag_status = draft.get('tag_status')
-        if current_tag_status in ('pending', 'generating'):
-            logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (current status: {current_tag_status})")
-            return jsonify({
-                'error': 'Tag generation already in progress. Please wait for it to complete.'
-            }), 409
+        force = request.json.get('force', False) if request.json else False
+        
+        if current_tag_status in ('pending', 'generating') and not force:
+            # Check if it's been stuck for more than 10 minutes
+            updated_at = draft.get('updated_at')
+            if updated_at:
+                # Parse the datetime (it comes as a string from the database)
+                if isinstance(updated_at, str):
+                    from dateutil import parser
+                    updated_at = parser.parse(updated_at)
+                
+                time_since_update = datetime.now(updated_at.tzinfo) - updated_at
+                
+                # If it's been generating for more than 10 minutes, consider it stuck
+                if time_since_update > timedelta(minutes=10):
+                    logger.warning(f"Tag status stuck in '{current_tag_status}' for {time_since_update}. Allowing regeneration.")
+                else:
+                    logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (current status: {current_tag_status})")
+                    return jsonify({
+                        'error': 'Tag generation already in progress. Please wait for it to complete or try again in a few minutes.'
+                    }), 409
+            else:
+                # No timestamp, block to be safe
+                logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (current status: {current_tag_status})")
+                return jsonify({
+                    'error': 'Tag generation already in progress. Please wait for it to complete.'
+                }), 409
         
         # Set tag status to pending
         db.update_draft_tag_status(draft_id, 'pending')
