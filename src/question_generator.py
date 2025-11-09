@@ -291,44 +291,27 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             max_words=settings.max_answer_words
         )
         
-        # Call Ollama with intelligent retries (model-agnostic)
-        max_retries = 3
-        strategies = [
-            ('free-form', False),      # Try 1: Free-form (works with thinking models)
-            ('free-form', False),      # Try 2: Retry free-form
-            ('json-format', True)      # Try 3: Force JSON format (for non-thinking models)
-        ]
-        
-        for attempt in range(max_retries):
-            strategy_name, use_json_format = strategies[attempt]
-            try:
-                logger.info(f"Attempt {attempt + 1}/{max_retries} using {strategy_name} strategy")
-                response = self._call_ollama(
-                    prompt, 
-                    force_json_format=use_json_format,
-                    priority=TaskPriority.QUESTION,
-                    task_name=f"generate_questions_{title}_ch{chapter_number}"
-                )
-                questions, vocabulary, _ = self._parse_response(response, num_questions)
+        # Call Ollama through queue (queue has built-in retry mechanism)
+        try:
+            response = self._call_ollama(
+                prompt, 
+                force_json_format=False,  # Start with free-form for thinking models
+                priority=TaskPriority.QUESTION,
+                task_name=f"generate_questions_{title}_ch{chapter_number}"
+            )
+            questions, vocabulary, _ = self._parse_response(response, num_questions)
+            
+            if questions:
+                logger.info(f"✓ Generated {len(questions)} questions and {len(vocabulary)} vocabulary words for {grade_level}")
+                return questions, vocabulary
+            else:
+                logger.warning("No questions parsed from response, using fallback")
+                return self._generate_fallback_questions(chapter_title, num_questions), []
                 
-                if questions:
-                    logger.info(f"✓ Success with {strategy_name}! Generated {len(questions)} questions and {len(vocabulary)} vocabulary words for {grade_level}")
-                    return questions, vocabulary
-                else:
-                    logger.warning(f"Attempt {attempt + 1}: No questions parsed from response")
-                
-            except json.JSONDecodeError as e:
-                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): JSON parsing failed - {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
-            except Exception as e:
-                logger.warning(f"Attempt {attempt + 1} ({strategy_name}): {type(e).__name__} - {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
-        
-        # Fallback: generate generic questions and empty vocabulary
-        logger.warning("Using fallback questions")
-        return self._generate_fallback_questions(chapter_title, num_questions), []
+        except Exception as e:
+            logger.error(f"Question generation failed: {e}")
+            logger.warning("Using fallback questions")
+            return self._generate_fallback_questions(chapter_title, num_questions), []
     
     def _call_ollama_direct(self, prompt: str, force_json_format: bool = False) -> str:
         """Direct Ollama API call (internal, not queued).
@@ -486,44 +469,27 @@ EXACT FORMAT (copy this structure):
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
         
-        # Call Ollama with intelligent retries (model-agnostic)
-        max_retries = 3
-        strategies = [
-            ('free-form', False),      # Try 1: Free-form (works with thinking models)
-            ('free-form', False),      # Try 2: Retry free-form
-            ('json-format', True)      # Try 3: Force JSON format (for non-thinking models)
-        ]
-        
-        for attempt in range(max_retries):
-            strategy_name, use_json_format = strategies[attempt]
-            try:
-                logger.info(f"Tag generation attempt {attempt + 1}/{max_retries} using {strategy_name} strategy")
-                response = self._call_ollama(
-                    prompt, 
-                    force_json_format=use_json_format,
-                    priority=TaskPriority.GENRE_TAG,
-                    task_name=f"generate_tags_{title}"
-                )
-                tags = self._parse_tags_response(response)
+        # Call Ollama through queue (queue has built-in retry mechanism)
+        try:
+            response = self._call_ollama(
+                prompt, 
+                force_json_format=False,  # Start with free-form for thinking models
+                priority=TaskPriority.GENRE_TAG,
+                task_name=f"generate_tags_{title}"
+            )
+            tags = self._parse_tags_response(response)
+            
+            if tags:
+                logger.info(f"✓ Generated {len(tags)} tags for book: {tags}")
+                return tags
+            else:
+                logger.warning("No tags parsed from response, using fallback")
+                return self._generate_fallback_tags(reading_level)
                 
-                if tags:
-                    logger.info(f"✓ Success with {strategy_name}! Generated {len(tags)} tags for book: {tags}")
-                    return tags
-                else:
-                    logger.warning(f"Attempt {attempt + 1}: No tags parsed from response")
-                
-            except json.JSONDecodeError as e:
-                logger.warning(f"Tag attempt {attempt + 1} ({strategy_name}): JSON parsing failed - {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
-            except Exception as e:
-                logger.warning(f"Tag attempt {attempt + 1} ({strategy_name}): {type(e).__name__} - {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(2 ** attempt)
-        
-        # Fallback: return generic tags based on reading level
-        logger.warning("Using fallback tags")
-        return self._generate_fallback_tags(reading_level)
+        except Exception as e:
+            logger.error(f"Tag generation failed: {e}")
+            logger.warning("Using fallback tags")
+            return self._generate_fallback_tags(reading_level)
     
     def _parse_tags_response(self, response: str) -> List[str]:
         """Parse tags-only response from LLM.
