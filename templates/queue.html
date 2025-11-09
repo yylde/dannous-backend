@@ -82,7 +82,7 @@
             cursor: not-allowed;
         }
 
-        /* Collapsible Ready Section */
+        /* Collapsible Completed Section */
         .collapsible-section {
             background: white;
             border-radius: 12px;
@@ -126,7 +126,7 @@
         }
 
         .collapsible-content {
-            max-height: 400px;
+            max-height: 600px;
             overflow-y: auto;
             transition: all 0.3s;
         }
@@ -178,27 +178,54 @@
             gap: 8px;
         }
 
-        /* One-line task item */
-        .task-item {
-            padding: 12px 16px;
+        /* Task item wrapper */
+        .task-wrapper {
             border: 1px solid #e5e7eb;
             border-radius: 6px;
             background: #f9fafb;
+            overflow: hidden;
+            transition: all 0.2s;
+        }
+
+        .task-wrapper:hover {
+            border-color: #3b82f6;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .task-wrapper.processing {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+
+        .task-wrapper.error {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        /* One-line task summary */
+        .task-summary {
+            padding: 12px 16px;
             display: flex;
             align-items: center;
             gap: 12px;
             font-size: 14px;
-            transition: all 0.2s;
+            cursor: pointer;
+            user-select: none;
         }
 
-        .task-item:hover {
-            border-color: #3b82f6;
-            background: #eff6ff;
+        .task-summary:hover {
+            background: rgba(59, 130, 246, 0.05);
         }
 
-        .task-item.processing {
-            border-color: #f59e0b;
-            background: #fffbeb;
+        .task-expand-icon {
+            font-size: 12px;
+            color: #9ca3af;
+            transition: transform 0.2s;
+            flex-shrink: 0;
+        }
+
+        .task-expand-icon.expanded {
+            transform: rotate(90deg);
         }
 
         .task-icon {
@@ -221,6 +248,7 @@
             flex-grow: 1;
             color: #6b7280;
             font-size: 13px;
+            overflow: hidden;
         }
 
         .task-meta span {
@@ -250,6 +278,11 @@
             color: #065f46;
         }
 
+        .status-error {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
         .task-priority {
             padding: 3px 10px;
             border-radius: 10px;
@@ -273,6 +306,58 @@
             color: #1e40af;
         }
 
+        /* Expanded task details */
+        .task-details {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            background: white;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .task-details.expanded {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .task-details-content {
+            padding: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            font-size: 13px;
+        }
+
+        .detail-row {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            color: #6b7280;
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        .detail-value {
+            color: #1f2937;
+            word-break: break-word;
+        }
+
+        .error-message {
+            grid-column: 1 / -1;
+            padding: 12px;
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 4px;
+            color: #991b1b;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px 20px;
@@ -292,6 +377,9 @@
         @media (max-width: 768px) {
             .task-meta {
                 flex-wrap: wrap;
+            }
+            .task-details-content {
+                grid-template-columns: 1fr;
             }
         }
     </style>
@@ -314,18 +402,18 @@
             </div>
         </div>
 
-        <!-- Collapsible Ready Section -->
-        <div id="ready-section" class="collapsible-section" style="display: none;">
-            <div class="collapsible-header" onclick="toggleReady()">
+        <!-- Collapsible Completed Section (Ready + Error) -->
+        <div id="completed-section" class="collapsible-section" style="display: none;">
+            <div class="collapsible-header" onclick="toggleCompleted()">
                 <h2>
-                    <span>✅ Ready (Completed)</span>
-                    <span class="count-badge" id="ready-count-badge">0</span>
+                    <span>✅ Completed (Ready & Error)</span>
+                    <span class="count-badge" id="completed-count-badge">0</span>
                 </h2>
                 <span class="collapse-icon" id="collapse-icon">▼</span>
             </div>
-            <div class="collapsible-content collapsed" id="ready-content">
-                <div id="ready-tasks-list" class="tasks-list" style="padding: 15px;">
-                    <!-- Ready tasks will be inserted here -->
+            <div class="collapsible-content collapsed" id="completed-content">
+                <div id="completed-tasks-list" class="tasks-list" style="padding: 15px;">
+                    <!-- Completed tasks will be inserted here -->
                 </div>
             </div>
         </div>
@@ -347,20 +435,37 @@
 
     <script>
         let autoRefreshInterval = null;
-        let readyCollapsed = true;
+        let completedCollapsed = true;
+        let expandedTasks = new Set(); // Track which tasks are expanded
+        let bookTitles = {}; // Cache book titles
 
-        function toggleReady() {
-            const content = document.getElementById('ready-content');
+        function toggleCompleted() {
+            const content = document.getElementById('completed-content');
             const icon = document.getElementById('collapse-icon');
             
-            readyCollapsed = !readyCollapsed;
+            completedCollapsed = !completedCollapsed;
             
-            if (readyCollapsed) {
+            if (completedCollapsed) {
                 content.classList.add('collapsed');
                 icon.classList.add('collapsed');
             } else {
                 content.classList.remove('collapsed');
                 icon.classList.remove('collapsed');
+            }
+        }
+
+        function toggleTaskDetails(taskId) {
+            const details = document.getElementById(`details-${taskId}`);
+            const icon = document.getElementById(`icon-${taskId}`);
+            
+            if (expandedTasks.has(taskId)) {
+                expandedTasks.delete(taskId);
+                details.classList.remove('expanded');
+                icon.classList.remove('expanded');
+            } else {
+                expandedTasks.add(taskId);
+                details.classList.add('expanded');
+                icon.classList.add('expanded');
             }
         }
 
@@ -382,12 +487,30 @@
             return labels[priority] || '?';
         }
 
-        function renderTaskOneLine(task) {
+        async function getBookTitle(bookId) {
+            if (bookTitles[bookId]) {
+                return bookTitles[bookId];
+            }
+            
+            try {
+                const response = await fetch(`/api/draft/${bookId}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    bookTitles[bookId] = data.title || 'Unknown Book';
+                    return bookTitles[bookId];
+                }
+            } catch (error) {
+                console.error('Error fetching book title:', error);
+            }
+            return 'Unknown Book';
+        }
+
+        function renderTaskExpandable(task, isExpanded) {
             const icon = getTaskIcon(task.task_type);
             const priorityLabel = getPriorityLabel(task.priority);
             const priorityClass = `priority-${task.priority}`;
             const statusClass = `status-${task.status}`;
-            const taskClass = task.status === 'processing' ? 'processing' : '';
+            const taskClass = task.status === 'processing' ? 'processing' : (task.status === 'error' ? 'error' : '');
 
             // Extract grade level from payload if available
             let gradePart = '';
@@ -398,20 +521,108 @@
             // Format created time
             const createdTime = task.created_at ? new Date(task.created_at).toLocaleTimeString() : '';
 
-            return `
-                <div class="task-item ${taskClass}">
-                    <span class="task-icon">${icon}</span>
-                    <span class="task-type">${task.task_type}</span>
-                    <div class="task-meta">
-                        ${gradePart}
-                        <span>ID: #${task.id.substring(0, 8)}</span>
-                        ${task.attempts ? `<span>Attempts: ${task.attempts}</span>` : ''}
-                        ${createdTime ? `<span>${createdTime}</span>` : ''}
+            // Build details section
+            const detailsHTML = `
+                <div class="task-details ${isExpanded ? 'expanded' : ''}" id="details-${task.id}">
+                    <div class="task-details-content">
+                        <div class="detail-row">
+                            <span class="detail-label">Full Task ID</span>
+                            <span class="detail-value">${task.id}</span>
+                        </div>
+                        ${task.book_id ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Book ID</span>
+                                <span class="detail-value" id="book-title-${task.id}">Loading...</span>
+                            </div>
+                        ` : ''}
+                        ${task.chapter_id ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Chapter ID</span>
+                                <span class="detail-value">${task.chapter_id}</span>
+                            </div>
+                        ` : ''}
+                        ${task.payload && task.payload.grade_level ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Grade Level</span>
+                                <span class="detail-value">${task.payload.grade_level}</span>
+                            </div>
+                        ` : ''}
+                        <div class="detail-row">
+                            <span class="detail-label">Priority</span>
+                            <span class="detail-value">${task.priority} (${priorityLabel})</span>
+                        </div>
+                        ${task.attempts ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Attempts</span>
+                                <span class="detail-value">${task.attempts}</span>
+                            </div>
+                        ` : ''}
+                        ${task.created_at ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Created At</span>
+                                <span class="detail-value">${new Date(task.created_at).toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                        ${task.locked_at ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Started At</span>
+                                <span class="detail-value">${new Date(task.locked_at).toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                        ${task.completed_at ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Completed At</span>
+                                <span class="detail-value">${new Date(task.completed_at).toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                        ${task.timeout_at ? `
+                            <div class="detail-row">
+                                <span class="detail-label">Timeout At</span>
+                                <span class="detail-value">${new Date(task.timeout_at).toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                        ${task.error_message ? `
+                            <div class="error-message">
+                                <strong>Error:</strong><br>${task.error_message}
+                            </div>
+                        ` : ''}
                     </div>
-                    <span class="task-status ${statusClass}">${task.status}</span>
-                    <span class="task-priority ${priorityClass}">${priorityLabel}</span>
                 </div>
             `;
+
+            return `
+                <div class="task-wrapper ${taskClass}">
+                    <div class="task-summary" onclick="toggleTaskDetails('${task.id}')">
+                        <span class="task-expand-icon ${isExpanded ? 'expanded' : ''}" id="icon-${task.id}">▶</span>
+                        <span class="task-icon">${icon}</span>
+                        <span class="task-type">${task.task_type}</span>
+                        <div class="task-meta">
+                            ${gradePart}
+                            <span>ID: #${task.id.substring(0, 8)}</span>
+                            ${createdTime ? `<span>${createdTime}</span>` : ''}
+                        </div>
+                        <span class="task-status ${statusClass}">${task.status}</span>
+                        <span class="task-priority ${priorityClass}">${priorityLabel}</span>
+                    </div>
+                    ${detailsHTML}
+                </div>
+            `;
+        }
+
+        async function loadBookTitles(tasks) {
+            const promises = tasks
+                .filter(task => task.book_id)
+                .map(task => {
+                    if (task.book_id) {
+                        getBookTitle(task.book_id).then(title => {
+                            const elem = document.getElementById(`book-title-${task.id}`);
+                            if (elem) {
+                                elem.textContent = title;
+                            }
+                        });
+                    }
+                });
+            await Promise.all(promises);
         }
 
         async function refreshQueue() {
@@ -430,7 +641,7 @@
                     const now = new Date();
                     document.getElementById('last-updated').textContent = `Last updated: ${now.toLocaleTimeString()}`;
 
-                    // Update active tasks
+                    // Update active tasks (queued + processing)
                     const activeTasksList = document.getElementById('active-tasks-list');
                     const activeTasks = status.active_tasks || [];
                     const activeCount = activeTasks.length;
@@ -438,7 +649,10 @@
                     document.getElementById('active-count-badge').textContent = activeCount;
 
                     if (activeCount > 0) {
-                        activeTasksList.innerHTML = activeTasks.map(task => renderTaskOneLine(task)).join('');
+                        activeTasksList.innerHTML = activeTasks.map(task => 
+                            renderTaskExpandable(task, expandedTasks.has(task.id))
+                        ).join('');
+                        loadBookTitles(activeTasks);
                     } else {
                         activeTasksList.innerHTML = `
                             <div class="empty-state">
@@ -448,21 +662,28 @@
                         `;
                     }
 
-                    // Update ready tasks
-                    const readySection = document.getElementById('ready-section');
-                    const readyTasksList = document.getElementById('ready-tasks-list');
+                    // Update completed tasks (ready + error)
+                    const completedSection = document.getElementById('completed-section');
+                    const completedTasksList = document.getElementById('completed-tasks-list');
                     const clearBtn = document.getElementById('clear-btn');
-                    const readyTasks = status.ready_tasks || [];
-                    const readyCount = readyTasks.length;
                     
-                    document.getElementById('ready-count-badge').textContent = readyCount;
+                    // Combine ready and error tasks
+                    const readyTasks = status.ready_tasks || [];
+                    const errorTasks = status.error_tasks || [];
+                    const completedTasks = [...readyTasks, ...errorTasks];
+                    const completedCount = completedTasks.length;
+                    
+                    document.getElementById('completed-count-badge').textContent = completedCount;
 
-                    if (readyCount > 0) {
-                        readySection.style.display = 'block';
+                    if (completedCount > 0) {
+                        completedSection.style.display = 'block';
                         clearBtn.style.display = 'block';
-                        readyTasksList.innerHTML = readyTasks.map(task => renderTaskOneLine(task)).join('');
+                        completedTasksList.innerHTML = completedTasks.map(task => 
+                            renderTaskExpandable(task, expandedTasks.has(task.id))
+                        ).join('');
+                        loadBookTitles(completedTasks);
                     } else {
-                        readySection.style.display = 'none';
+                        completedSection.style.display = 'none';
                         clearBtn.style.display = 'none';
                     }
                 }
@@ -475,7 +696,7 @@
         }
 
         async function clearCompletedTasks() {
-            if (!confirm('Clear all completed (ready) tasks from the queue?')) {
+            if (!confirm('Clear all completed (ready + error) tasks from the queue?')) {
                 return;
             }
 
