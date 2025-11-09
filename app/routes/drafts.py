@@ -9,6 +9,7 @@ from src.database import DatabaseManager
 from src.models import Book, Chapter, Question, ProcessedBook
 from src.config import settings
 from src.chapter_splitter import calculate_reading_time
+from src.ollama_queue import get_queue_manager, TaskPriority
 from app.tasks.tag_tasks import generate_tags_async
 from app.tasks.description_tasks import generate_description_async
 from app.tasks.question_tasks import regenerate_questions_for_draft_async
@@ -106,38 +107,51 @@ def create_or_update_draft():
             # Safe to start async operations
             logger.info(f"Created draft {draft_id}, starting async tag and description generation...")
             
-            # Trigger async tag generation in background thread
-            # Transaction is guaranteed committed since db object is out of scope
-            tag_thread = threading.Thread(
-                target=generate_tags_async,
-                args=(
-                    draft_id,
-                    data.get('title'),
-                    data.get('author'),
-                    data.get('age_range', settings.default_age_range),
-                    data.get('reading_level', settings.default_reading_level)
-                )
+            # Enqueue tag generation task
+            queue_manager = get_queue_manager()
+            title = data.get('title', '')
+            age_range = data.get('age_range', settings.default_age_range)
+            reading_level = data.get('reading_level', settings.default_reading_level)
+            
+            task_id = queue_manager.enqueue_task(
+                generate_tags_async,
+                TaskPriority.GENRE_TAG,
+                draft_id,
+                title,
+                data.get('author'),
+                age_range,
+                reading_level,
+                task_name=f"Tags: {title[:30]}",
+                task_type="tags",
+                book_id=draft_id
             )
-            tag_thread.daemon = True
-            tag_thread.start()
             
-            logger.info(f"Started async tag generation for draft {draft_id}")
+            # Update status to 'queued'
+            db.update_draft_tag_status(draft_id, 'queued')
             
-            # Trigger async description generation in background thread
+            logger.info(f"Enqueued tag generation for draft {draft_id} (task #{task_id})")
+            
+            # Enqueue description generation task
             book_text_sample = ' '.join(full_text.split()[:2000]) if full_text else ''
-            description_thread = threading.Thread(
-                target=generate_description_async,
-                args=(
-                    draft_id,
-                    data.get('title'),
-                    data.get('author'),
-                    book_text_sample
-                )
-            )
-            description_thread.daemon = True
-            description_thread.start()
             
-            logger.info(f"Started async description generation for draft {draft_id}")
+            desc_task_id = queue_manager.enqueue_task(
+                generate_description_async,
+                TaskPriority.DESCRIPTION,
+                draft_id,
+                title,
+                data.get('author'),
+                book_text_sample,
+                age_range,
+                reading_level,
+                task_name=f"Description: {title[:30]}",
+                task_type="descriptions",
+                book_id=draft_id
+            )
+            
+            # Update status to 'queued'
+            db.update_draft_description_status(draft_id, 'queued')
+            
+            logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
             
             return jsonify({'success': True, 'draft_id': draft_id})
     
@@ -207,7 +221,7 @@ def regenerate_tags(draft_id):
         except:
             pass
         
-        if current_tag_status in ('pending', 'generating') and not force:
+        if current_tag_status in ('pending', 'queued', 'generating') and not force:
             # Check if it's been stuck for more than 10 minutes
             updated_at = draft.get('updated_at')
             if updated_at:
@@ -233,24 +247,29 @@ def regenerate_tags(draft_id):
                     'error': 'Tag generation already in progress. Please wait for it to complete.'
                 }), 409
         
-        # Set tag status to pending
-        db.update_draft_tag_status(draft_id, 'pending')
+        # Enqueue tag generation task
+        queue_manager = get_queue_manager()
+        title = draft.get('title', '')
+        age_range = draft.get('age_range', settings.default_age_range)
+        reading_level = draft.get('reading_level', settings.default_reading_level)
         
-        # Trigger async tag generation
-        tag_thread = threading.Thread(
-            target=generate_tags_async,
-            args=(
-                draft_id,
-                draft.get('title'),
-                draft.get('author'),
-                draft.get('age_range', settings.default_age_range),
-                draft.get('reading_level', settings.default_reading_level)
-            )
+        task_id = queue_manager.enqueue_task(
+            generate_tags_async,
+            TaskPriority.GENRE_TAG,
+            draft_id,
+            title,
+            draft.get('author'),
+            age_range,
+            reading_level,
+            task_name=f"Tags: {title[:30]}",
+            task_type="tags",
+            book_id=draft_id
         )
-        tag_thread.daemon = True
-        tag_thread.start()
         
-        logger.info(f"Started tag regeneration for draft {draft_id}")
+        # Update status to 'queued'
+        db.update_draft_tag_status(draft_id, 'queued')
+        
+        logger.info(f"Enqueued tag regeneration for draft {draft_id} (task #{task_id})")
         
         return jsonify({
             'success': True,
@@ -410,7 +429,7 @@ def generate_description(draft_id):
         # Allow retrying if stuck for more than 10 minutes
         current_description_status = draft.get('description_status')
         
-        if current_description_status in ('pending', 'generating'):
+        if current_description_status in ('pending', 'queued', 'generating'):
             # Check if it's been stuck for more than 10 minutes
             updated_at = draft.get('updated_at')
             if updated_at:
@@ -436,25 +455,30 @@ def generate_description(draft_id):
                     'error': 'Description generation already in progress. Please wait for it to complete.'
                 }), 409
         
-        # Set description status to generating
-        db.update_draft(draft_id, description_status='generating')
+        # Enqueue description generation task
+        queue_manager = get_queue_manager()
+        title = draft.get('title', '')
+        age_range = draft.get('age_range', settings.default_age_range)
+        reading_level = draft.get('reading_level', settings.default_reading_level)
         
-        # Start async description generation
-        description_thread = threading.Thread(
-            target=generate_description_async,
-            args=(
-                draft_id,
-                draft.get('title'),
-                draft.get('author'),
-                draft.get('full_text', ''),
-                draft.get('age_range', settings.default_age_range),
-                draft.get('reading_level', settings.default_reading_level)
-            )
+        desc_task_id = queue_manager.enqueue_task(
+            generate_description_async,
+            TaskPriority.DESCRIPTION,
+            draft_id,
+            title,
+            draft.get('author'),
+            draft.get('full_text', ''),
+            age_range,
+            reading_level,
+            task_name=f"Description: {title[:30]}",
+            task_type="descriptions",
+            book_id=draft_id
         )
-        description_thread.daemon = True
-        description_thread.start()
         
-        logger.info(f"Started description generation for draft {draft_id}")
+        # Update status to 'queued'
+        db.update_draft_description_status(draft_id, 'queued')
+        
+        logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
         
         return jsonify({
             'success': True,
