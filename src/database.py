@@ -779,47 +779,6 @@ class DatabaseManager:
                            f"{total_chapters} chapters, {question_count} questions")
                 
                 return book_id, total_chapters, question_count
-    
-    def get_draft_usage(self, draft_id: str) -> dict:
-        """
-        Analyze chapter HTML to identify which book paragraphs have been used.
-        
-        Args:
-            draft_id: The draft book ID
-            
-        Returns:
-            Dictionary with:
-                - 'used_paragraphs': list of paragraph indices used in any chapter
-                - 'paragraph_chapters': dict mapping paragraph index to list of chapter IDs
-        """
-        chapters = self.get_draft_chapters(draft_id)
-        
-        used_paragraphs = set()
-        paragraph_chapters = {}
-        
-        for chapter in chapters:
-            chapter_id = str(chapter['id'])
-            html_content = chapter.get('html_formatting', '')
-            
-            if not html_content:
-                continue
-            
-            para_indices = re.findall(r'data-para-index=["\'](\d+)["\']', html_content)
-            
-            for index_str in para_indices:
-                para_index = int(index_str)
-                used_paragraphs.add(para_index)
-                
-                if para_index not in paragraph_chapters:
-                    paragraph_chapters[para_index] = []
-                
-                if chapter_id not in paragraph_chapters[para_index]:
-                    paragraph_chapters[para_index].append(chapter_id)
-        
-        return {
-            'used_paragraphs': sorted(list(used_paragraphs)),
-            'paragraph_chapters': paragraph_chapters
-        }
 
 
 def inject_vocabulary_abbr(html_content: str, vocabulary_list: List[dict]) -> str:

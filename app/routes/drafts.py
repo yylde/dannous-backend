@@ -310,6 +310,28 @@ def get_draft_tags(draft_id):
         return jsonify({'error': str(e)}), 500
 
 
+@drafts_bp.route('/draft/<draft_id>/marker', methods=['PUT'])
+def update_marker_position(draft_id):
+    """Update the marker position for a draft."""
+    try:
+        data = request.json
+        marker_position = data.get('marker_position')
+        
+        if marker_position is None:
+            return jsonify({'error': 'marker_position is required'}), 400
+        
+        db = DatabaseManager()
+        db.update_draft(draft_id, last_marker_position=marker_position)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Marker position saved'
+        })
+    except Exception as e:
+        logger.exception("Failed to update marker position")
+        return jsonify({'error': str(e)}), 500
+
+
 @drafts_bp.route('/draft/<draft_id>/description', methods=['GET'])
 def get_draft_description(draft_id):
     """Get description for a draft."""
@@ -329,23 +351,193 @@ def get_draft_description(draft_id):
         return jsonify({'error': str(e)}), 500
 
 
-@drafts_bp.route('/draft/<draft_id>/usage', methods=['GET'])
-def get_draft_usage(draft_id):
-    """Get paragraph usage statistics for a draft."""
+@drafts_bp.route('/draft/<draft_id>/description', methods=['PUT'])
+def update_description(draft_id):
+    """Update draft description manually."""
     try:
-        db = DatabaseManager()
-        usage = db.get_draft_usage(draft_id)
+        data = request.json
+        description = data.get('description', '').strip()
         
-        if usage is None:
+        db = DatabaseManager()
+        
+        # Verify draft exists
+        draft = db.get_draft(draft_id)
+        if not draft:
             return jsonify({'error': 'Draft not found'}), 404
+        
+        # Update description
+        with db.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE draft_books 
+                    SET description = %s, description_status = 'ready', updated_at = NOW()
+                    WHERE id = %s
+                """, (description, draft_id))
+        
+        logger.info(f"Updated description for draft {draft_id}")
         
         return jsonify({
             'success': True,
-            'used_paragraphs': usage['used_paragraphs'],
-            'paragraph_chapters': usage['paragraph_chapters']
+            'message': 'Description updated successfully'
         })
     except Exception as e:
-        logger.exception("Failed to get usage")
+        logger.exception("Failed to update description")
+        return jsonify({'error': str(e)}), 500
+
+
+@drafts_bp.route('/draft/<draft_id>/generate-description', methods=['POST'])
+def generate_description(draft_id):
+    """Generate a book description using AI, auto-generating synopsis from book content."""
+    try:
+        from app.tasks.description_tasks import generate_description_async
+        import threading
+        
+        db = DatabaseManager()
+        
+        # Get the draft to verify it exists
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # Check if description generation is already actively generating
+        # Allow retrying if stuck at "pending" (thread may have failed)
+        current_description_status = draft.get('description_status')
+        if current_description_status == 'generating':
+            logger.info(f"Blocked duplicate description generation request for draft {draft_id} (currently generating)")
+            return jsonify({
+                'error': 'Description generation already in progress. Please wait for it to complete.'
+            }), 409
+        
+        # If stuck at "pending", allow retry and log it
+        if current_description_status == 'pending':
+            logger.warning(f"Retrying description generation for draft {draft_id} (was stuck at pending)")
+        
+        # Set description status to generating
+        db.update_draft(draft_id, description_status='generating')
+        
+        # Start async description generation
+        description_thread = threading.Thread(
+            target=generate_description_async,
+            args=(
+                draft_id,
+                draft.get('title'),
+                draft.get('author'),
+                draft.get('full_text', ''),
+                draft.get('age_range', settings.default_age_range),
+                draft.get('reading_level', settings.default_reading_level)
+            )
+        )
+        description_thread.daemon = True
+        description_thread.start()
+        
+        logger.info(f"Started description generation for draft {draft_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Description generation started'
+        })
+    except Exception as e:
+        logger.exception("Failed to start description generation")
+        return jsonify({'error': str(e)}), 500
+
+
+@drafts_bp.route('/draft/<draft_id>/usage', methods=['GET'])
+def get_text_usage(draft_id):
+    """Analyze which parts of the book text have been used in chapters using fuzzy matching."""
+    try:
+        from rapidfuzz import fuzz
+        from rapidfuzz.distance import Levenshtein
+        from bs4 import BeautifulSoup
+        
+        db = DatabaseManager()
+        
+        # Get the draft
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # CRITICAL: Use full_html to match frontend display, fallback to full_text
+        book_text = draft.get('full_html') or draft.get('full_text', '')
+        if not book_text:
+            return jsonify({'used_paragraphs': []})
+        
+        # Split book into paragraphs (same way as frontend does)
+        book_paragraphs = [p.strip() for p in book_text.split('\n\n') if p.strip()]
+        
+        logger.info(f"Usage tracking for draft {draft_id}: {len(book_paragraphs)} total paragraphs")
+        
+        # Get all chapters
+        chapters = db.get_draft_chapters(draft_id)
+        if not chapters:
+            return jsonify({'used_paragraphs': []})
+        
+        # Track which paragraphs are used and which chapter they belong to
+        used_paragraph_indices = set()
+        paragraph_to_chapter = {}  # Maps paragraph_index -> chapter_number
+        
+        # Helper function to normalize text for comparison
+        def normalize(text):
+            """Normalize text for fuzzy matching - strip HTML, lowercase, remove extra whitespace."""
+            # Strip HTML tags using BeautifulSoup
+            soup = BeautifulSoup(text, 'html.parser')
+            clean_text = soup.get_text(separator=' ')
+            # Normalize whitespace and lowercase
+            return ' '.join(clean_text.lower().split())
+        
+        # Normalize paragraphs once (for performance)
+        normalized_paragraphs = [normalize(p) for p in book_paragraphs]
+        logger.info(f"Normalized {len(normalized_paragraphs)} book paragraphs for matching")
+        
+        # For each chapter, find matching paragraphs in the book
+        for chapter in chapters:
+            chapter_text = chapter.get('content', '')
+            chapter_number = chapter.get('chapter_number')
+            if not chapter_text or chapter_number is None:
+                continue
+            
+            # Split chapter into paragraphs (to compare paragraph-to-paragraph)
+            chapter_paragraphs = [p.strip() for p in chapter_text.split('\n\n') if p.strip()]
+            normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs]
+            
+            # Check each book paragraph against each chapter paragraph
+            for para_idx, normalized_para in enumerate(normalized_paragraphs):
+                if para_idx in used_paragraph_indices:
+                    continue  # Already marked as used
+                    
+                # Skip empty paragraphs
+                if not normalized_para:
+                    continue
+                
+                # Compare against each paragraph in the chapter
+                # Use Levenshtein similarity with token-based fallback
+                for chapter_para in normalized_chapter_paras:
+                    if not chapter_para:
+                        continue
+                        
+                    # HYBRID APPROACH: Levenshtein + token-based
+                    # 1. Normalized Levenshtein similarity (order-aware, edit-tolerant)
+                    leven_sim = Levenshtein.normalized_similarity(normalized_para, chapter_para) * 100
+                    
+                    # 2. Token-based similarity (vocabulary-aware)
+                    token_sim = fuzz.token_sort_ratio(normalized_para, chapter_para)
+                    
+                    # Use weighted average: favor Levenshtein slightly for order preservation
+                    # 60% Levenshtein + 40% token = better balance
+                    combined_score = (leven_sim * 0.6) + (token_sim * 0.4)
+                    
+                    # 78% threshold allows minor edits while filtering different text
+                    if combined_score >= 78:
+                        used_paragraph_indices.add(para_idx)
+                        paragraph_to_chapter[para_idx] = chapter_number
+                        break  # Found a match, no need to check other chapter paragraphs
+        
+        return jsonify({
+            'used_paragraphs': sorted(list(used_paragraph_indices)),
+            'paragraph_chapters': paragraph_to_chapter  # Maps paragraph_index -> chapter_number
+        })
+        
+    except Exception as e:
+        logger.exception("Failed to analyze text usage")
         return jsonify({'error': str(e)}), 500
 
 

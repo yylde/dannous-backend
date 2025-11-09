@@ -44,3 +44,5 @@ rich
 alembic
 rapidfuzz
 sqlalchemy
+beautifulsoup4
+rapidfuzz
