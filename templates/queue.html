@@ -436,9 +436,9 @@
                     const status = data.status;
 
                     // Update stats
-                    document.getElementById('queued-count').textContent = status.total_queued || 0;
-                    document.getElementById('processing-count').textContent = status.total_processing || 0;
-                    document.getElementById('ready-count').textContent = status.total_ready || 0;
+                    document.getElementById('queued-count').textContent = status.queued || 0;
+                    document.getElementById('processing-count').textContent = status.processing || 0;
+                    document.getElementById('ready-count').textContent = status.ready || 0;
                     
                     const now = new Date();
                     document.getElementById('last-updated').textContent = now.toLocaleTimeString();

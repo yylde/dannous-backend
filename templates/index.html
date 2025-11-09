@@ -113,11 +113,63 @@
     </div>
 
     <div class="container">
-        <div class="welcome-section" style="text-align: center; padding: 100px 20px;">
-            <h1 style="font-size: 2.5em; color: #667eea; margin-bottom: 30px;">📚 Welcome to Book Chapter Splitter</h1>
-            <p style="font-size: 1.2em; color: #4a5568; margin-bottom: 15px;">Select a book from the sidebar to start editing</p>
-            <p style="font-size: 1.2em; color: #4a5568;">Or click <strong>'+ New'</strong> to download a new book from Project Gutenberg</p>
+        <div class="welcome-section" style="text-align: center; padding: 60px 20px 40px;">
+            <h1 style="font-size: 2.5em; color: #667eea; margin-bottom: 20px;">📚 Welcome to Book Chapter Splitter</h1>
+            <p style="font-size: 1.2em; color: #4a5568; margin-bottom: 30px;">Download new books or select a book from the sidebar to start editing</p>
         </div>
+
+        <!-- Download New Book Section -->
+        <section id="download-section" style="max-width: 600px; margin: 0 auto 40px;">
+            <div class="card">
+                <h2 style="margin-top: 0;">📥 Download New Book</h2>
+                <div class="form-group">
+                    <label for="gutenberg-id">Project Gutenberg Book ID:</label>
+                    <input type="number" id="gutenberg-id" placeholder="e.g., 11115 (Alice in Wonderland)" style="width: 100%;">
+                    <button onclick="downloadBook()" class="btn btn-primary" style="margin-top: 10px; width: 100%;">Download Book</button>
+                </div>
+                <div id="download-status"></div>
+            </div>
+        </section>
+
+        <!-- Queue Status Widget -->
+        <section id="queue-section" style="max-width: 800px; margin: 0 auto 40px;">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                    <h2 style="margin: 0;">🔄 AI Processing Queue</h2>
+                    <div>
+                        <button onclick="refreshQueueWidget()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; margin-right: 5px;">
+                            ↻ Refresh
+                        </button>
+                        <a href="/queue" class="btn btn-secondary" style="padding: 6px 12px; font-size: 13px; text-decoration: none;">
+                            View Full Queue
+                        </a>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin-bottom: 15px;">
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 11px; color: #718096; margin-bottom: 5px; font-weight: 600; text-transform: uppercase;">Queued</div>
+                        <div id="index-queued-count" style="font-size: 28px; font-weight: bold; color: #3182ce;">-</div>
+                    </div>
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 11px; color: #718096; margin-bottom: 5px; font-weight: 600; text-transform: uppercase;">Processing</div>
+                        <div id="index-processing-count" style="font-size: 28px; font-weight: bold; color: #ed8936;">-</div>
+                    </div>
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 11px; color: #718096; margin-bottom: 5px; font-weight: 600; text-transform: uppercase;">Ready</div>
+                        <div id="index-ready-count" style="font-size: 28px; font-weight: bold; color: #38a169;">-</div>
+                    </div>
+                    <div style="background: #f7fafc; padding: 15px; border-radius: 8px; text-align: center;">
+                        <div style="font-size: 11px; color: #718096; margin-bottom: 5px; font-weight: 600; text-transform: uppercase;">Errors</div>
+                        <div id="index-error-count" style="font-size: 28px; font-weight: bold; color: #e53e3e;">-</div>
+                    </div>
+                </div>
+                
+                <div id="index-queue-message" style="text-align: center; padding: 10px; color: #718096; font-size: 14px;">
+                    <!-- Status messages will appear here -->
+                </div>
+            </div>
+        </section>
 
         <div id="loading" class="loading" style="display: none;">
             <div class="spinner"></div>

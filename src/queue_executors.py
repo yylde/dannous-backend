@@ -95,7 +95,8 @@ def execute_question_generation(
     age_range: str,
     grade_level: str,
     num_questions: int = 3,
-    vocab_count: int = 8
+    vocab_count: int = 8,
+    question_number: int = None
 ) -> Dict[str, Any]:
     """
     Direct Ollama execution for question generation - NO QUEUEING.
@@ -113,6 +114,7 @@ def execute_question_generation(
         grade_level: Specific grade level
         num_questions: Number of questions to generate (default: 3)
         vocab_count: Number of vocabulary words (default: 8)
+        question_number: Question number (for tracking, not used in generation)
     
     Returns:
         Dictionary with questions and vocabulary
