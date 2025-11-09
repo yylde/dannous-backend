@@ -368,18 +368,18 @@ class QueueManagerV2:
                 """)
                 status_counts = {row['status']: row['count'] for row in cur.fetchall()}
                 
-                # Get all active tasks (queued + processing)
+                # Get all active tasks (queued + processing only)
                 cur.execute("""
                     SELECT id, task_type, priority, status, book_id, chapter_id,
                            payload, attempts, created_at, locked_at
                     FROM queue_tasks
-                    WHERE status IN ('queued', 'processing', 'error')
+                    WHERE status IN ('queued', 'processing')
                     ORDER BY priority ASC, created_at ASC
                     LIMIT 100
                 """)
-                tasks = []
+                active_tasks = []
                 for row in cur.fetchall():
-                    tasks.append({
+                    active_tasks.append({
                         'id': str(row['id']),
                         'task_type': row['task_type'],
                         'priority': row['priority'],
@@ -392,12 +392,37 @@ class QueueManagerV2:
                         'locked_at': row['locked_at'].isoformat() if row['locked_at'] else None
                     })
                 
+                # Get ready tasks (completed)
+                cur.execute("""
+                    SELECT id, task_type, priority, status, book_id, chapter_id,
+                           payload, attempts, created_at, completed_at
+                    FROM queue_tasks
+                    WHERE status = 'ready'
+                    ORDER BY priority ASC, completed_at DESC
+                    LIMIT 100
+                """)
+                ready_tasks = []
+                for row in cur.fetchall():
+                    ready_tasks.append({
+                        'id': str(row['id']),
+                        'task_type': row['task_type'],
+                        'priority': row['priority'],
+                        'status': row['status'],
+                        'book_id': row['book_id'],
+                        'chapter_id': row['chapter_id'],
+                        'payload': row['payload'],
+                        'attempts': row['attempts'],
+                        'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                        'completed_at': row['completed_at'].isoformat() if row['completed_at'] else None
+                    })
+                
                 return {
                     'total_queued': status_counts.get('queued', 0),
                     'total_processing': status_counts.get('processing', 0),
                     'total_ready': status_counts.get('ready', 0),
                     'total_error': status_counts.get('error', 0),
-                    'tasks': tasks
+                    'active_tasks': active_tasks,
+                    'ready_tasks': ready_tasks
                 }
     
     def worker_loop(self):

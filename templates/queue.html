@@ -14,7 +14,7 @@
         }
 
         .queue-container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
 
@@ -65,6 +65,12 @@
             color: #1f2937;
         }
 
+        .columns-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
         .tasks-container {
             background: white;
             padding: 30px;
@@ -90,6 +96,8 @@
             display: flex;
             flex-direction: column;
             gap: 15px;
+            max-height: 600px;
+            overflow-y: auto;
         }
 
         .task-item {
@@ -103,6 +111,16 @@
         .task-item:hover {
             border-color: #3b82f6;
             background: #eff6ff;
+        }
+
+        .task-item.ready {
+            border-color: #10b981;
+            background: #ecfdf5;
+        }
+
+        .task-item.processing {
+            border-color: #f59e0b;
+            background: #fffbeb;
         }
 
         .task-header {
@@ -132,6 +150,29 @@
             margin-left: auto;
         }
 
+        .task-status {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-queued {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-processing {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-ready {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
         .priority-1 {
             background: #fecaca;
             color: #991b1b;
@@ -149,7 +190,7 @@
 
         .task-details {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
             gap: 12px;
             padding-left: 36px;
         }
@@ -235,46 +276,14 @@
             color: #6b7280;
         }
 
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.5);
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-        }
-
-        .modal-content {
-            background: white;
-            padding: 30px;
-            border-radius: 12px;
-            max-width: 400px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-        }
-
-        .modal h3 {
-            margin-top: 0;
-            color: #1f2937;
+        @media (max-width: 1024px) {
+            .columns-container {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Flush Confirmation Modal -->
-    <div id="flush-modal" class="modal">
-        <div class="modal-content">
-            <h3>⚠️ Flush Queue</h3>
-            <p>Are you sure you want to flush the queue? This will cancel all pending AI generation tasks.</p>
-            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-                <button onclick="closeFlushModal()" class="btn btn-secondary">Cancel</button>
-                <button onclick="confirmFlush()" class="btn btn-danger">Flush Queue</button>
-            </div>
-        </div>
-    </div>
-
     <div class="queue-container">
         <!-- Header -->
         <div class="queue-header">
@@ -282,6 +291,9 @@
             <div class="action-buttons">
                 <button onclick="refreshQueue()" class="btn btn-primary" id="refresh-btn">
                     ↻ Refresh
+                </button>
+                <button onclick="clearCompletedTasks()" class="btn btn-danger" id="clear-btn">
+                    🗑️ Clear Completed
                 </button>
                 <button onclick="window.location.href='/'" class="btn btn-secondary">
                     ← Back
@@ -292,16 +304,16 @@
         <!-- Statistics -->
         <div class="queue-stats">
             <div class="stat-card">
-                <div class="stat-label">Pending Tasks</div>
-                <div class="stat-value" id="pending-count">-</div>
+                <div class="stat-label">Queued</div>
+                <div class="stat-value" id="queued-count">-</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Active Workers</div>
-                <div class="stat-value" id="workers-count">-</div>
+                <div class="stat-label">Processing</div>
+                <div class="stat-value" id="processing-count">-</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Queue Size</div>
-                <div class="stat-value" id="queue-size">-</div>
+                <div class="stat-label">Ready</div>
+                <div class="stat-value" id="ready-count">-</div>
             </div>
             <div class="stat-card">
                 <div class="stat-label">Last Updated</div>
@@ -309,16 +321,26 @@
             </div>
         </div>
 
-        <!-- Tasks List -->
-        <div class="tasks-container">
-            <div class="tasks-header">
-                <h2>Pending Tasks</h2>
-                <button onclick="showFlushModal()" class="btn btn-danger" id="flush-btn">
-                    🗑️ Flush Queue
-                </button>
+        <!-- Two Column Layout -->
+        <div class="columns-container">
+            <!-- Queued/Processing Column -->
+            <div class="tasks-container">
+                <div class="tasks-header">
+                    <h2>⏳ Queued & Processing</h2>
+                </div>
+                <div id="active-tasks-list" class="tasks-list">
+                    <!-- Active tasks will be inserted here -->
+                </div>
             </div>
-            <div id="tasks-list" class="tasks-list">
-                <!-- Tasks will be inserted here -->
+
+            <!-- Ready Column -->
+            <div class="tasks-container">
+                <div class="tasks-header">
+                    <h2>✅ Ready (Completed)</h2>
+                </div>
+                <div id="ready-tasks-list" class="tasks-list">
+                    <!-- Ready tasks will be inserted here -->
+                </div>
             </div>
         </div>
     </div>
@@ -330,8 +352,7 @@
         function getTaskIcon(taskType) {
             const icons = {
                 'tags': '🏷️',
-                'description': '📝',
-                'synopsis': '📄',
+                'descriptions': '📝',
                 'questions': '❓'
             };
             return icons[taskType] || '⚙️';
@@ -339,11 +360,66 @@
 
         function getPriorityLabel(priority) {
             const labels = {
-                1: 'High Priority',
-                2: 'Medium Priority',
-                3: 'Low Priority'
+                1: 'High',
+                2: 'Medium',
+                3: 'Low'
             };
             return labels[priority] || 'Unknown';
+        }
+
+        function renderTask(task) {
+            const icon = getTaskIcon(task.task_type);
+            const priorityLabel = getPriorityLabel(task.priority);
+            const priorityClass = `priority-${task.priority}`;
+            const statusClass = `status-${task.status}`;
+            const taskClass = task.status === 'ready' ? 'ready' : (task.status === 'processing' ? 'processing' : '');
+
+            // Extract grade level from payload if available
+            let gradeLevel = '';
+            if (task.payload && task.payload.grade_level) {
+                gradeLevel = task.payload.grade_level;
+            }
+
+            return `
+                <div class="task-item ${taskClass}">
+                    <div class="task-header">
+                        <span class="task-icon">${icon}</span>
+                        <span class="task-type">${task.task_type}</span>
+                        <span class="task-status ${statusClass}">${task.status}</span>
+                        <span class="task-priority ${priorityClass}">${priorityLabel}</span>
+                    </div>
+                    <div class="task-details">
+                        <div class="detail-item">
+                            <span class="detail-label">ID:</span>
+                            <span class="detail-value">#${task.id}</span>
+                        </div>
+                        ${gradeLevel ? `
+                            <div class="detail-item">
+                                <span class="detail-label">📚 Grade:</span>
+                                <span class="detail-value" style="font-family: inherit;">${gradeLevel}</span>
+                            </div>
+                        ` : ''}
+                        ${task.attempts ? `
+                            <div class="detail-item">
+                                <span class="detail-label">Attempts:</span>
+                                <span class="detail-value">${task.attempts}</span>
+                            </div>
+                        ` : ''}
+                        ${task.created_at ? `
+                            <div class="detail-item">
+                                <span class="detail-label">Created:</span>
+                                <span class="detail-value">${new Date(task.created_at).toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                        ${task.completed_at ? `
+                            <div class="detail-item">
+                                <span class="detail-label">Completed:</span>
+                                <span class="detail-value">${new Date(task.completed_at).toLocaleString()}</span>
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
         }
 
         // Refresh queue data
@@ -356,72 +432,50 @@
                 const response = await fetch('/api/queue/status');
                 const data = await response.json();
 
-                if (response.ok && data.queue) {
-                    const queue = data.queue;
+                if (response.ok && data.status) {
+                    const status = data.status;
 
                     // Update stats
-                    document.getElementById('pending-count').textContent = queue.pending_tasks ? queue.pending_tasks.length : 0;
-                    document.getElementById('workers-count').textContent = `${queue.active_workers}/${queue.worker_count}`;
-                    document.getElementById('queue-size').textContent = queue.queue_size;
+                    document.getElementById('queued-count').textContent = status.total_queued || 0;
+                    document.getElementById('processing-count').textContent = status.total_processing || 0;
+                    document.getElementById('ready-count').textContent = status.total_ready || 0;
                     
                     const now = new Date();
                     document.getElementById('last-updated').textContent = now.toLocaleTimeString();
 
-                    // Update tasks list
-                    const tasksList = document.getElementById('tasks-list');
-                    const flushBtn = document.getElementById('flush-btn');
+                    // Update active tasks list
+                    const activeTasksList = document.getElementById('active-tasks-list');
+                    const clearBtn = document.getElementById('clear-btn');
 
-                    if (queue.pending_tasks && queue.pending_tasks.length > 0) {
-                        const tasksHTML = queue.pending_tasks.map(task => {
-                            const icon = getTaskIcon(task.task_type);
-                            const priorityLabel = getPriorityLabel(task.priority);
-                            const priorityClass = `priority-${task.priority}`;
-
-                            return `
-                                <div class="task-item">
-                                    <div class="task-header">
-                                        <span class="task-icon">${icon}</span>
-                                        <span class="task-type">${task.task_type}</span>
-                                        <span class="task-priority ${priorityClass}">${priorityLabel}</span>
-                                    </div>
-                                    <div class="task-details">
-                                        <div class="detail-item">
-                                            <span class="detail-label">Task ID:</span>
-                                            <span class="detail-value">#${task.task_id}</span>
-                                        </div>
-                                        ${task.book_id ? `
-                                            <div class="detail-item">
-                                                <span class="detail-label">📚 Book ID:</span>
-                                                <span class="detail-value">${task.book_id}</span>
-                                            </div>
-                                        ` : ''}
-                                        ${task.chapter_id ? `
-                                            <div class="detail-item">
-                                                <span class="detail-label">📖 Chapter ID:</span>
-                                                <span class="detail-value">${task.chapter_id}</span>
-                                            </div>
-                                        ` : ''}
-                                        ${task.task_name ? `
-                                            <div class="detail-item">
-                                                <span class="detail-label">Name:</span>
-                                                <span class="detail-value" style="font-family: inherit;">${task.task_name}</span>
-                                            </div>
-                                        ` : ''}
-                                    </div>
-                                </div>
-                            `;
-                        }).join('');
-                        tasksList.innerHTML = tasksHTML;
-                        flushBtn.disabled = false;
+                    if (status.active_tasks && status.active_tasks.length > 0) {
+                        const activeTasksHTML = status.active_tasks.map(task => renderTask(task)).join('');
+                        activeTasksList.innerHTML = activeTasksHTML;
                     } else {
-                        tasksList.innerHTML = `
+                        activeTasksList.innerHTML = `
                             <div class="empty-state">
                                 <div class="empty-state-icon">✅</div>
-                                <h3>No Pending Tasks</h3>
-                                <p>The queue is empty. All AI generation tasks have been completed.</p>
+                                <h3>No Active Tasks</h3>
+                                <p>All tasks are either completed or none are queued.</p>
                             </div>
                         `;
-                        flushBtn.disabled = true;
+                    }
+
+                    // Update ready tasks list
+                    const readyTasksList = document.getElementById('ready-tasks-list');
+
+                    if (status.ready_tasks && status.ready_tasks.length > 0) {
+                        const readyTasksHTML = status.ready_tasks.map(task => renderTask(task)).join('');
+                        readyTasksList.innerHTML = readyTasksHTML;
+                        clearBtn.disabled = false;
+                    } else {
+                        readyTasksList.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-state-icon">⏳</div>
+                                <h3>No Completed Tasks</h3>
+                                <p>Completed tasks will appear here.</p>
+                            </div>
+                        `;
+                        clearBtn.disabled = true;
                     }
                 }
             } catch (error) {
@@ -432,40 +486,33 @@
             }
         }
 
-        // Show flush confirmation modal
-        function showFlushModal() {
-            document.getElementById('flush-modal').style.display = 'flex';
-        }
+        // Clear completed tasks
+        async function clearCompletedTasks() {
+            if (!confirm('Clear all completed (ready) tasks from the queue?')) {
+                return;
+            }
 
-        // Close flush modal
-        function closeFlushModal() {
-            document.getElementById('flush-modal').style.display = 'none';
-        }
-
-        // Confirm flush
-        async function confirmFlush() {
-            closeFlushModal();
-            const flushBtn = document.getElementById('flush-btn');
-            flushBtn.disabled = true;
-            flushBtn.textContent = 'Flushing...';
+            const clearBtn = document.getElementById('clear-btn');
+            clearBtn.disabled = true;
+            clearBtn.textContent = 'Clearing...';
 
             try {
-                const response = await fetch('/api/queue/flush', {
-                    method: 'POST'
+                const response = await fetch('/api/queue/clear', {
+                    method: 'DELETE'
                 });
                 const data = await response.json();
 
                 if (response.ok) {
-                    alert(`Queue flushed: ${data.flushed_count} tasks removed`);
+                    alert(`Cleared ${data.deleted_count} completed tasks`);
                     await refreshQueue();
                 } else {
-                    alert('Failed to flush queue');
+                    alert('Failed to clear completed tasks');
                 }
             } catch (error) {
-                console.error('Error flushing queue:', error);
-                alert('Error flushing queue');
+                console.error('Error clearing tasks:', error);
+                alert('Error clearing completed tasks');
             } finally {
-                flushBtn.textContent = '🗑️ Flush Queue';
+                clearBtn.textContent = '🗑️ Clear Completed';
             }
         }
 
@@ -474,8 +521,8 @@
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
             }
-            autoRefreshInterval = setInterval(refreshQueue, 30000); // 30 seconds
-            console.log('Auto-refresh started (30s interval)');
+            autoRefreshInterval = setInterval(refreshQueue, 5000); // 5 seconds
+            console.log('Auto-refresh started (5s interval)');
         }
 
         // Stop auto-refresh
