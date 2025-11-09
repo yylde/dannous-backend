@@ -190,8 +190,8 @@ class EPUBParser:
                 html_parts = []
                 text_parts = []
                 
-                # Extract headings, paragraphs, and standalone images in order
-                for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'img']):
+                # Extract headings, paragraphs, tables, and standalone images in order
+                for element in soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'img', 'table']):
                     tag_name = element.name
                     
                     if tag_name.startswith('h'):
@@ -209,6 +209,14 @@ class EPUBParser:
                             alt_text = element.get('alt', '')
                             if alt_text:
                                 text_parts.append(f"[Image: {alt_text}]")
+                    elif tag_name == 'table':
+                        # Preserve table HTML structure completely
+                        html_parts.append(str(element))
+                        # For plain text, extract table content row by row
+                        table_text = element.get_text(separator=' ', strip=True)
+                        table_text = ' '.join(table_text.split())
+                        if table_text:
+                            text_parts.append(table_text)
                     else:
                         # For paragraphs, preserve inner HTML with formatting tags and images
                         inner_html = self._extract_formatted_html(element)
