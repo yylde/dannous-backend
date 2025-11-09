@@ -7,7 +7,7 @@ from src.database import DatabaseManager
 logger = logging.getLogger(__name__)
 
 
-def generate_description_async(draft_id, title, author, book_text_sample):
+def generate_description_async(draft_id, title, author, full_text, age_range, reading_level):
     """Generate description asynchronously in background for a book."""
     try:
         db = DatabaseManager()
@@ -17,7 +17,7 @@ def generate_description_async(draft_id, title, author, book_text_sample):
         description = generator.generate_description(
             title=title,
             author=author,
-            book_text_sample=book_text_sample if book_text_sample else None,
+            book_text_sample=full_text if full_text else None,
             book_id=str(draft_id)
         )
         

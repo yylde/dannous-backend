@@ -130,6 +130,59 @@ def update_chapter(chapter_id):
         return jsonify({'error': str(e)}), 500
 
 
+@chapters_bp.route('/chapter/<chapter_id>/regenerate-questions', methods=['POST'])
+def regenerate_chapter_questions_simple(chapter_id):
+    """Regenerate questions for a single chapter (simplified route)."""
+    try:
+        db = DatabaseManager()
+        
+        # Get the chapter to verify it exists and get its draft_id
+        chapter = db.get_draft_chapter(chapter_id)
+        if not chapter:
+            return jsonify({'error': 'Chapter not found'}), 404
+        
+        draft_id = chapter.get('draft_id')
+        if not draft_id:
+            return jsonify({'error': 'Chapter not associated with a draft'}), 404
+        
+        # Get the draft to verify tags are ready
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        tag_status = draft.get('tag_status')
+        if tag_status != 'ready':
+            return jsonify({
+                'error': f'Tags must be ready before regenerating questions. Current status: {tag_status}'
+            }), 400
+        
+        # Trigger async regeneration for single chapter
+        regen_thread = threading.Thread(
+            target=regenerate_single_chapter_questions_async,
+            args=(
+                chapter_id,
+                draft_id,
+                chapter['title'],
+                chapter['content'],
+                chapter.get('html_formatting'),
+                draft.get('age_range'),
+                draft.get('reading_level')
+            )
+        )
+        regen_thread.daemon = True
+        regen_thread.start()
+        
+        logger.info(f"Started question regeneration for chapter {chapter_id}")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Question regeneration started for chapter'
+        })
+    except Exception as e:
+        logger.exception("Failed to start chapter question regeneration")
+        return jsonify({'error': str(e)}), 500
+
+
 @chapters_bp.route('/draft/<draft_id>/regenerate-chapter-questions/<chapter_id>', methods=['POST'])
 def regenerate_chapter_questions(draft_id, chapter_id):
     """Regenerate questions for a single chapter."""
