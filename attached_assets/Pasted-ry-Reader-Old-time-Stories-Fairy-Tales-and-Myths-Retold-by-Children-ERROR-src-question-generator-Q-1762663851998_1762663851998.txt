@@ -1,0 +1,51 @@
+ry Reader: Old-time Stories, Fairy Tales and Myths Retold by Children
+ERROR:src.question_generator:Queued Ollama API call failed: '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Synopsis attempt 1: TypeError - '<' not supported between instances of 'str' and 'int'
+INFO:src.ollama_queue:OllamaWorker-0 executing task #1 [DESCRIPTION]: generate_synopsis_A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children
+WARNING:src.ollama_queue:OllamaWorker-0 task #1 attempt 1 failed: 1 validation error for GenerateRequest
+prompt
+  Input should be a valid string [type=string_type, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type, retrying in 1.0s...
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:50:39] "GET /api/draft-chapters/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -
+INFO:src.question_generator:Synopsis generation attempt 2/2
+INFO:src.ollama_queue:Submitting task #2 [DESCRIPTION]: generate_synopsis_A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children
+ERROR:src.question_generator:Queued Ollama API call failed: '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Synopsis attempt 2: TypeError - '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Using fallback synopsis
+INFO:src.question_generator:Description generation attempt 1/2
+INFO:src.ollama_queue:Submitting task #3 [DESCRIPTION]: generate_description_A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children
+ERROR:src.question_generator:Queued Ollama API call failed: '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Description attempt 1: TypeError - '<' not supported between instances of 'str' and 'int'
+WARNING:src.ollama_queue:OllamaWorker-0 task #1 attempt 2 failed: 1 validation error for GenerateRequest
+prompt
+  Input should be a valid string [type=string_type, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type, retrying in 2.0s...
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 20:50:41] "GET /api/draft-chapters/764c1caf-ec91-44aa-8f8b-80b5fa977f52 HTTP/1.1" 200 -
+INFO:src.question_generator:Description generation attempt 2/2
+INFO:src.ollama_queue:Submitting task #4 [DESCRIPTION]: generate_description_A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children
+ERROR:src.question_generator:Queued Ollama API call failed: '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Description attempt 2: TypeError - '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Using fallback description
+INFO:__main__:✓ Generated description for draft 764c1caf-ec91-44aa-8f8b-80b5fa977f52: A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children by E. Louise Smythe is ...
+ERROR:src.ollama_queue:OllamaWorker-0 failed task #1 [DESCRIPTION] after 3 attempts: 1 validation error for GenerateRequest
+prompt
+  Input should be a valid string [type=string_type, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type
+Traceback (most recent call last):
+  File "/Users/chedly/dannous-backend/src/ollama_queue.py", line 135, in _execute_task
+    result = task.func(*task.args, **task.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/src/question_generator.py", line 371, in _call_ollama_direct
+    response = ollama.generate(**generate_params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 260, in generate
+    json=GenerateRequest(
+         ^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/.venv/lib/python3.12/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for GenerateRequest
+prompt
+  Input should be a valid string [type=string_type, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type
+INFO:src.ollama_queue:OllamaWorker-0 executing task #2 [DESCRIPTION]: generate_synopsis_A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children
