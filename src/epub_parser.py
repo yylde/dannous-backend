@@ -219,9 +219,15 @@ class EPUBParser:
                             text_parts.append(table_text)
                     else:
                         # For paragraphs, preserve inner HTML with formatting tags and images
+                        # Also preserve paragraph-level attributes (style, class, id)
                         inner_html = self._extract_formatted_html(element)
                         if inner_html.strip():
-                            html_parts.append(f'<p>{inner_html}</p>')
+                            # Build attributes string from paragraph element
+                            attrs = self._extract_attributes(element)
+                            if attrs:
+                                html_parts.append(f'<p {attrs}>{inner_html}</p>')
+                            else:
+                                html_parts.append(f'<p>{inner_html}</p>')
                             # Also extract plain text version
                             plain_text = element.get_text(separator=' ', strip=True)
                             plain_text = ' '.join(plain_text.split())
@@ -249,40 +255,63 @@ class EPUBParser:
         
         return html_sections, text_sections
     
+    def _extract_attributes(self, element) -> str:
+        """Extract relevant attributes from an element and return as a string.
+        
+        Preserves: style, class, id
+        Excludes: navigation/tracking attributes
+        """
+        attrs = []
+        
+        # Preserve style attribute
+        if element.get('style'):
+            attrs.append(f'style="{element.get("style")}"')
+        
+        # Preserve class attribute
+        if element.get('class'):
+            class_val = ' '.join(element.get('class')) if isinstance(element.get('class'), list) else element.get('class')
+            attrs.append(f'class="{class_val}"')
+        
+        # Preserve id attribute
+        if element.get('id'):
+            attrs.append(f'id="{element.get("id")}"')
+        
+        return ' '.join(attrs)
+    
     def _extract_formatted_html(self, element) -> str:
-        """Extract HTML from element, preserving formatting tags like em, strong, i, b, and img."""
-        # Build HTML string preserving formatting tags
+        """Extract HTML from element, preserving all formatting including br tags, entities, and styles."""
+        from bs4.element import NavigableString
+        
         result = []
         for content in element.children:
-            if isinstance(content, str):
-                # Plain text - clean whitespace
-                text = ' '.join(content.split())
+            if isinstance(content, NavigableString):
+                # Preserve the original string exactly, including &nbsp; and all whitespace
+                text = str(content)
                 if text:
                     result.append(text)
             else:
-                # HTML element - check if it's a formatting tag or img
-                if content.name == 'img':
+                # HTML element - preserve most tags with their attributes
+                if content.name == 'br':
+                    # Preserve <br> tags exactly
+                    result.append('<br>')
+                elif content.name == 'img':
                     # Preserve img tag (src already replaced with base64)
                     result.append(str(content))
-                elif content.name in ['em', 'i', 'strong', 'b', 'u', 'span', 'a']:
-                    # Preserve the formatting tag
-                    inner_text = content.get_text(separator=' ', strip=True)
-                    inner_text = ' '.join(inner_text.split())
+                elif content.name in ['em', 'i', 'strong', 'b', 'u', 'sup', 'sub', 'span', 'div']:
+                    # Preserve formatting tags with ALL their attributes (style, class, etc.)
+                    result.append(str(content))
+                elif content.name == 'a':
+                    # For links, just extract the text (don't need href in chapter content)
+                    inner_text = content.get_text()
                     if inner_text:
-                        # For simple formatting tags, preserve them
-                        if content.name in ['em', 'i', 'strong', 'b', 'u']:
-                            result.append(f'<{content.name}>{inner_text}</{content.name}>')
-                        else:
-                            # For span and anchor, just extract text
-                            result.append(inner_text)
+                        result.append(inner_text)
                 else:
-                    # For other tags, just extract text
-                    text = content.get_text(separator=' ', strip=True)
-                    text = ' '.join(text.split())
-                    if text:
-                        result.append(text)
+                    # For other nested tags, recurse to preserve their inner formatting
+                    inner_html = self._extract_formatted_html(content)
+                    if inner_html:
+                        result.append(inner_html)
         
-        return ' '.join(result)
+        return ''.join(result)
 
 
 def download_gutenberg_epub(gutenberg_id: int, output_path: str) -> str:

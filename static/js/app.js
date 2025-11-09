@@ -32,6 +32,19 @@ function cleanUsageHighlighting(container) {
     // Get all elements in the container
     const allElements = container.querySelectorAll('*');
     
+    // Usage tracking colors to remove (hex values)
+    const trackingColorsHex = ['#E3F2FD', '#E8F5E9', '#FFF9C4', '#FCE4EC', '#F3E5F5', '#d4edda'];
+    
+    // Convert hex to rgb for comparison (browsers often normalize colors)
+    const trackingColorsRgb = [
+        'rgb(227, 242, 253)',  // #E3F2FD
+        'rgb(232, 245, 233)',  // #E8F5E9
+        'rgb(255, 249, 196)',  // #FFF9C4
+        'rgb(252, 228, 236)',  // #FCE4EC
+        'rgb(243, 229, 245)',  // #F3E5F5
+        'rgb(212, 237, 218)'   // #d4edda
+    ];
+    
     allElements.forEach(element => {
         // Remove the data-para-index attribute used for tracking
         element.removeAttribute('data-para-index');
@@ -40,15 +53,39 @@ function cleanUsageHighlighting(container) {
         if (element.hasAttribute('style')) {
             const currentStyle = element.getAttribute('style');
             
-            // Parse the style string and remove usage highlighting properties
+            // Parse the style string and remove ONLY usage tracking style values
             const styleProps = currentStyle.split(';').map(s => s.trim()).filter(s => s);
             const cleanedProps = styleProps.filter(prop => {
-                const propName = prop.split(':')[0].trim().toLowerCase();
-                // Remove background-color, border-left, and padding-left added by usage tracking
-                // These are the specific styles added in displayFullBook()
-                return propName !== 'background-color' && 
-                       propName !== 'border-left' && 
-                       propName !== 'padding-left';
+                const [propName, propValue] = prop.split(':').map(s => s.trim());
+                const nameLower = propName?.toLowerCase() || '';
+                const valueLower = propValue?.toLowerCase() || '';
+                
+                // Remove specific usage tracking styles:
+                // 1. Background colors used for chapter highlighting (both hex and rgb)
+                if (nameLower === 'background-color') {
+                    // Check hex colors
+                    if (trackingColorsHex.some(c => valueLower.includes(c.toLowerCase()))) {
+                        return false;
+                    }
+                    // Check rgb colors (normalize spaces)
+                    const normalizedValue = valueLower.replace(/\s+/g, '');
+                    if (trackingColorsRgb.some(c => normalizedValue.includes(c.toLowerCase().replace(/\s+/g, '')))) {
+                        return false;
+                    }
+                }
+                
+                // 2. Border-left used for chapter highlighting (4px solid rgba(0,0,0,0.2))
+                if (nameLower === 'border-left' && valueLower.includes('4px') && valueLower.includes('rgba(0') && valueLower.includes('0.2')) {
+                    return false;
+                }
+                
+                // 3. Padding-left of exactly 8px (used for chapter highlighting)
+                if (nameLower === 'padding-left' && valueLower === '8px') {
+                    return false;
+                }
+                
+                // Keep all other styles (including original background-color, border-left, padding-left with different values)
+                return true;
             });
             
             // Update or remove the style attribute
@@ -468,36 +505,81 @@ function displayFullBook() {
         const chapterNum = paragraphChapters[idx];
         const isUsed = chapterNum !== undefined;
         
-        // Apply chapter-specific color if used, otherwise no style
-        let usedStyle = '';
-        if (isUsed && chapterNum !== null) {
-            highlightedCount++;
-            const bgColor = chapterColors[chapterNum];
-            
-            if (bgColor) {
-                console.log(`Para ${idx} → Chapter ${chapterNum} → Color ${bgColor}`);
-                usedStyle = ` style="background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
-            } else {
-                console.warn(`Para ${idx} → Chapter ${chapterNum} but NO COLOR FOUND!`);
-                usedStyle = ` style="background-color: #d4edda; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
-            }
-        }
-
         // Check if this is already an HTML tag (heading, paragraph, image, etc.)
         if (trimmedPart.startsWith('<') && trimmedPart.includes('>')) {
-            // Add data-para-index to paragraphs for tracking
+            // Add data-para-index to paragraphs for tracking and merge usage highlighting styles
             if (trimmedPart.startsWith('<p')) {
-                return trimmedPart.replace('<p', `<p data-para-index="${idx}"${usedStyle}`);
+                highlightedCount += isUsed ? 1 : 0;
+                return addUsageHighlightingToParagraph(trimmedPart, idx, isUsed, chapterNum);
             }
             return trimmedPart;
         } else {
             // Wrap plain text in paragraph tag
-            return `<p data-para-index="${idx}"${usedStyle}>${trimmedPart}</p>`;
+            const usedStyles = isUsed && chapterNum !== null ? getUsageHighlightStyles(chapterNum) : '';
+            return `<p data-para-index="${idx}"${usedStyles}>${trimmedPart}</p>`;
         }
     }).join('');
     
     console.log('Total highlighted:', highlightedCount, 'paragraphs');
     console.log('=== END DEBUG ===');
+}
+
+// Helper function to get usage highlighting styles for a chapter
+function getUsageHighlightStyles(chapterNum) {
+    const bgColor = chapterColors[chapterNum];
+    if (!bgColor) {
+        console.warn(`Chapter ${chapterNum} has no color assigned`);
+        return ' style="background-color: #d4edda; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"';
+    }
+    return ` style="background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
+}
+
+// Helper function to add usage highlighting to a paragraph tag while preserving original attributes
+function addUsageHighlightingToParagraph(paragraphHtml, idx, isUsed, chapterNum) {
+    // Parse the opening tag to extract existing attributes
+    const openTagMatch = paragraphHtml.match(/^<p([^>]*)>/);
+    if (!openTagMatch) {
+        // Fallback if parsing fails
+        return paragraphHtml;
+    }
+    
+    const existingAttrs = openTagMatch[1];
+    const content = paragraphHtml.substring(openTagMatch[0].length);
+    
+    // Extract existing style attribute if present
+    const styleMatch = existingAttrs.match(/style=["']([^"']*)["']/);
+    const existingStyle = styleMatch ? styleMatch[1] : '';
+    
+    // Build new attributes
+    let newAttrs = ` data-para-index="${idx}"`;
+    
+    // Merge styles if paragraph is used
+    if (isUsed && chapterNum !== null) {
+        const bgColor = chapterColors[chapterNum] || '#d4edda';
+        const usageStyles = `background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;`;
+        
+        // Normalize existing style to ensure it ends with semicolon
+        let normalizedExistingStyle = existingStyle.trim();
+        if (normalizedExistingStyle && !normalizedExistingStyle.endsWith(';')) {
+            normalizedExistingStyle += ';';
+        }
+        
+        const mergedStyle = normalizedExistingStyle ? `${normalizedExistingStyle} ${usageStyles}` : usageStyles;
+        newAttrs += ` style="${mergedStyle}"`;
+        
+        // Add other attributes (class, id, etc.) but skip the old style attribute
+        const otherAttrs = existingAttrs.replace(/style=["'][^"']*["']/, '').trim();
+        if (otherAttrs) {
+            newAttrs += ' ' + otherAttrs;
+        }
+    } else {
+        // Not used, just add the original attributes
+        if (existingAttrs.trim()) {
+            newAttrs += ' ' + existingAttrs.trim();
+        }
+    }
+    
+    return `<p${newAttrs}>${content}`;
 }
 
 // ==================== USAGE TRACKING FUNCTIONS ====================
