@@ -59,8 +59,9 @@ def get_description_status(draft_id: str) -> str:
     if not draft:
         return 'pending'
     
-    # Check if description exists
-    description = draft.get('description', '').strip()
+    # Check if description exists (handle NULL values)
+    description = draft.get('description') or ''
+    description = description.strip() if isinstance(description, str) else ''
     if description:
         return 'ready'
     
