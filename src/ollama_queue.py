@@ -323,5 +323,5 @@ def queue_ollama_call(
         Result from the Ollama function
     """
     manager = get_queue_manager()
-    # Explicitly pass timeout as keyword arg to prevent *args from being captured by it
-    return manager.submit_task(func, priority, task_name, timeout=300.0, *args, **kwargs)
+    # Pass task_name as keyword arg to ensure *args are properly passed to the function
+    return manager.submit_task(func, priority, task_name=task_name, *args, **kwargs)
