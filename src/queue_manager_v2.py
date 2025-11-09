@@ -173,6 +173,90 @@ class QueueManagerV2:
         
         return deleted_count
     
+    def enqueue_tasks_batch(
+        self,
+        task_type: str,
+        priority: int,
+        book_id: str,
+        chapter_id: Optional[str],
+        payloads: List[Dict[str, Any]]
+    ) -> List[str]:
+        """
+        Enqueue multiple tasks atomically (e.g., one per grade level).
+        
+        Deletes conflicting tasks and inserts all new tasks in ONE transaction.
+        This prevents race conditions between concurrent batch enqueues.
+        
+        Args:
+            task_type: Type of task ('questions', etc.)
+            priority: Priority level
+            book_id: Draft book ID
+            chapter_id: Chapter ID
+            payloads: List of task payloads (each with different grade_level)
+        
+        Returns:
+            List of task IDs
+        """
+        timeout_minutes = 15
+        timeout_at = datetime.now() + timedelta(minutes=timeout_minutes)
+        task_ids = []
+        
+        # Perform DELETE and INSERT in ONE transaction to prevent race conditions
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                # Step 1: Delete conflicting tasks
+                if chapter_id:
+                    cur.execute("""
+                        DELETE FROM queue_tasks
+                        WHERE status = 'queued'
+                          AND task_type = %s
+                          AND book_id = %s
+                          AND chapter_id = %s
+                    """, (task_type, book_id, chapter_id))
+                else:
+                    cur.execute("""
+                        DELETE FROM queue_tasks
+                        WHERE status = 'queued'
+                          AND task_type = %s
+                          AND book_id = %s
+                          AND chapter_id IS NULL
+                    """, (task_type, book_id))
+                
+                deleted_count = cur.rowcount
+                if deleted_count > 0:
+                    logger.info(f"[QUEUE] Deleted {deleted_count} conflicting {task_type} tasks")
+                
+                # Step 2: Insert all new tasks
+                # Use ON CONFLICT DO NOTHING to handle concurrent inserts gracefully
+                # (relies on unique constraint from migration 013)
+                for payload in payloads:
+                    cur.execute("""
+                        INSERT INTO queue_tasks (
+                            task_type, priority, status, book_id, chapter_id, 
+                            payload, timeout_at
+                        ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        ON CONFLICT DO NOTHING
+                        RETURNING id
+                    """, (
+                        task_type,
+                        priority,
+                        'queued',
+                        book_id,
+                        chapter_id,
+                        json.dumps(payload),
+                        timeout_at
+                    ))
+                    result = cur.fetchone()
+                    if result:  # Only add to task_ids if insert succeeded (not conflicted)
+                        task_id = result[0]
+                        task_ids.append(str(task_id))
+                
+                # Commit both DELETE and INSERT together
+                conn.commit()
+        
+        logger.info(f"[QUEUE] Batch enqueued {len(task_ids)} {task_type} tasks for chapter {chapter_id}")
+        return task_ids
+    
     def _lock_next_task(self) -> Optional[QueueTask]:
         """
         Atomically lock the next available task.
@@ -271,6 +355,50 @@ class QueueManagerV2:
                 conn.commit()
         
         logger.info(f"[QUEUE] Task {task_id} -> {status}")
+    
+    def get_status(self) -> Dict[str, Any]:
+        """Get queue status for monitoring."""
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # Count tasks by status
+                cur.execute("""
+                    SELECT status, COUNT(*) as count
+                    FROM queue_tasks
+                    GROUP BY status
+                """)
+                status_counts = {row['status']: row['count'] for row in cur.fetchall()}
+                
+                # Get all active tasks (queued + processing)
+                cur.execute("""
+                    SELECT id, task_type, priority, status, book_id, chapter_id,
+                           payload, attempts, created_at, locked_at
+                    FROM queue_tasks
+                    WHERE status IN ('queued', 'processing', 'error')
+                    ORDER BY priority ASC, created_at ASC
+                    LIMIT 100
+                """)
+                tasks = []
+                for row in cur.fetchall():
+                    tasks.append({
+                        'id': str(row['id']),
+                        'task_type': row['task_type'],
+                        'priority': row['priority'],
+                        'status': row['status'],
+                        'book_id': row['book_id'],
+                        'chapter_id': row['chapter_id'],
+                        'payload': row['payload'],
+                        'attempts': row['attempts'],
+                        'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                        'locked_at': row['locked_at'].isoformat() if row['locked_at'] else None
+                    })
+                
+                return {
+                    'total_queued': status_counts.get('queued', 0),
+                    'total_processing': status_counts.get('processing', 0),
+                    'total_ready': status_counts.get('ready', 0),
+                    'total_error': status_counts.get('error', 0),
+                    'tasks': tasks
+                }
     
     def worker_loop(self):
         """

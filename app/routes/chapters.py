@@ -50,11 +50,8 @@ def save_draft_chapter():
             if grade_tags:
                 logger.info(f"Tags exist for draft {draft_id}. Auto-enqueuing question generation for chapter {chapter_id}")
                 
-                # Use new queue system
-                queue_manager_v2 = get_queue_manager_v2()
-                
-                # Enqueue one task per grade level
-                task_count = 0
+                # Build all payloads first
+                payloads = []
                 for grade_level in grade_tags:
                     payload = {
                         'book_id': draft_id,
@@ -70,23 +67,25 @@ def save_draft_chapter():
                         'num_questions': 3,
                         'vocab_count': 8
                     }
-                    
-                    task_id = queue_manager_v2.enqueue_task(
-                        task_type='questions',
-                        priority=3,
-                        book_id=draft_id,
-                        chapter_id=chapter_id,
-                        payload=payload
-                    )
-                    task_count += 1
+                    payloads.append(payload)
                 
-                logger.info(f"Enqueued {task_count} question generation tasks for chapter {chapter_id}")
+                # Batch enqueue all tasks at once
+                queue_manager_v2 = get_queue_manager_v2()
+                task_ids = queue_manager_v2.enqueue_tasks_batch(
+                    task_type='questions',
+                    priority=3,
+                    book_id=draft_id,
+                    chapter_id=chapter_id,
+                    payloads=payloads
+                )
+                
+                logger.info(f"Enqueued {len(task_ids)} question generation tasks for chapter {chapter_id}")
                 
                 return jsonify({
                     'success': True,
                     'chapter_id': chapter_id,
                     'status': 'queued',
-                    'tasks_enqueued': task_count
+                    'tasks_enqueued': len(task_ids)
                 })
             else:
                 logger.info(f"Draft {draft_id} has no grade tags yet")
