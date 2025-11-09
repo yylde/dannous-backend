@@ -1024,6 +1024,13 @@ function showLoading(show) {
 
 function showStatus(message, type = 'info') {
     const statusDiv = document.getElementById('download-status');
+    
+    // If status div doesn't exist (e.g., on draft page), just log to console
+    if (!statusDiv) {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+        return;
+    }
+    
     const alertClass = type === 'error' ? 'alert-error' : type === 'success' ? 'alert-success' : 'alert-info';
 
     statusDiv.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
@@ -1234,7 +1241,16 @@ async function loadDraft(draftId) {
         // Update chapter stats to show empty state
         updateChapterStats();
         
-        document.getElementById('book-section').style.display = 'block';
+        // DEBUG: Check if book-section exists and show it
+        const bookSection = document.getElementById('book-section');
+        console.log('About to show book-section:', bookSection);
+        if (bookSection) {
+            bookSection.style.display = 'block';
+            console.log('book-section display set to:', bookSection.style.display);
+            console.log('book-section computed display:', window.getComputedStyle(bookSection).display);
+        } else {
+            console.error('ERROR: book-section element not found!');
+        }
         
         // Refresh sidebar to show active draft
         loadDraftsInSidebar();
@@ -1242,6 +1258,7 @@ async function loadDraft(draftId) {
         // Start polling for chapter status updates
         startStatusPolling();
         
+        const nextChapterNumber = chapters.length + 1;
         console.log(`✓ Draft loaded with ${chapters.length} existing chapters. Ready for Chapter ${nextChapterNumber}.`);
         showStatus(`Loaded draft: ${draft.title}`, 'success');
         
