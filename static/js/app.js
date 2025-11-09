@@ -27,6 +27,40 @@ function escapeHtml(str) {
         .replace(/'/g, '&#39;');
 }
 
+// Helper function to clean usage highlighting from pasted HTML
+function cleanUsageHighlighting(container) {
+    // Get all elements in the container
+    const allElements = container.querySelectorAll('*');
+    
+    allElements.forEach(element => {
+        // Remove the data-para-index attribute used for tracking
+        element.removeAttribute('data-para-index');
+        
+        // Clean the style attribute
+        if (element.hasAttribute('style')) {
+            const currentStyle = element.getAttribute('style');
+            
+            // Parse the style string and remove usage highlighting properties
+            const styleProps = currentStyle.split(';').map(s => s.trim()).filter(s => s);
+            const cleanedProps = styleProps.filter(prop => {
+                const propName = prop.split(':')[0].trim().toLowerCase();
+                // Remove background-color, border-left, and padding-left added by usage tracking
+                // These are the specific styles added in displayFullBook()
+                return propName !== 'background-color' && 
+                       propName !== 'border-left' && 
+                       propName !== 'padding-left';
+            });
+            
+            // Update or remove the style attribute
+            if (cleanedProps.length > 0) {
+                element.setAttribute('style', cleanedProps.join('; ') + ';');
+            } else {
+                element.removeAttribute('style');
+            }
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     updateDifficultyRange();
     
@@ -62,6 +96,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Create a temporary div to parse the HTML
                     const temp = document.createElement('div');
                     temp.innerHTML = htmlData;
+                    
+                    // Remove usage tracking attributes and styles from all elements
+                    cleanUsageHighlighting(temp);
+                    
                     const fragment = document.createDocumentFragment();
                     while (temp.firstChild) {
                         fragment.appendChild(temp.firstChild);
