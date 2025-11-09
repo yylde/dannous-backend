@@ -139,9 +139,17 @@ def get_question_status(chapter_id: str) -> str:
             return 'error'
     
     # If no active task, check if all questions exist
-    questions = chapter.get('questions', [])
+    # Query database directly instead of relying on cached chapter data
+    with db.get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("""
+                SELECT COUNT(*) 
+                FROM draft_questions 
+                WHERE chapter_id = %s
+            """, (chapter_id,))
+            actual_count = cur.fetchone()[0]
+    
     expected_count = num_grades * 3  # 3 questions per grade
-    actual_count = len(questions)
     
     if actual_count >= expected_count:
         return 'ready'
