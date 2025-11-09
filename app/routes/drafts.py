@@ -104,54 +104,56 @@ def create_or_update_draft():
             )
             
             # Database connection is now closed and transaction committed
-            # Safe to start async operations
-            logger.info(f"Created draft {draft_id}, starting async tag and description generation...")
+            logger.info(f"Created draft {draft_id}")
             
-            # Enqueue tag generation task
-            queue_manager = get_queue_manager()
-            title = data.get('title', '')
-            age_range = data.get('age_range', settings.default_age_range)
-            reading_level = data.get('reading_level', settings.default_reading_level)
-            
-            task_id = queue_manager.enqueue_task(
-                generate_tags_async,
-                TaskPriority.GENRE_TAG,
-                draft_id,
-                title,
-                data.get('author'),
-                age_range,
-                reading_level,
-                task_name=f"Tags: {title[:30]}",
-                task_type="tags",
-                book_id=draft_id
-            )
-            
-            # Update status to 'queued'
-            db.update_draft_tag_status(draft_id, 'queued')
-            
-            logger.info(f"Enqueued tag generation for draft {draft_id} (task #{task_id})")
-            
-            # Enqueue description generation task
-            book_text_sample = ' '.join(full_text.split()[:2000]) if full_text else ''
-            
-            desc_task_id = queue_manager.enqueue_task(
-                generate_description_async,
-                TaskPriority.DESCRIPTION,
-                draft_id,
-                title,
-                data.get('author'),
-                book_text_sample,
-                age_range,
-                reading_level,
-                task_name=f"Description: {title[:30]}",
-                task_type="descriptions",
-                book_id=draft_id
-            )
-            
-            # Update status to 'queued'
-            db.update_draft_description_status(draft_id, 'queued')
-            
-            logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
+            # AUTOMATIC TAG AND DESCRIPTION GENERATION DISABLED
+            # User will manually trigger these from the UI
+            # 
+            # # Enqueue tag generation task
+            # queue_manager = get_queue_manager()
+            # title = data.get('title', '')
+            # age_range = data.get('age_range', settings.default_age_range)
+            # reading_level = data.get('reading_level', settings.default_reading_level)
+            # 
+            # task_id = queue_manager.enqueue_task(
+            #     generate_tags_async,
+            #     TaskPriority.GENRE_TAG,
+            #     draft_id,
+            #     title,
+            #     data.get('author'),
+            #     age_range,
+            #     reading_level,
+            #     task_name=f"Tags: {title[:30]}",
+            #     task_type="tags",
+            #     book_id=draft_id
+            # )
+            # 
+            # # Update status to 'queued'
+            # db.update_draft_tag_status(draft_id, 'queued')
+            # 
+            # logger.info(f"Enqueued tag generation for draft {draft_id} (task #{task_id})")
+            # 
+            # # Enqueue description generation task
+            # book_text_sample = ' '.join(full_text.split()[:2000]) if full_text else ''
+            # 
+            # desc_task_id = queue_manager.enqueue_task(
+            #     generate_description_async,
+            #     TaskPriority.DESCRIPTION,
+            #     draft_id,
+            #     title,
+            #     data.get('author'),
+            #     book_text_sample,
+            #     age_range,
+            #     reading_level,
+            #     task_name=f"Description: {title[:30]}",
+            #     task_type="descriptions",
+            #     book_id=draft_id
+            # )
+            # 
+            # # Update status to 'queued'
+            # db.update_draft_description_status(draft_id, 'queued')
+            # 
+            # logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
             
             return jsonify({'success': True, 'draft_id': draft_id})
     
