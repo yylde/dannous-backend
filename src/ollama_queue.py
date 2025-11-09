@@ -281,6 +281,74 @@ class OllamaQueueManager:
         
         return result
     
+    def enqueue_task(
+        self,
+        func: Callable,
+        priority: TaskPriority,
+        *args,
+        task_name: str = "",
+        task_type: str = "unknown",
+        book_id: Optional[str] = None,
+        chapter_id: Optional[str] = None,
+        **kwargs
+    ) -> int:
+        """
+        Enqueue a task without waiting for result (non-blocking).
+        
+        Args:
+            func: Function to execute
+            priority: Task priority (TaskPriority enum)
+            *args: Positional arguments for func
+            task_name: Descriptive name for logging (keyword-only)
+            task_type: Type of task (description, tags, questions)
+            book_id: Book/draft ID associated with task
+            chapter_id: Chapter ID if applicable
+            **kwargs: Keyword arguments for func
+        
+        Returns:
+            Task ID (integer)
+        """
+        if self._shutdown:
+            raise RuntimeError("Queue manager is shut down")
+        
+        task_id = self._get_next_task_id()
+        
+        task = OllamaTask(
+            priority=int(priority),
+            task_id=task_id,
+            func=func,
+            args=args,
+            kwargs=kwargs,
+            result_queue=None,  # No result queue for non-blocking
+            task_name=task_name or func.__name__,
+            task_type=task_type,
+            book_id=book_id,
+            chapter_id=chapter_id
+        )
+        
+        # Track pending task
+        with self._pending_tasks_lock:
+            self._pending_tasks[task_id] = {
+                'task_id': task_id,
+                'priority': task.priority,
+                'task_name': task.task_name,
+                'task_type': task_type,
+                'book_id': book_id,
+                'chapter_id': chapter_id
+            }
+        
+        # Save task to database for persistence
+        db_task_id = self._save_task_to_db(task)
+        if db_task_id:
+            self._db_task_map[task_id] = db_task_id
+        
+        priority_name = self._get_priority_name(task.priority)
+        logger.info(f"Enqueued task #{task_id} [{priority_name}]: {task.task_name} (non-blocking)")
+        
+        self._task_queue.put(task)
+        
+        return task_id
+    
     def get_queue_size(self) -> int:
         """Get current number of tasks in queue."""
         return self._task_queue.qsize()
@@ -301,6 +369,80 @@ class OllamaQueueManager:
             'shutdown': self._shutdown,
             'pending_tasks': pending_tasks
         }
+    
+    def delete_tasks_for_book_chapter(self, book_id: Optional[str] = None, chapter_id: Optional[str] = None) -> int:
+        """Delete specific pending tasks from queue by book_id and/or chapter_id.
+        
+        Args:
+            book_id: Delete tasks for this book (UUID string)
+            chapter_id: Delete tasks for this chapter (UUID string)
+            
+        Returns:
+            Number of tasks that were removed
+        """
+        if not book_id and not chapter_id:
+            return 0
+        
+        deleted_count = 0
+        remaining_tasks = []
+        
+        # Drain queue and filter out matching tasks
+        while not self._task_queue.empty():
+            try:
+                task = self._task_queue.get_nowait()
+                if task is None:  # Shutdown sentinel
+                    remaining_tasks.append(task)
+                    continue
+                
+                # Check if task matches deletion criteria
+                should_delete = False
+                if book_id and chapter_id:
+                    should_delete = (task.book_id == book_id and task.chapter_id == chapter_id)
+                elif book_id:
+                    should_delete = (task.book_id == book_id)
+                elif chapter_id:
+                    should_delete = (task.chapter_id == chapter_id)
+                
+                if should_delete:
+                    deleted_count += 1
+                    # Delete from database if it has a DB ID
+                    if hasattr(task, 'db_id') and task.db_id:
+                        self._delete_task_from_db(task.db_id)
+                    # Send error to any waiting threads
+                    if task.result_queue is not None:
+                        task.result_queue.put(('error', Exception('Task cancelled due to regeneration')))
+                    self._task_queue.task_done()
+                else:
+                    remaining_tasks.append(task)
+                    self._task_queue.task_done()
+            except queue.Empty:
+                break
+        
+        # Re-add remaining tasks to queue
+        for task in remaining_tasks:
+            self._task_queue.put(task)
+        
+        # Also delete from database
+        if self._database_url:
+            conn = self._get_db_connection()
+            if conn:
+                try:
+                    with conn.cursor() as cur:
+                        if book_id and chapter_id:
+                            cur.execute("DELETE FROM queue_tasks WHERE book_id = %s AND chapter_id = %s", (book_id, chapter_id))
+                        elif book_id:
+                            cur.execute("DELETE FROM queue_tasks WHERE book_id = %s", (book_id,))
+                        elif chapter_id:
+                            cur.execute("DELETE FROM queue_tasks WHERE chapter_id = %s", (chapter_id,))
+                        conn.commit()
+                except Exception as e:
+                    logger.error(f"Failed to delete tasks from database: {e}")
+                    conn.rollback()
+                finally:
+                    conn.close()
+        
+        logger.info(f"Deleted {deleted_count} tasks for book_id={book_id}, chapter_id={chapter_id}")
+        return deleted_count
     
     def flush_queue(self) -> int:
         """Clear all pending tasks from the queue.

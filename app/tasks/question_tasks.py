@@ -14,6 +14,51 @@ logger = logging.getLogger(__name__)
 PARALLEL_GENERATION = os.environ.get('PARALLEL_GENERATION', 'true').lower() == 'true'
 
 
+def generate_questions_worker(draft_id, chapter_id, chapter_number, title, content, html_content, grade_level, book_title, book_author, age_range, reading_level):
+    """
+    Worker function for generating questions for a single chapter/grade.
+    This function runs in the Ollama queue worker thread and handles persistence.
+    """
+    try:
+        logger.info(f"Worker generating questions for chapter {chapter_id}, grade {grade_level}")
+        
+        db = DatabaseManager()
+        generator = QuestionGenerator()
+        
+        # Generate questions and vocabulary for this grade level
+        questions_data, vocabulary_data = generator.generate_questions(
+            title=book_title,
+            author=book_author,
+            chapter_number=chapter_number,
+            chapter_title=title,
+            chapter_text=content,
+            reading_level=reading_level,
+            age_range=age_range,
+            grade_level=grade_level,
+            num_questions=settings.questions_per_chapter,
+            vocab_count=8,
+            book_id=str(draft_id),
+            chapter_id=str(chapter_id)
+        )
+        
+        # Add grade_level to vocabulary items
+        for vocab_item in vocabulary_data:
+            vocab_item['grade_level'] = grade_level
+        
+        # Save questions for this grade level
+        db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data, grade_level=grade_level)
+        
+        logger.info(f"✓ Worker saved {len(questions_data)} questions for chapter {chapter_id}, {grade_level}")
+        
+        return {'success': True, 'questions': len(questions_data), 'vocabulary': len(vocabulary_data)}
+        
+    except Exception as e:
+        logger.exception(f"✗ Worker failed to generate questions for chapter {chapter_id}, {grade_level}: {e}")
+        db = DatabaseManager()
+        db.update_chapter_question_status(chapter_id, 'error')
+        raise
+
+
 def generate_questions_async(chapter_id, draft_id, title, content, html_content, age_range, reading_level):
     """Generate questions asynchronously in background for all detected grade levels."""
     try:
@@ -92,6 +137,8 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
 def regenerate_questions_for_draft_async(draft_id):
     """Regenerate questions for all chapters in a draft based on current grade tags."""
     try:
+        from src.ollama_queue import get_queue_manager
+        
         db = DatabaseManager()
         
         # Get the draft with current tags
@@ -99,6 +146,11 @@ def regenerate_questions_for_draft_async(draft_id):
         if not draft:
             logger.error(f"Draft {draft_id} not found")
             return
+        
+        # FIRST: Delete any existing pending question generation tasks for this book from the queue
+        queue_manager = get_queue_manager()
+        deleted_count = queue_manager.delete_tasks_for_book_chapter(book_id=draft_id)
+        logger.info(f"Deleted {deleted_count} pending queue tasks for draft {draft_id}")
         
         tags = draft.get('tags', [])
         new_grade_levels = [tag for tag in tags if tag.startswith('grade-')]
@@ -116,7 +168,7 @@ def regenerate_questions_for_draft_async(draft_id):
         logger.info(f"  Grades to delete: {grades_to_delete}")
         logger.info(f"  Grades to add: {grades_to_add}")
         
-        # Delete questions for removed grades (this happens even if no new grades are added)
+        # Delete questions for removed grades from database
         if grades_to_delete:
             logger.info(f"Deleting questions for removed grades: {grades_to_delete}")
             db.delete_questions_by_grade_level(draft_id, grades_to_delete)
@@ -147,76 +199,44 @@ def regenerate_questions_for_draft_async(draft_id):
                         with conn.cursor() as cur:
                             cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s", (chapter['id'],))
                             cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s", (chapter['id'],))
-            logger.info(f"Generating questions for grades: {grades_to_regenerate}")
             
-            generator = QuestionGenerator()
+            logger.info(f"Enqueuing question generation for {len(chapters)} chapters x {len(grades_to_regenerate)} grades = {len(chapters) * len(grades_to_regenerate)} tasks")
             
-            if not PARALLEL_GENERATION:
-                logger.info(f"[SEQUENTIAL MODE] Processing {len(chapters)} chapters one at a time")
-            else:
-                logger.info(f"[PARALLEL MODE] Processing all {len(chapters)} chapters in parallel")
-                # In parallel mode, set ALL chapters to 'generating' immediately for UI feedback
-                for chapter in chapters:
-                    db.update_chapter_question_status(chapter['id'], 'generating')
+            # Set ALL chapters to 'generating' status immediately for UI feedback
+            for chapter in chapters:
+                db.update_chapter_question_status(chapter['id'], 'generating')
             
-            chapters_to_process = chapters
+            # Enqueue non-blocking tasks for each chapter/grade combination
+            from src.ollama_queue import TaskPriority
+            task_count = 0
             
-            # Process each chapter
-            for chapter in chapters_to_process:
-                chapter_id = chapter['id']
-                logger.info(f"Processing chapter {chapter['chapter_number']}: {chapter['title']}")
-                
-                # Update status to generating
-                db.update_chapter_question_status(chapter_id, 'generating')
-                
-                all_vocabulary = []
-                
-                # Generate questions for each grade level
+            for chapter in chapters:
                 for grade_level in grades_to_regenerate:
-                    logger.info(f"  Generating for {grade_level}...")
-                    
-                    questions_data, vocabulary_data = generator.generate_questions(
-                        title=draft.get('title', 'Book Draft'),
-                        author=draft.get('author', 'Unknown'),
-                        chapter_number=chapter['chapter_number'],
-                        chapter_title=chapter['title'],
-                        chapter_text=chapter['content'],
-                        reading_level=draft.get('reading_level') or settings.default_reading_level,
-                        age_range=draft.get('age_range') or settings.default_age_range,
-                        grade_level=grade_level,
-                        num_questions=settings.questions_per_chapter,
-                        vocab_count=8,
-                        book_id=str(draft_id),
-                        chapter_id=str(chapter['id'])
+                    # Enqueue non-blocking task
+                    # Pass worker parameters as positional args to avoid conflicts with metadata params
+                    task_id = queue_manager.enqueue_task(
+                        generate_questions_worker,
+                        TaskPriority.QUESTION,
+                        # Worker function positional arguments (in correct order)
+                        draft_id,
+                        chapter['id'],  # chapter_id
+                        chapter['chapter_number'],  # chapter_number
+                        chapter['title'],  # title
+                        chapter['content'],  # content
+                        chapter.get('html_formatting'),  # html_content
+                        grade_level,
+                        draft.get('title', 'Book Draft'),  # book_title
+                        draft.get('author', 'Unknown'),  # book_author
+                        draft.get('age_range') or settings.default_age_range,  # age_range
+                        draft.get('reading_level') or settings.default_reading_level,  # reading_level
+                        # Queue metadata (keyword-only params) - NOT chapter_id to avoid duplication
+                        task_name=f"Questions: Ch{chapter['chapter_number']} {grade_level}",
+                        task_type="questions",
+                        book_id=draft_id
                     )
-                    
-                    # Add grade_level to vocabulary items
-                    for vocab_item in vocabulary_data:
-                        vocab_item['grade_level'] = grade_level
-                    
-                    all_vocabulary.extend(vocabulary_data)
-                    
-                    # Save questions for this grade level
-                    db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data, grade_level=grade_level)
-                    
-                    logger.info(f"  ✓ Saved {len(questions_data)} questions and {len(vocabulary_data)} vocabulary for {grade_level}")
-                
-                # Update HTML with vocabulary if we added new vocabulary
-                if all_vocabulary and chapter.get('html_formatting'):
-                    html_with_abbr = inject_vocabulary_abbr(chapter['html_formatting'], all_vocabulary)
-                    
-                    with db.get_connection() as conn:
-                        with conn.cursor() as cur:
-                            cur.execute("""
-                                UPDATE draft_chapters 
-                                SET html_formatting = %s
-                                WHERE id = %s
-                            """, (html_with_abbr, chapter_id))
-                
-                # Mark chapter as ready
-                db.update_chapter_question_status(chapter_id, 'ready')
-        
-        logger.info(f"✓ Question regeneration complete for draft {draft_id}")
+                    task_count += 1
+            
+            logger.info(f"✓ Enqueued {task_count} question generation tasks for draft {draft_id} - tasks will process asynchronously")
         
     except Exception as e:
         logger.exception(f"✗ Failed to regenerate questions for draft {draft_id}: {e}")
