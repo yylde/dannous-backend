@@ -131,6 +131,11 @@ class OllamaQueueManager:
         thread_name = threading.current_thread().name
         priority_name = self._get_priority_name(task.priority)
         
+        db_task_id = self._db_task_map.get(task.task_id)
+        
+        if db_task_id:
+            self._update_task_status(db_task_id, 'processing')
+        
         logger.info(
             f"{thread_name} executing task #{task.task_id} "
             f"[{priority_name}]: {task.task_name}"
@@ -139,6 +144,7 @@ class OllamaQueueManager:
         start_time = time.time()
         max_retries = 3
         retry_delay = 1.0
+        task_failed = False
         
         try:
             for attempt in range(max_retries):
@@ -153,6 +159,9 @@ class OllamaQueueManager:
                         f"{thread_name} completed task #{task.task_id} "
                         f"[{priority_name}] in {elapsed:.2f}s"
                     )
+                    
+                    if db_task_id:
+                        self._update_task_status(db_task_id, 'completed')
                     return
                     
                 except Exception as e:
@@ -172,9 +181,13 @@ class OllamaQueueManager:
                         
                         if task.result_queue is not None:
                             task.result_queue.put(('error', e))
+                        
+                        task_failed = True
         finally:
             db_task_id = self._db_task_map.pop(task.task_id, None)
             if db_task_id:
+                if task_failed:
+                    self._update_task_status(db_task_id, 'failed')
                 self._delete_task_from_db(db_task_id)
     
     def _get_priority_name(self, priority: int) -> str:
@@ -360,14 +373,52 @@ class OllamaQueueManager:
             Dict with queue size, worker count, and detailed pending tasks
         """
         with self._pending_tasks_lock:
-            pending_tasks = list(self._pending_tasks.values())
+            in_memory_tasks = list(self._pending_tasks.values())
+        
+        db_tasks = []
+        if self._database_url:
+            conn = self._get_db_connection()
+            if conn:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute("""
+                            SELECT id, task_type, book_id, chapter_id, priority, status, created_at
+                            FROM queue_tasks
+                            WHERE status != 'completed'
+                            ORDER BY priority, created_at
+                        """)
+                        
+                        rows = cur.fetchall()
+                        for row in rows:
+                            db_tasks.append({
+                                'db_id': str(row[0]),
+                                'task_type': row[1],
+                                'book_id': str(row[2]) if row[2] else None,
+                                'chapter_id': str(row[3]) if row[3] else None,
+                                'priority': row[4],
+                                'status': row[5],
+                                'created_at': row[6].isoformat() if row[6] else None
+                            })
+                except Exception as e:
+                    logger.error(f"Failed to fetch tasks from database: {e}")
+                finally:
+                    conn.close()
+        
+        db_task_ids = {task['db_id'] for task in db_tasks}
+        memory_task_db_ids = {str(self._db_task_map.get(task['task_id'])) for task in in_memory_tasks if self._db_task_map.get(task['task_id'])}
+        
+        combined_tasks = db_tasks.copy()
+        for task in in_memory_tasks:
+            task_db_id = self._db_task_map.get(task['task_id'])
+            if not task_db_id or str(task_db_id) not in db_task_ids:
+                combined_tasks.append(task)
         
         return {
             'queue_size': self._task_queue.qsize(),
             'worker_count': len(self._workers),
             'active_workers': sum(1 for w in self._workers if w.is_alive()),
             'shutdown': self._shutdown,
-            'pending_tasks': pending_tasks
+            'pending_tasks': combined_tasks
         }
     
     def delete_tasks_for_book_chapter(self, book_id: Optional[str] = None, chapter_id: Optional[str] = None) -> int:
@@ -505,15 +556,16 @@ class OllamaQueueManager:
                 })
                 
                 cur.execute("""
-                    INSERT INTO queue_tasks (task_type, book_id, chapter_id, priority, args)
-                    VALUES (%s, %s, %s, %s, %s)
+                    INSERT INTO queue_tasks (task_type, book_id, chapter_id, priority, args, status)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (
                     task.task_type,
                     task.book_id,
                     task.chapter_id,
                     task.priority,
-                    args_json
+                    args_json,
+                    'pending'
                 ))
                 
                 db_id = cur.fetchone()[0]
@@ -524,6 +576,34 @@ class OllamaQueueManager:
             logger.error(f"Failed to save task to database: {e}")
             conn.rollback()
             return None
+        finally:
+            conn.close()
+    
+    def _update_task_status(self, db_task_id: str, status: str):
+        """Update task status in database.
+        
+        Args:
+            db_task_id: Database UUID of the task
+            status: New status (pending, processing, completed, failed)
+        """
+        if not self._database_url or not db_task_id:
+            return
+        
+        conn = self._get_db_connection()
+        if not conn:
+            return
+        
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE queue_tasks SET status = %s WHERE id = %s",
+                    (status, db_task_id)
+                )
+                conn.commit()
+                logger.debug(f"Updated task {db_task_id} status to '{status}'")
+        except Exception as e:
+            logger.error(f"Failed to update task status in database: {e}")
+            conn.rollback()
         finally:
             conn.close()
     

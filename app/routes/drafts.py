@@ -415,6 +415,7 @@ def update_description(draft_id):
 def generate_description(draft_id):
     """Generate a book description using AI, auto-generating synopsis from book content."""
     try:
+        from datetime import datetime, timedelta
         from app.tasks.description_tasks import generate_description_async
         import threading
         
@@ -456,34 +457,39 @@ def generate_description(draft_id):
                 }), 409
         
         # Enqueue description generation task
-        queue_manager = get_queue_manager()
-        title = draft.get('title', '')
-        age_range = draft.get('age_range', settings.default_age_range)
-        reading_level = draft.get('reading_level', settings.default_reading_level)
-        
-        desc_task_id = queue_manager.enqueue_task(
-            generate_description_async,
-            TaskPriority.DESCRIPTION,
-            draft_id,
-            title,
-            draft.get('author'),
-            draft.get('full_text', ''),
-            age_range,
-            reading_level,
-            task_name=f"Description: {title[:30]}",
-            task_type="descriptions",
-            book_id=draft_id
-        )
-        
-        # Update status to 'queued'
-        db.update_draft_description_status(draft_id, 'queued')
-        
-        logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
-        
-        return jsonify({
-            'success': True,
-            'message': 'Description generation started'
-        })
+        try:
+            queue_manager = get_queue_manager()
+            title = draft.get('title', '')
+            age_range = draft.get('age_range', settings.default_age_range)
+            reading_level = draft.get('reading_level', settings.default_reading_level)
+            
+            desc_task_id = queue_manager.enqueue_task(
+                generate_description_async,
+                TaskPriority.DESCRIPTION,
+                draft_id,
+                title,
+                draft.get('author'),
+                draft.get('full_text', ''),
+                age_range,
+                reading_level,
+                task_name=f"Description: {title[:30]}",
+                task_type="descriptions",
+                book_id=draft_id
+            )
+            
+            # Update status to 'queued'
+            db.update_draft_description_status(draft_id, 'queued')
+            
+            logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
+            
+            return jsonify({
+                'success': True,
+                'message': 'Description generation started'
+            })
+        except Exception as e:
+            logger.exception(f"Failed to start description generation: {e}")
+            db.update_draft_description_status(draft_id, 'error')
+            return jsonify({'error': str(e)}), 500
     except Exception as e:
         logger.exception("Failed to start description generation")
         return jsonify({'error': str(e)}), 500
