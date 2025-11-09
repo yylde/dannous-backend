@@ -112,12 +112,48 @@
         </div>
     </div>
 
+    <!-- Queue Flush Confirmation Modal -->
+    <div id="queue-flush-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 400px;">
+            <h3 style="margin-top: 0;">⚠️ Flush Queue</h3>
+            <p>Are you sure you want to flush the queue? This will cancel all pending AI generation tasks.</p>
+            <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+                <button onclick="closeFlushConfirmation()" class="btn btn-secondary">Cancel</button>
+                <button onclick="confirmFlushQueue()" class="btn btn-danger">Flush Queue</button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <header>
             <h1>📚 Manual Chapter Splitter</h1>
             <p>Download books from Project Gutenberg and manually create chapters</p>
-            <div id="current-draft-info" style="display: none; margin-top: 10px; padding: 10px; background: #e6f7ff; border-radius: 5px;">
-                <strong>Current Draft:</strong> <span id="draft-title"></span>
+            <div style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
+                <div id="current-draft-info" style="display: none; padding: 10px; background: #e6f7ff; border-radius: 5px; flex: 1; min-width: 250px;">
+                    <strong>Current Draft:</strong> <span id="draft-title"></span>
+                </div>
+                <div id="queue-status-widget" class="queue-status-widget" style="display: none;">
+                    <div class="queue-header">
+                        <span class="queue-title">🔄 AI Queue</span>
+                        <button onclick="refreshQueueStatus()" class="btn-icon" title="Refresh">↻</button>
+                    </div>
+                    <div class="queue-body">
+                        <div class="queue-stat">
+                            <span class="queue-label">Pending:</span>
+                            <span id="queue-size" class="queue-value">0</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-label">Workers:</span>
+                            <span id="queue-workers" class="queue-value">0/0</span>
+                        </div>
+                    </div>
+                    <div class="queue-footer">
+                        <button onclick="showFlushConfirmation()" class="btn btn-small btn-danger" id="flush-queue-btn">
+                            Flush Queue
+                        </button>
+                        <span class="queue-timestamp" id="queue-timestamp">-</span>
+                    </div>
+                </div>
             </div>
         </header>
 

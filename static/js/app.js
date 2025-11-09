@@ -2594,4 +2594,140 @@ function hideCoverPreview() {
     if (previewContainer) {
         previewContainer.style.display = 'none';
     }
+}// ==================== QUEUE MANAGEMENT ====================
+
+// Queue polling interval
+let queuePollingInterval = null;
+
+// Start queue status polling
+function startQueuePolling() {
+    // Show queue widget
+    const widget = document.getElementById('queue-status-widget');
+    if (widget) {
+        widget.style.display = 'block';
+    }
+    
+    // Poll immediately
+    refreshQueueStatus();
+    
+    // Then poll every 20 seconds
+    if (queuePollingInterval) {
+        clearInterval(queuePollingInterval);
+    }
+    
+    queuePollingInterval = setInterval(refreshQueueStatus, 20000);
+    console.log('Started queue status polling');
 }
+
+function stopQueuePolling() {
+    if (queuePollingInterval) {
+        clearInterval(queuePollingInterval);
+        queuePollingInterval = null;
+        console.log('Stopped queue status polling');
+    }
+    
+    // Hide queue widget
+    const widget = document.getElementById('queue-status-widget');
+    if (widget) {
+        widget.style.display = 'none';
+    }
+}
+
+async function refreshQueueStatus() {
+    try {
+        const response = await fetch('/api/queue/status');
+        const data = await response.json();
+        
+        if (response.ok && data.queue) {
+            const queue = data.queue;
+            
+            // Update queue size
+            document.getElementById('queue-size').textContent = queue.queue_size;
+            
+            // Update workers
+            document.getElementById('queue-workers').textContent = 
+                `${queue.active_workers}/${queue.worker_count}`;
+            
+            // Update timestamp
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            document.getElementById('queue-timestamp').textContent = timeStr;
+            
+            // Enable/disable flush button based on queue size
+            const flushBtn = document.getElementById('flush-queue-btn');
+            if (flushBtn) {
+                flushBtn.disabled = queue.queue_size === 0;
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing queue status:', error);
+    }
+}
+
+function showFlushConfirmation() {
+    const modal = document.getElementById('queue-flush-modal');
+    if (modal) {
+        modal.style.display = 'flex';
+    }
+}
+
+function closeFlushConfirmation() {
+    const modal = document.getElementById('queue-flush-modal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+async function confirmFlushQueue() {
+    closeFlushConfirmation();
+    
+    const flushBtn = document.getElementById('flush-queue-btn');
+    if (flushBtn) {
+        flushBtn.disabled = true;
+        flushBtn.textContent = 'Flushing...';
+    }
+    
+    try {
+        const response = await fetch('/api/queue/flush', {
+            method: 'POST'
+        });
+        const data = await response.json();
+        
+        if (response.ok) {
+            showStatus(`Queue flushed: ${data.flushed_count} tasks removed`, 'success');
+            
+            // Refresh queue status immediately
+            await refreshQueueStatus();
+            
+            // Reload chapters to update question status
+            if (currentDraftId) {
+                loadDraftChapters(currentDraftId);
+            }
+        } else {
+            showStatus('Failed to flush queue', 'error');
+        }
+    } catch (error) {
+        console.error('Error flushing queue:', error);
+        showStatus('Error flushing queue', 'error');
+    } finally {
+        if (flushBtn) {
+            flushBtn.disabled = false;
+            flushBtn.textContent = 'Flush Queue';
+        }
+    }
+}
+
+// Start queue polling when draft is loaded
+const originalLoadDraft = window.loadDraft;
+window.loadDraft = async function(draftId) {
+    if (originalLoadDraft) {
+        await originalLoadDraft(draftId);
+    }
+    // Start queue polling when a draft is active
+    startQueuePolling();
+};
+
+// Stop queue polling when leaving the page
+window.addEventListener('beforeunload', () => {
+    stopQueuePolling();
+});

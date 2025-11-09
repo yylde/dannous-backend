@@ -1,0 +1,37 @@
+15b-a6ef-4f15-b058-4efe6ba74c87 HTTP/1.1" 200 -
+ERROR:src.ollama_queue:OllamaWorker-0 failed task #19 [QUESTION] after 3 attempts: 1 validation error for GenerateRequest
+prompt
+  Input should be a valid string [type=string_type, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type
+Traceback (most recent call last):
+  File "/Users/chedly/dannous-backend/src/ollama_queue.py", line 135, in _execute_task
+    result = task.func(*task.args, **task.kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/src/question_generator.py", line 371, in _call_ollama_direct
+    response = ollama.generate(**generate_params)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/.venv/lib/python3.12/site-packages/ollama/_client.py", line 260, in generate
+    json=GenerateRequest(
+         ^^^^^^^^^^^^^^^^
+  File "/Users/chedly/dannous-backend/.venv/lib/python3.12/site-packages/pydantic/main.py", line 250, in __init__
+    validated_self = self.__pydantic_validator__.validate_python(data, self_instance=self)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+pydantic_core._pydantic_core.ValidationError: 1 validation error for GenerateRequest
+prompt
+  Input should be a valid string [type=string_type, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type
+INFO:src.question_generator:Attempt 3/3 using json-format strategy
+INFO:src.ollama_queue:OllamaWorker-0 executing task #20 [QUESTION]: generate_questions_A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children_ch1
+INFO:src.ollama_queue:Submitting task #21 [QUESTION]: generate_questions_A Primary Reader: Old-time Stories, Fairy Tales and Myths Retold by Children_ch1
+WARNING:src.ollama_queue:OllamaWorker-0 task #20 attempt 1 failed: 1 validation error for GenerateRequest
+prompt
+  Input should be a valid string [type=string_type, input_value=False, input_type=bool]
+    For further information visit https://errors.pydantic.dev/2.12/v/string_type, retrying in 1.0s...
+ERROR:src.question_generator:Queued Ollama API call failed: '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Attempt 3 (json-format): TypeError - '<' not supported between instances of 'str' and 'int'
+WARNING:src.question_generator:Using fallback questions
+INFO:__main__:✓ Saved 3 questions and 0 vocabulary for grade-3
+INFO:__main__:Generating for grade-4...
+INFO:src.question_generator:Generating 3 questions and 8 vocabulary words for grade-4 - Chapter 1: Chapter 2
+INFO:src.question_generator:Attempt 1/3 using free-form strategy
+INFO:src.oll

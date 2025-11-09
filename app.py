@@ -975,6 +975,41 @@ def finalize_draft(draft_id):
         logger.exception("Failed to finalize draft")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/queue/status', methods=['GET'])
+def get_queue_status():
+    """Get current status of the Ollama queue."""
+    try:
+        from src.ollama_queue import get_queue_manager
+        manager = get_queue_manager()
+        queue_info = manager.get_queue_info()
+        
+        return jsonify({
+            'success': True,
+            'queue': queue_info
+        })
+    except Exception as e:
+        logger.exception("Failed to get queue status")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/queue/flush', methods=['POST'])
+def flush_queue():
+    """Flush all pending tasks from the Ollama queue."""
+    try:
+        from src.ollama_queue import get_queue_manager
+        manager = get_queue_manager()
+        flushed_count = manager.flush_queue()
+        
+        logger.info(f"Queue flushed: {flushed_count} tasks removed")
+        
+        return jsonify({
+            'success': True,
+            'flushed_count': flushed_count,
+            'message': f'Flushed {flushed_count} tasks from queue'
+        })
+    except Exception as e:
+        logger.exception("Failed to flush queue")
+        return jsonify({'error': str(e)}), 500
+
 def generate_questions_async(chapter_id, draft_id, title, content, html_content, age_range, reading_level):
     """Generate questions asynchronously in background for all detected grade levels."""
     try:

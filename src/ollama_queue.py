@@ -241,6 +241,44 @@ class OllamaQueueManager:
         """Get current number of tasks in queue."""
         return self._task_queue.qsize()
     
+    def get_queue_info(self) -> Dict[str, Any]:
+        """Get information about the current queue state.
+        
+        Returns:
+            Dict with queue size, worker count, and pending tasks info
+        """
+        # Note: We can't peek into PriorityQueue safely, so we just return size
+        return {
+            'queue_size': self._task_queue.qsize(),
+            'worker_count': len(self._workers),
+            'active_workers': sum(1 for w in self._workers if w.is_alive()),
+            'shutdown': self._shutdown
+        }
+    
+    def flush_queue(self) -> int:
+        """Clear all pending tasks from the queue.
+        
+        Returns:
+            Number of tasks that were removed
+        """
+        flushed_count = 0
+        
+        # Drain the queue
+        while not self._task_queue.empty():
+            try:
+                task = self._task_queue.get_nowait()
+                if task is not None:  # Don't count shutdown sentinels
+                    flushed_count += 1
+                    # Send error to any waiting threads
+                    if task.result_queue is not None:
+                        task.result_queue.put(('error', Exception('Queue flushed')))
+                    self._task_queue.task_done()
+            except queue.Empty:
+                break
+        
+        logger.info(f"Flushed {flushed_count} tasks from queue")
+        return flushed_count
+    
     def shutdown(self, wait: bool = True, timeout: float = 30.0):
         """
         Shutdown the queue manager gracefully.
