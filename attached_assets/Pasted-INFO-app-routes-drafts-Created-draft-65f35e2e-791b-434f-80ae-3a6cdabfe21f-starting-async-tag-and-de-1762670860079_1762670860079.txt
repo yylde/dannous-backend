@@ -1,0 +1,20 @@
+INFO:app.routes.drafts:Created draft 65f35e2e-791b-434f-80ae-3a6cdabfe21f, starting async tag and description generation...
+INFO:src.ollama_queue:Enqueued task #1 [GENRE/TAG]: Tags: Alice's Adventures in Wonderla (non-blocking)
+INFO:src.ollama_queue:OllamaWorker-0 executing task #1 [GENRE/TAG]: Tags: Alice's Adventures in Wonderla
+INFO:app.routes.drafts:Enqueued tag generation for draft 65f35e2e-791b-434f-80ae-3a6cdabfe21f (task #1)
+INFO:src.question_generator:Generating tags for book: Alice's Adventures in Wonderland by Lewis Carroll
+INFO:src.ollama_queue:Submitting task #3 [GENRE/TAG]: generate_tags_Alice's Adventures in Wonderland
+INFO:src.ollama_queue:Enqueued task #2 [DESCRIPTION]: Description: Alice's Adventures in Wonderla (non-blocking)
+INFO:app.routes.drafts:Enqueued description generation for draft 65f35e2e-791b-434f-80ae-3a6cdabfe21f (task #2)
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:26] "POST /api/draft HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:26] "GET /api/drafts HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:29] "GET /api/draft/65f35e2e-791b-434f-80ae-3a6cdabfe21f HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:31] "GET /api/draft/65f35e2e-791b-434f-80ae-3a6cdabfe21f HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:33] "GET /api/draft/65f35e2e-791b-434f-80ae-3a6cdabfe21f HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:35] "GET /api/draft/65f35e2e-791b-434f-80ae-3a6cdabfe21f HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:36] "GET /api/draft/8144215b-a6ef-4f15-b058-4efe6ba74c87 HTTP/1.1" 200 -
+INFO:app.routes.drafts:Usage tracking for draft 8144215b-a6ef-4f15-b058-4efe6ba74c87: 672 total paragraphs
+INFO:app.routes.drafts:Normalized 672 book paragraphs for matching
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:36] "GET /api/draft/8144215b-a6ef-4f15-b058-4efe6ba74c87/usage HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:36] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [08/Nov/2025 22:44:36] "GET /api/drafts HTTP/1.1" 200 -
