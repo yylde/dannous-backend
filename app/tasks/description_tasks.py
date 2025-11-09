@@ -11,7 +11,6 @@ def generate_description_async(draft_id, title, author, full_text, age_range, re
     """Generate description asynchronously in background for a book."""
     try:
         db = DatabaseManager()
-        db.update_draft_description_status(draft_id, 'generating')
         
         generator = QuestionGenerator()
         description = generator.generate_description(
@@ -24,13 +23,9 @@ def generate_description_async(draft_id, title, author, full_text, age_range, re
         # Save description to the draft
         if description:
             db.update_draft(draft_id, description=description)
-            db.update_draft_description_status(draft_id, 'ready')
             logger.info(f"✓ Generated description for draft {draft_id}: {description[:100]}...")
         else:
-            db.update_draft_description_status(draft_id, 'error')
             logger.error(f"✗ No description generated for draft {draft_id}")
         
     except Exception as e:
         logger.exception(f"✗ Failed to generate description for draft {draft_id}: {e}")
-        db = DatabaseManager()
-        db.update_draft_description_status(draft_id, 'error')

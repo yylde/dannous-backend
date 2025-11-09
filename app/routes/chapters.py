@@ -15,6 +15,9 @@ logger = logging.getLogger(__name__)
 def save_draft_chapter():
     """Save a chapter to draft. Auto-triggers question generation if tags are ready."""
     try:
+        from src.queue_manager_v2 import get_queue_manager_v2
+        from src.config import settings
+        
         data = request.json
         draft_id = data.get('draft_id')
         chapter_number = data.get('chapter_number')
@@ -38,44 +41,61 @@ def save_draft_chapter():
         
         logger.info(f"Saved chapter {chapter_id} for draft {draft_id}.")
         
-        # Check if tags are ready and auto-trigger question generation
+        # Check if tags exist and auto-enqueue question generation
         draft = db.get_draft(draft_id)
-        if draft and draft.get('tag_status') == 'ready':
+        if draft:
             tags = draft.get('tags', [])
             grade_tags = [tag for tag in tags if tag.startswith('grade-')]
             
             if grade_tags:
-                logger.info(f"Tags are ready for draft {draft_id}. Auto-triggering question generation for chapter {chapter_id}")
+                logger.info(f"Tags exist for draft {draft_id}. Auto-enqueuing question generation for chapter {chapter_id}")
                 
-                # Trigger async question generation for this chapter
-                regen_thread = threading.Thread(
-                    target=regenerate_single_chapter_questions_async,
-                    args=(
-                        chapter_id,
-                        draft_id,
-                        title,
-                        content,
-                        html_content,
-                        draft.get('age_range'),
-                        draft.get('reading_level')
+                # Use new queue system
+                queue_manager_v2 = get_queue_manager_v2()
+                
+                # Enqueue one task per grade level
+                task_count = 0
+                for grade_level in grade_tags:
+                    payload = {
+                        'book_id': draft_id,
+                        'chapter_id': chapter_id,
+                        'title': draft.get('title', ''),
+                        'author': draft.get('author', ''),
+                        'chapter_number': chapter_number,
+                        'chapter_title': title,
+                        'chapter_text': content,
+                        'reading_level': draft.get('reading_level', settings.default_reading_level),
+                        'age_range': draft.get('age_range', settings.default_age_range),
+                        'grade_level': grade_level,
+                        'num_questions': 3,
+                        'vocab_count': 8
+                    }
+                    
+                    task_id = queue_manager_v2.enqueue_task(
+                        task_type='questions',
+                        priority=3,
+                        book_id=draft_id,
+                        chapter_id=chapter_id,
+                        payload=payload
                     )
-                )
-                regen_thread.daemon = True
-                regen_thread.start()
+                    task_count += 1
+                
+                logger.info(f"Enqueued {task_count} question generation tasks for chapter {chapter_id}")
                 
                 return jsonify({
                     'success': True,
                     'chapter_id': chapter_id,
-                    'status': 'generating'  # Question generation started
+                    'status': 'queued',
+                    'tasks_enqueued': task_count
                 })
             else:
-                logger.warning(f"Draft {draft_id} has tags but no grade tags found")
+                logger.info(f"Draft {draft_id} has no grade tags yet")
         
-        # Tags not ready yet - watcher will handle it later
+        # Tags not ready yet
         return jsonify({
             'success': True,
             'chapter_id': chapter_id,
-            'status': 'pending'  # Waiting for tags
+            'status': 'pending'
         })
     
     except Exception as e:
@@ -87,14 +107,16 @@ def save_draft_chapter():
 def get_draft_chapters_status(draft_id):
     """Get all chapters for a draft with their current status (for polling)."""
     try:
+        from src.status_calculator import get_question_status
+        
         db = DatabaseManager()
         chapters = db.get_draft_chapters(draft_id)
         
-        # Return only the data needed for status polling
+        # Return only the data needed for status polling with calculated status
         chapter_statuses = [
             {
                 'id': ch['id'],
-                'question_status': ch.get('question_status', 'pending')
+                'question_status': get_question_status(ch['id'])
             }
             for ch in chapters
         ]
@@ -109,10 +131,15 @@ def get_draft_chapters_status(draft_id):
 def get_draft_chapter_detail(chapter_id):
     """Get chapter details with questions and vocabulary."""
     try:
+        from src.status_calculator import get_question_status
+        
         db = DatabaseManager()
         chapter = db.get_draft_chapter(chapter_id)
         if not chapter:
             return jsonify({'error': 'Chapter not found'}), 404
+        
+        # Add calculated status
+        chapter['question_status'] = get_question_status(chapter_id)
         
         return jsonify({'success': True, 'chapter': chapter})
     except Exception as e:

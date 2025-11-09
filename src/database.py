@@ -261,13 +261,11 @@ class DatabaseManager:
                 cur.execute("""
                     INSERT INTO draft_books (
                         gutenberg_id, title, author, full_text, full_html, age_range, 
-                        reading_level, genre, cover_image_url, metadata, word_count,
-                        tag_status, description_status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        reading_level, genre, cover_image_url, metadata, word_count
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (gutenberg_id, title, author, full_text, full_html, age_range, 
-                      reading_level, genre, cover_image_url, json.dumps(metadata), word_count,
-                      'pending', 'pending'))
+                      reading_level, genre, cover_image_url, json.dumps(metadata), word_count))
                 draft_id = cur.fetchone()[0]
                 logger.info(f"Created draft: {title} (ID: {draft_id}, {word_count or 'unknown'} words)")
                 return str(draft_id)
@@ -281,6 +279,9 @@ class DatabaseManager:
                 values = []
                 for key, value in kwargs.items():
                     if key == 'cover_image_url' and (value is None or value == ''):
+                        continue
+                    if key in ('tag_status', 'description_status'):
+                        logger.debug(f"Skipping dropped column {key} in update_draft")
                         continue
                     if key in ('metadata', 'tags', 'last_marker_position'):
                         set_clauses.append(f"{key} = %s")
@@ -346,7 +347,7 @@ class DatabaseManager:
                 cur.execute("""
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, cover_image_url, metadata, 
-                           tags, tag_status, description, description_status, created_at, updated_at
+                           tags, description, created_at, updated_at
                     FROM draft_books
                     WHERE id = %s
                 """, (draft_id,))
@@ -369,14 +370,6 @@ class DatabaseManager:
                 elif draft.get('tags') is None:
                     draft['tags'] = []
                 
-                # Ensure tag_status has a default value
-                if not draft.get('tag_status'):
-                    draft['tag_status'] = 'pending'
-                
-                # Ensure description_status has a default value
-                if not draft.get('description_status'):
-                    draft['description_status'] = 'pending'
-                
                 return draft
     
     def save_draft_chapter(self, draft_id: str, chapter_number: int, title: str, 
@@ -387,8 +380,8 @@ class DatabaseManager:
                 cur.execute("""
                     INSERT INTO draft_chapters (
                         draft_id, chapter_number, title, content, 
-                        word_count, html_formatting, question_status
-                    ) VALUES (%s, %s, %s, %s, %s, %s, 'pending')
+                        word_count, html_formatting
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
                     ON CONFLICT (draft_id, chapter_number) 
                     DO UPDATE SET 
                         title = EXCLUDED.title,
@@ -409,7 +402,7 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT id, chapter_number, title, content, word_count, 
-                           html_formatting, has_questions, question_status, created_at
+                           html_formatting, has_questions, created_at
                     FROM draft_chapters
                     WHERE draft_id = %s
                     ORDER BY chapter_number
@@ -576,37 +569,19 @@ class DatabaseManager:
                 return [row[0] for row in cur.fetchall()]
     
     def update_chapter_question_status(self, chapter_id: str, status: str) -> None:
-        """Update question generation status for a chapter."""
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE draft_chapters 
-                    SET question_status = %s,
-                        has_questions = CASE WHEN %s = 'ready' THEN true ELSE has_questions END
-                    WHERE id = %s
-                """, (status, status, chapter_id))
+        """DEPRECATED: question_status column has been dropped. Status is now calculated dynamically."""
+        logger.debug(f"DEPRECATED: update_chapter_question_status called for chapter {chapter_id} - ignoring (status columns dropped)")
+        return
     
     def update_draft_tag_status(self, draft_id: str, status: str) -> None:
-        """Update tag generation status for a draft book."""
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE draft_books 
-                    SET tag_status = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                """, (status, draft_id))
+        """DEPRECATED: tag_status column has been dropped. Status is now calculated dynamically."""
+        logger.debug(f"DEPRECATED: update_draft_tag_status called for draft {draft_id} - ignoring (status columns dropped)")
+        return
     
     def update_draft_description_status(self, draft_id: str, status: str) -> None:
-        """Update description generation status for a draft book."""
-        with self.get_connection() as conn:
-            with conn.cursor() as cur:
-                cur.execute("""
-                    UPDATE draft_books 
-                    SET description_status = %s,
-                        updated_at = NOW()
-                    WHERE id = %s
-                """, (status, draft_id))
+        """DEPRECATED: description_status column has been dropped. Status is now calculated dynamically."""
+        logger.debug(f"DEPRECATED: update_draft_description_status called for draft {draft_id} - ignoring (status columns dropped)")
+        return
     
     def save_draft_questions(self, chapter_id: str, draft_id: str, 
                             questions: List[dict], vocabulary: List[dict], grade_level: str = None) -> None:
@@ -849,15 +824,15 @@ class DatabaseManager:
         Compute overall chapter status from grade statuses.
         Priority: error > generating > queued > pending
         Only if ALL grades are 'ready' → chapter status = 'ready'
-        Returns the computed status and updates the chapter.
+        Returns the computed status.
         
-        When transitioning to 'ready', injects vocabulary <abbr> tags into HTML.
+        When status is 'ready' and vocabulary hasn't been injected yet, injects vocabulary <abbr> tags into HTML.
         """
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                # Read current status before computing new one
+                # Read current HTML formatting
                 cur.execute("""
-                    SELECT question_status, html_formatting
+                    SELECT html_formatting
                     FROM draft_chapters
                     WHERE id = %s
                 """, (chapter_id,))
@@ -865,9 +840,9 @@ class DatabaseManager:
                 if not result:
                     return 'pending'
                 
-                old_status, html_content = result
+                html_content = result[0]
                 
-                # Compute new status from grade statuses
+                # Compute status from grade statuses
                 cur.execute("""
                     SELECT status, COUNT(*) as count
                     FROM draft_chapter_grade_status
@@ -889,8 +864,8 @@ class DatabaseManager:
                 else:
                     computed_status = 'ready'
                 
-                # Check if transitioning to 'ready' from non-ready state
-                if computed_status == 'ready' and old_status != 'ready' and html_content:
+                # If status is 'ready' and vocabulary hasn't been injected yet, inject it
+                if computed_status == 'ready' and html_content and '<abbr' not in html_content:
                     # Get all vocabulary for this chapter
                     vocabulary_list = self.get_chapter_vocabulary(chapter_id)
                     
@@ -901,29 +876,19 @@ class DatabaseManager:
                         # Update chapter with injected HTML
                         cur.execute("""
                             UPDATE draft_chapters
-                            SET question_status = %s,
-                                has_questions = true,
+                            SET has_questions = true,
                                 html_formatting = %s
                             WHERE id = %s
-                        """, (computed_status, updated_html, chapter_id))
+                        """, (updated_html, chapter_id))
                         
                         logger.info(f"Injected {len(vocabulary_list)} vocabulary terms into chapter {chapter_id} HTML")
                     else:
-                        # No vocabulary, just update status
+                        # No vocabulary, just update has_questions flag
                         cur.execute("""
                             UPDATE draft_chapters
-                            SET question_status = %s,
-                                has_questions = true
+                            SET has_questions = true
                             WHERE id = %s
-                        """, (computed_status, chapter_id))
-                else:
-                    # Not transitioning to ready, just update status
-                    cur.execute("""
-                        UPDATE draft_chapters
-                        SET question_status = %s,
-                            has_questions = CASE WHEN %s = 'ready' THEN true ELSE has_questions END
-                        WHERE id = %s
-                    """, (computed_status, computed_status, chapter_id))
+                        """, (chapter_id,))
                 
                 return computed_status
 

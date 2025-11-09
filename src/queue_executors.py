@@ -42,7 +42,7 @@ def execute_tag_generation(book_id: str, title: str, author: str, age_range: str
         use_queue=False
     )
     
-    db.update_draft(book_id, tags=tags, tag_status='ready')
+    db.update_draft(book_id, tags=tags)
     
     logger.info(f"[EXECUTOR] ✓ Tags generated and saved: {tags}")
     return tags
@@ -77,7 +77,7 @@ def execute_description_generation(book_id: str, title: str, author: str, text_s
         use_queue=False
     )
     
-    db.update_draft(book_id, description=description, description_status='ready')
+    db.update_draft(book_id, description=description)
     
     logger.info(f"[EXECUTOR] ✓ Description generated and saved: {description[:100]}...")
     return description

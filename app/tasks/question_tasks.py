@@ -75,7 +75,6 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
     """Generate questions asynchronously in background for all detected grade levels."""
     try:
         db = DatabaseManager()
-        db.update_chapter_question_status(chapter_id, 'generating')
         
         # Get book tags to determine grade levels
         draft = db.get_draft(draft_id)
@@ -135,15 +134,10 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
                     WHERE id = %s
                 """, (html_with_abbr, chapter_id))
         
-        # Mark chapter as ready - ALL grades have been processed
-        db.update_chapter_question_status(chapter_id, 'ready')
-        
-        logger.info(f"✓ Generated questions for {len(grade_levels)} grade levels with {len(all_vocabulary)} total vocabulary items - STATUS: READY")
+        logger.info(f"✓ Generated questions for {len(grade_levels)} grade levels with {len(all_vocabulary)} total vocabulary items")
         
     except Exception as e:
         logger.exception(f"Failed to generate questions for chapter {chapter_id}")
-        db = DatabaseManager()
-        db.update_chapter_question_status(chapter_id, 'error')
 
 
 def regenerate_questions_for_draft_async(draft_id):
@@ -267,7 +261,6 @@ def regenerate_single_chapter_questions_async(chapter_id, draft_id, title, conte
     """Regenerate questions for a single chapter based on current draft grade tags."""
     try:
         db = DatabaseManager()
-        db.update_chapter_question_status(chapter_id, 'generating')
         
         # Get book tags to determine grade levels
         draft = db.get_draft(draft_id)
@@ -335,15 +328,10 @@ def regenerate_single_chapter_questions_async(chapter_id, draft_id, title, conte
                     WHERE id = %s
                 """, (html_with_abbr, chapter_id))
         
-        # Mark chapter as ready
-        db.update_chapter_question_status(chapter_id, 'ready')
-        
-        logger.info(f"✓ Regenerated questions for chapter {chapter_id} with {len(grade_levels)} grade levels - STATUS: READY")
+        logger.info(f"✓ Regenerated questions for chapter {chapter_id} with {len(grade_levels)} grade levels")
         
     except Exception as e:
         logger.exception(f"✗ Failed to regenerate questions for chapter {chapter_id}: {e}")
-        db = DatabaseManager()
-        db.update_chapter_question_status(chapter_id, 'error')
 
 
 def question_generation_watcher():
@@ -360,30 +348,10 @@ def question_generation_watcher():
             db = DatabaseManager()
             
             # Find all chapters with 'pending' status
-            with db.get_connection() as conn:
-                with conn.cursor() as cur:
-                    cur.execute("""
-                        SELECT 
-                            dc.id, 
-                            dc.draft_id, 
-                            dc.title, 
-                            dc.content, 
-                            dc.html_formatting,
-                            db.age_range,
-                            db.reading_level,
-                            db.tag_status,
-                            db.tags
-                        FROM draft_chapters dc
-                        JOIN draft_books db ON dc.draft_id = db.id
-                        WHERE dc.question_status = 'pending'
-                          AND db.tag_status = 'ready'
-                          AND db.tags IS NOT NULL
-                          AND jsonb_array_length(db.tags) > 0
-                        ORDER BY dc.created_at ASC
-                        LIMIT 5
-                    """)
-                    
-                    pending_chapters = cur.fetchall()
+            # NOTE: This watcher is deprecated in favor of queue_manager_v2
+            # It's kept for backward compatibility but should not find any pending chapters
+            # since question generation now auto-enqueues via save_draft_chapter
+            pending_chapters = []
             
             if pending_chapters:
                 logger.info(f"Found {len(pending_chapters)} chapters ready for question generation")

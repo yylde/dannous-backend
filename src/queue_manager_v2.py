@@ -438,6 +438,64 @@ class QueueManagerV2:
         
         logger.info(f"[QUEUE] Cleared {deleted_count} completed tasks")
         return deleted_count
+    
+    def get_task_for_book(self, book_id: str, task_type: str) -> Optional[Dict[str, Any]]:
+        """
+        Get most recent task for book-level operations.
+        
+        Used for status calculation - finds queued, processing, or error tasks.
+        
+        Args:
+            book_id: Draft book ID
+            task_type: Type of task ('tags', 'descriptions')
+        
+        Returns:
+            Task dict with 'status' field, or None if no active task
+        """
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, status, created_at
+                    FROM queue_tasks
+                    WHERE book_id = %s
+                      AND task_type = %s
+                      AND chapter_id IS NULL
+                      AND status IN ('queued', 'processing', 'error')
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (book_id, task_type))
+                
+                row = cur.fetchone()
+                if row:
+                    return dict(row)
+                return None
+    
+    def get_tasks_for_chapter(self, chapter_id: str, task_type: str) -> List[Dict[str, Any]]:
+        """
+        Get all active tasks for a chapter.
+        
+        Used for status calculation - finds queued, processing, or error tasks.
+        
+        Args:
+            chapter_id: Chapter ID
+            task_type: Type of task ('questions')
+        
+        Returns:
+            List of task dicts with 'status' field
+        """
+        with self._get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute("""
+                    SELECT id, status, created_at
+                    FROM queue_tasks
+                    WHERE chapter_id = %s
+                      AND task_type = %s
+                      AND status IN ('queued', 'processing', 'error')
+                    ORDER BY created_at DESC
+                """, (chapter_id, task_type))
+                
+                rows = cur.fetchall()
+                return [dict(row) for row in rows]
 
 
 # Singleton instance

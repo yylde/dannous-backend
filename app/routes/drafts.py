@@ -34,12 +34,23 @@ def get_drafts():
 def get_draft(draft_id):
     """Get a specific draft with chapters."""
     try:
+        from src.status_calculator import get_tag_status, get_description_status, get_question_status
+        
         db = DatabaseManager()
         draft = db.get_draft(draft_id)
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
+        # Calculate dynamic status
+        draft['tag_status'] = get_tag_status(draft_id)
+        draft['description_status'] = get_description_status(draft_id)
+        
         chapters = db.get_draft_chapters(draft_id)
+        
+        # Add question status to each chapter
+        for chapter in chapters:
+            chapter['question_status'] = get_question_status(chapter['id'])
+        
         draft['chapters'] = chapters
         
         return jsonify({'success': True, 'draft': draft})
@@ -203,7 +214,7 @@ def update_draft_tags_url(draft_id):
 def regenerate_tags(draft_id):
     """Regenerate tags for a draft using AI."""
     try:
-        from datetime import datetime, timedelta
+        from src.queue_manager_v2 import get_queue_manager_v2
         
         db = DatabaseManager()
         
@@ -212,58 +223,33 @@ def regenerate_tags(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Check if tag generation is actively generating (not pending/queued)
-        # Only block if it's been generating for less than 10 minutes to prevent spam
-        current_tag_status = draft.get('tag_status')
+        # Use new queue system
+        queue_manager_v2 = get_queue_manager_v2()
         
-        if current_tag_status == 'generating':
-            # Check if it's been stuck for more than 10 minutes
-            updated_at = draft.get('updated_at')
-            if updated_at:
-                # Parse the datetime (it comes as a string from the database)
-                if isinstance(updated_at, str):
-                    from dateutil import parser
-                    updated_at = parser.parse(updated_at)
-                
-                time_since_update = datetime.now(updated_at.tzinfo) - updated_at
-                
-                # If it's been generating for more than 10 minutes, consider it stuck
-                if time_since_update > timedelta(minutes=10):
-                    logger.warning(f"Tag status stuck in 'generating' for {time_since_update}. Allowing regeneration.")
-                else:
-                    logger.info(f"Blocked duplicate tag regeneration request for draft {draft_id} (currently generating)")
-                    return jsonify({
-                        'error': 'Tag generation already in progress. Please wait for it to complete or try again in a few minutes.'
-                    }), 409
-        
-        # Delete any existing tag generation tasks for this book
-        queue_manager = get_queue_manager()
-        deleted_count = queue_manager.delete_tasks_for_book_chapter(book_id=draft_id, task_type="tags")
-        if deleted_count > 0:
-            logger.info(f"Deleted {deleted_count} existing tag generation task(s) for draft {draft_id}")
-        
-        # Enqueue tag generation task
+        # Prepare payload
         title = draft.get('title', '')
         age_range = draft.get('age_range', settings.default_age_range)
         reading_level = draft.get('reading_level', settings.default_reading_level)
+        author = draft.get('author', '')
         
-        task_id = queue_manager.enqueue_task(
-            generate_tags_async,
-            TaskPriority.GENRE_TAG,
-            draft_id,
-            title,
-            draft.get('author'),
-            age_range,
-            reading_level,
-            task_name=f"Tags: {title[:30]}",
-            task_type="tags",
-            book_id=draft_id
+        payload = {
+            'book_id': draft_id,
+            'title': title,
+            'author': author,
+            'age_range': age_range,
+            'reading_level': reading_level
+        }
+        
+        # Enqueue task (will automatically delete conflicting tasks)
+        task_id = queue_manager_v2.enqueue_task(
+            task_type='tags',
+            priority=1,
+            book_id=draft_id,
+            chapter_id=None,
+            payload=payload
         )
         
-        # Update status to 'queued'
-        db.update_draft_tag_status(draft_id, 'queued')
-        
-        logger.info(f"Enqueued tag regeneration for draft {draft_id} (task #{task_id})")
+        logger.info(f"Enqueued tag regeneration for draft {draft_id} (task: {task_id})")
         
         return jsonify({
             'success': True,
@@ -278,6 +264,8 @@ def regenerate_tags(draft_id):
 def regenerate_questions(draft_id):
     """Regenerate questions for all chapters in a draft based on current tags."""
     try:
+        from src.queue_manager_v2 import get_queue_manager_v2
+        
         db = DatabaseManager()
         
         # Get the draft to verify it exists
@@ -285,26 +273,63 @@ def regenerate_questions(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Check if tag status is ready
-        tag_status = draft.get('tag_status')
-        if tag_status != 'ready':
+        # Check if tags exist
+        tags = draft.get('tags', [])
+        if not tags:
             return jsonify({
-                'error': f'Tags must be ready before regenerating questions. Current status: {tag_status}'
+                'error': 'Tags must be set before regenerating questions'
             }), 400
         
-        # Trigger async regeneration
-        regen_thread = threading.Thread(
-            target=regenerate_questions_for_draft_async,
-            args=(draft_id,)
-        )
-        regen_thread.daemon = True
-        regen_thread.start()
+        # Extract grade levels from tags
+        grade_levels = [tag for tag in tags if tag.startswith('grade-')]
+        if not grade_levels:
+            return jsonify({
+                'error': 'At least one grade tag is required for question generation'
+            }), 400
         
-        logger.info(f"Started question regeneration for draft {draft_id}")
+        # Get all chapters
+        chapters = db.get_draft_chapters(draft_id)
+        if not chapters:
+            return jsonify({
+                'error': 'No chapters found for this draft'
+            }), 400
+        
+        # Use new queue system
+        queue_manager_v2 = get_queue_manager_v2()
+        
+        # Enqueue a task for each chapter/grade combination
+        task_count = 0
+        for chapter in chapters:
+            for grade_level in grade_levels:
+                payload = {
+                    'book_id': draft_id,
+                    'chapter_id': chapter['id'],
+                    'title': draft.get('title', ''),
+                    'author': draft.get('author', ''),
+                    'chapter_number': chapter['chapter_number'],
+                    'chapter_title': chapter['title'],
+                    'chapter_text': chapter['content'],
+                    'reading_level': draft.get('reading_level', settings.default_reading_level),
+                    'age_range': draft.get('age_range', settings.default_age_range),
+                    'grade_level': grade_level,
+                    'num_questions': 3,
+                    'vocab_count': 8
+                }
+                
+                task_id = queue_manager_v2.enqueue_task(
+                    task_type='questions',
+                    priority=3,
+                    book_id=draft_id,
+                    chapter_id=chapter['id'],
+                    payload=payload
+                )
+                task_count += 1
+        
+        logger.info(f"Enqueued {task_count} question generation tasks for draft {draft_id}")
         
         return jsonify({
             'success': True,
-            'message': 'Question regeneration started for all chapters'
+            'message': f'Question regeneration started for {len(chapters)} chapters × {len(grade_levels)} grades = {task_count} tasks'
         })
     except Exception as e:
         logger.exception("Failed to start question regeneration")
@@ -390,7 +415,7 @@ def update_description(draft_id):
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE draft_books 
-                    SET description = %s, description_status = 'ready', updated_at = NOW()
+                    SET description = %s, updated_at = NOW()
                     WHERE id = %s
                 """, (description, draft_id))
         
@@ -409,9 +434,7 @@ def update_description(draft_id):
 def generate_description(draft_id):
     """Generate a book description using AI, auto-generating synopsis from book content."""
     try:
-        from datetime import datetime, timedelta
-        from app.tasks.description_tasks import generate_description_async
-        import threading
+        from src.queue_manager_v2 import get_queue_manager_v2
         
         db = DatabaseManager()
         
@@ -420,69 +443,39 @@ def generate_description(draft_id):
         if not draft:
             return jsonify({'error': 'Draft not found'}), 404
         
-        # Check if description generation is actively generating (not pending/queued)
-        # Only block if it's been generating for less than 10 minutes to prevent spam
-        current_description_status = draft.get('description_status')
+        # Use new queue system
+        queue_manager_v2 = get_queue_manager_v2()
         
-        if current_description_status == 'generating':
-            # Check if it's been stuck for more than 10 minutes
-            updated_at = draft.get('updated_at')
-            if updated_at:
-                # Parse the datetime (it comes as a string from the database)
-                if isinstance(updated_at, str):
-                    from dateutil import parser
-                    updated_at = parser.parse(updated_at)
-                
-                time_since_update = datetime.now(updated_at.tzinfo) - updated_at
-                
-                # If it's been generating for more than 10 minutes, consider it stuck
-                if time_since_update > timedelta(minutes=10):
-                    logger.warning(f"Description status stuck in 'generating' for {time_since_update}. Allowing regeneration.")
-                else:
-                    logger.info(f"Blocked duplicate description generation request for draft {draft_id} (currently generating)")
-                    return jsonify({
-                        'error': 'Description generation already in progress. Please wait for it to complete or try again in a few minutes.'
-                    }), 409
+        # Prepare payload
+        title = draft.get('title', '')
+        author = draft.get('author', '')
+        age_range = draft.get('age_range', settings.default_age_range)
+        reading_level = draft.get('reading_level', settings.default_reading_level)
+        full_text = draft.get('full_text', '')
+        text_sample = ' '.join(full_text.split()[:2000]) if full_text else ''
         
-        # Delete any existing description generation tasks for this book
-        queue_manager = get_queue_manager()
-        deleted_count = queue_manager.delete_tasks_for_book_chapter(book_id=draft_id, task_type="descriptions")
-        if deleted_count > 0:
-            logger.info(f"Deleted {deleted_count} existing description generation task(s) for draft {draft_id}")
+        payload = {
+            'book_id': draft_id,
+            'title': title,
+            'author': author,
+            'text_sample': text_sample
+        }
         
-        # Enqueue description generation task
-        try:
-            title = draft.get('title', '')
-            age_range = draft.get('age_range', settings.default_age_range)
-            reading_level = draft.get('reading_level', settings.default_reading_level)
-            
-            desc_task_id = queue_manager.enqueue_task(
-                generate_description_async,
-                TaskPriority.DESCRIPTION,
-                draft_id,
-                title,
-                draft.get('author'),
-                draft.get('full_text', ''),
-                age_range,
-                reading_level,
-                task_name=f"Description: {title[:30]}",
-                task_type="descriptions",
-                book_id=draft_id
-            )
-            
-            # Update status to 'queued'
-            db.update_draft_description_status(draft_id, 'queued')
-            
-            logger.info(f"Enqueued description generation for draft {draft_id} (task #{desc_task_id})")
-            
-            return jsonify({
-                'success': True,
-                'message': 'Description generation started'
-            })
-        except Exception as e:
-            logger.exception(f"Failed to start description generation: {e}")
-            db.update_draft_description_status(draft_id, 'error')
-            return jsonify({'error': str(e)}), 500
+        # Enqueue task (will automatically delete conflicting tasks)
+        task_id = queue_manager_v2.enqueue_task(
+            task_type='descriptions',
+            priority=2,
+            book_id=draft_id,
+            chapter_id=None,
+            payload=payload
+        )
+        
+        logger.info(f"Enqueued description generation for draft {draft_id} (task: {task_id})")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Description generation started'
+        })
     except Exception as e:
         logger.exception("Failed to start description generation")
         return jsonify({'error': str(e)}), 500

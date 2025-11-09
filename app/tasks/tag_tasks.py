@@ -13,7 +13,6 @@ def generate_tags_async(draft_id, title, author, age_range, reading_level):
     db = None
     try:
         db = DatabaseManager()
-        db.update_draft_tag_status(draft_id, 'generating')
         
         generator = QuestionGenerator()
         tags_data = generator.generate_tags(
@@ -27,15 +26,13 @@ def generate_tags_async(draft_id, title, author, age_range, reading_level):
         # Save tags to the draft (even if using fallback)
         if tags_data and len(tags_data) > 0:
             db.update_draft(draft_id, tags=tags_data)
-            db.update_draft_tag_status(draft_id, 'ready')
             logger.info(f"✓ Generated {len(tags_data)} tags for draft {draft_id}: {tags_data}")
         else:
-            db.update_draft_tag_status(draft_id, 'error')
             logger.error(f"✗ No tags generated for draft {draft_id}")
         
     except Exception as e:
         logger.exception(f"✗ Failed to generate tags for draft {draft_id}: {e}")
-        # Ensure status is ALWAYS updated even on critical failure
+        # Ensure tags are ALWAYS saved even on critical failure
         try:
             if db is None:
                 db = DatabaseManager()
@@ -45,16 +42,6 @@ def generate_tags_async(draft_id, title, author, age_range, reading_level):
             fallback_tags = generator._generate_fallback_tags(reading_level or settings.default_reading_level)
             if fallback_tags:
                 db.update_draft(draft_id, tags=fallback_tags)
-                db.update_draft_tag_status(draft_id, 'ready')
                 logger.warning(f"⚠ Used fallback tags for draft {draft_id}: {fallback_tags}")
-            else:
-                db.update_draft_tag_status(draft_id, 'error')
         except Exception as fallback_error:
             logger.exception(f"✗ Failed to save fallback tags: {fallback_error}")
-            # Final safety net - always update status to error
-            try:
-                if db is None:
-                    db = DatabaseManager()
-                db.update_draft_tag_status(draft_id, 'error')
-            except:
-                logger.error(f"✗ CRITICAL: Could not update tag status for draft {draft_id}")
