@@ -394,11 +394,11 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         """
         try:
             return queue_ollama_call(
-                self._call_ollama_direct,
-                priority,
-                task_name or "ollama_call",
-                prompt,
-                force_json_format
+                func=self._call_ollama_direct,
+                priority=priority,
+                task_name=task_name or "ollama_call",
+                prompt=prompt,
+                force_json_format=force_json_format
             )
         except Exception as e:
             logger.error(f"Queued Ollama API call failed: {e}")

@@ -306,8 +306,8 @@ def queue_ollama_call(
     func: Callable,
     priority: TaskPriority,
     task_name: str,
-    *args,
-    **kwargs
+    prompt: str,
+    force_json_format: bool = False
 ) -> Any:
     """
     Helper function to submit an Ollama API call to the queue.
@@ -316,11 +316,11 @@ def queue_ollama_call(
         func: The Ollama function to call
         priority: Task priority level
         task_name: Descriptive name for the task
-        *args: Arguments to pass to func
-        **kwargs: Keyword arguments to pass to func
+        prompt: The prompt string to pass to Ollama
+        force_json_format: Whether to force JSON format
     
     Returns:
         Result from the Ollama function
     """
     manager = get_queue_manager()
-    return manager.submit_task(func, priority, *args, task_name=task_name, **kwargs)
+    return manager.submit_task(func, priority, prompt, force_json_format, task_name=task_name)
