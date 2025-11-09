@@ -19,10 +19,15 @@ def generate_questions_worker(draft_id, chapter_id, chapter_number, title, conte
     Worker function for generating questions for a single chapter/grade.
     This function runs in the Ollama queue worker thread and handles persistence.
     """
+    db = DatabaseManager()
+    
     try:
         logger.info(f"Worker generating questions for chapter {chapter_id}, grade {grade_level}")
         
-        db = DatabaseManager()
+        # At START: update grade status to 'generating'
+        db.update_grade_status(chapter_id, grade_level, 'generating')
+        db.compute_chapter_status(chapter_id)
+        
         generator = QuestionGenerator()
         
         # Generate questions and vocabulary for this grade level
@@ -48,14 +53,21 @@ def generate_questions_worker(draft_id, chapter_id, chapter_number, title, conte
         # Save questions for this grade level
         db.save_draft_questions(chapter_id, draft_id, questions_data, vocabulary_data, grade_level=grade_level)
         
-        logger.info(f"✓ Worker saved {len(questions_data)} questions for chapter {chapter_id}, {grade_level}")
+        # After saving questions: update grade status to 'ready'
+        db.update_grade_status(chapter_id, grade_level, 'ready')
+        db.compute_chapter_status(chapter_id)
+        
+        logger.info(f"✓ Worker saved {len(questions_data)} questions for chapter {chapter_id}, {grade_level} - STATUS: READY")
         
         return {'success': True, 'questions': len(questions_data), 'vocabulary': len(vocabulary_data)}
         
     except Exception as e:
         logger.exception(f"✗ Worker failed to generate questions for chapter {chapter_id}, {grade_level}: {e}")
-        db = DatabaseManager()
-        db.update_chapter_question_status(chapter_id, 'error')
+        
+        # On ERROR: update grade status to 'error'
+        db.update_grade_status(chapter_id, grade_level, 'error')
+        db.compute_chapter_status(chapter_id)
+        
         raise
 
 
@@ -202,9 +214,10 @@ def regenerate_questions_for_draft_async(draft_id):
             
             logger.info(f"Enqueuing question generation for {len(chapters)} chapters x {len(grades_to_regenerate)} grades = {len(chapters) * len(grades_to_regenerate)} tasks")
             
-            # Set ALL chapters to 'generating' status immediately for UI feedback
+            # Create grade status records (status='pending') for each chapter/grade combination
             for chapter in chapters:
-                db.update_chapter_question_status(chapter['id'], 'generating')
+                for grade_level in grades_to_regenerate:
+                    db.create_or_reset_grade_status(chapter['id'], grade_level, status='pending')
             
             # Enqueue non-blocking tasks for each chapter/grade combination
             from src.ollama_queue import TaskPriority
@@ -234,7 +247,14 @@ def regenerate_questions_for_draft_async(draft_id):
                         task_type="questions",
                         book_id=draft_id
                     )
+                    
+                    # Update grade status to 'queued' with queue_task_id
+                    db.update_grade_status(chapter['id'], grade_level, 'queued', queue_task_id=task_id)
+                    
                     task_count += 1
+                
+                # Compute and update chapter status from grade statuses
+                db.compute_chapter_status(chapter['id'])
             
             logger.info(f"✓ Enqueued {task_count} question generation tasks for draft {draft_id} - tasks will process asynchronously")
         
