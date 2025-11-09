@@ -535,9 +535,9 @@
             // Build summary line with meaningful info (book title, chapter, grade, timestamps)
             let summaryParts = [];
             
-            // Book title placeholder (will be filled async)
-            if (task.book_id) {
-                summaryParts.push(`<span id="book-title-summary-${task.id}">Loading book...</span>`);
+            // Book title (comes from backend LEFT JOIN)
+            if (task.book_title) {
+                summaryParts.push(`<span>${task.book_title}</span>`);
             }
             
             // Chapter number
@@ -648,22 +648,6 @@
             `;
         }
 
-        async function loadBookTitles(tasks) {
-            const promises = tasks
-                .filter(task => task.book_id)
-                .map(task => {
-                    if (task.book_id) {
-                        getBookTitle(task.book_id).then(title => {
-                            // Update summary line
-                            const summaryElem = document.getElementById(`book-title-summary-${task.id}`);
-                            if (summaryElem) {
-                                summaryElem.textContent = title;
-                            }
-                        });
-                    }
-                });
-            await Promise.all(promises);
-        }
 
         async function refreshQueue() {
             const refreshBtn = document.getElementById('refresh-btn');
@@ -692,7 +676,6 @@
                         activeTasksList.innerHTML = activeTasks.map(task => 
                             renderTaskExpandable(task, expandedTasks.has(task.id))
                         ).join('');
-                        loadBookTitles(activeTasks);
                     } else {
                         activeTasksList.innerHTML = `
                             <div class="empty-state">
@@ -721,7 +704,6 @@
                         completedTasksList.innerHTML = completedTasks.map(task => 
                             renderTaskExpandable(task, expandedTasks.has(task.id))
                         ).join('');
-                        loadBookTitles(completedTasks);
                     } else {
                         completedSection.style.display = 'none';
                         clearBtn.style.display = 'none';

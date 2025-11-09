@@ -368,13 +368,15 @@ class QueueManagerV2:
                 """)
                 status_counts = {row['status']: row['count'] for row in cur.fetchall()}
                 
-                # Get all active tasks (queued + processing only)
+                # Get all active tasks (queued + processing only) with book titles
                 cur.execute("""
-                    SELECT id, task_type, priority, status, book_id, chapter_id,
-                           payload, attempts, created_at, locked_at
-                    FROM queue_tasks
-                    WHERE status IN ('queued', 'processing')
-                    ORDER BY priority ASC, created_at ASC
+                    SELECT q.id, q.task_type, q.priority, q.status, q.book_id, q.chapter_id,
+                           q.payload, q.attempts, q.created_at, q.locked_at, q.timeout_at,
+                           b.title as book_title
+                    FROM queue_tasks q
+                    LEFT JOIN books b ON q.book_id = b.id
+                    WHERE q.status IN ('queued', 'processing')
+                    ORDER BY q.priority ASC, q.created_at ASC
                     LIMIT 100
                 """)
                 active_tasks = []
@@ -389,16 +391,20 @@ class QueueManagerV2:
                         'payload': row['payload'],
                         'attempts': row['attempts'],
                         'created_at': row['created_at'].isoformat() if row['created_at'] else None,
-                        'locked_at': row['locked_at'].isoformat() if row['locked_at'] else None
+                        'locked_at': row['locked_at'].isoformat() if row['locked_at'] else None,
+                        'timeout_at': row['timeout_at'].isoformat() if row['timeout_at'] else None,
+                        'book_title': row['book_title']
                     })
                 
-                # Get ready tasks (completed)
+                # Get ready tasks (completed successfully) with book titles
                 cur.execute("""
-                    SELECT id, task_type, priority, status, book_id, chapter_id,
-                           payload, attempts, created_at, completed_at
-                    FROM queue_tasks
-                    WHERE status = 'ready'
-                    ORDER BY priority ASC, completed_at DESC
+                    SELECT q.id, q.task_type, q.priority, q.status, q.book_id, q.chapter_id,
+                           q.payload, q.attempts, q.created_at, q.locked_at, q.completed_at,
+                           b.title as book_title
+                    FROM queue_tasks q
+                    LEFT JOIN books b ON q.book_id = b.id
+                    WHERE q.status = 'ready'
+                    ORDER BY q.priority ASC, q.completed_at DESC
                     LIMIT 100
                 """)
                 ready_tasks = []
@@ -413,7 +419,38 @@ class QueueManagerV2:
                         'payload': row['payload'],
                         'attempts': row['attempts'],
                         'created_at': row['created_at'].isoformat() if row['created_at'] else None,
-                        'completed_at': row['completed_at'].isoformat() if row['completed_at'] else None
+                        'locked_at': row['locked_at'].isoformat() if row['locked_at'] else None,
+                        'completed_at': row['completed_at'].isoformat() if row['completed_at'] else None,
+                        'book_title': row['book_title']
+                    })
+                
+                # Get error tasks (completed with errors) with book titles
+                cur.execute("""
+                    SELECT q.id, q.task_type, q.priority, q.status, q.book_id, q.chapter_id,
+                           q.payload, q.attempts, q.created_at, q.locked_at, q.completed_at,
+                           q.error_message, b.title as book_title
+                    FROM queue_tasks q
+                    LEFT JOIN books b ON q.book_id = b.id
+                    WHERE q.status = 'error'
+                    ORDER BY q.priority ASC, q.completed_at DESC
+                    LIMIT 100
+                """)
+                error_tasks = []
+                for row in cur.fetchall():
+                    error_tasks.append({
+                        'id': str(row['id']),
+                        'task_type': row['task_type'],
+                        'priority': row['priority'],
+                        'status': row['status'],
+                        'book_id': row['book_id'],
+                        'chapter_id': row['chapter_id'],
+                        'payload': row['payload'],
+                        'attempts': row['attempts'],
+                        'created_at': row['created_at'].isoformat() if row['created_at'] else None,
+                        'locked_at': row['locked_at'].isoformat() if row['locked_at'] else None,
+                        'completed_at': row['completed_at'].isoformat() if row['completed_at'] else None,
+                        'error_message': row['error_message'],
+                        'book_title': row['book_title']
                     })
                 
                 return {
@@ -422,7 +459,8 @@ class QueueManagerV2:
                     'total_ready': status_counts.get('ready', 0),
                     'total_error': status_counts.get('error', 0),
                     'active_tasks': active_tasks,
-                    'ready_tasks': ready_tasks
+                    'ready_tasks': ready_tasks,
+                    'error_tasks': error_tasks
                 }
     
     def worker_loop(self):
