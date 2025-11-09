@@ -1,0 +1,98 @@
+@app.route('/api/draft/<draft_id>/usage', methods=['GET'])
+def get_text_usage(draft_id):
+    """Analyze which parts of the book text have been used in chapters using fuzzy matching."""
+    try:
+        from rapidfuzz import fuzz
+        from rapidfuzz.distance import Levenshtein
+        from bs4 import BeautifulSoup
+        
+        db = DatabaseManager()
+        
+        # Get the draft
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+        
+        # CRITICAL: Use full_html to match frontend display, fallback to full_text
+        book_text = draft.get('full_html') or draft.get('full_text', '')
+        if not book_text:
+            return jsonify({'used_paragraphs': []})
+        
+        # Split book into paragraphs (same way as frontend does)
+        book_paragraphs = [p.strip() for p in book_text.split('\n\n') if p.strip()]
+        
+        logger.info(f"Usage tracking for draft {draft_id}: {len(book_paragraphs)} total paragraphs")
+        
+        # Get all chapters
+        chapters = db.get_draft_chapters(draft_id)
+        if not chapters:
+            return jsonify({'used_paragraphs': []})
+        
+        # Track which paragraphs are used and which chapter they belong to
+        used_paragraph_indices = set()
+        paragraph_to_chapter = {}  # Maps paragraph_index -> chapter_number
+        
+        # Helper function to normalize text for comparison
+        def normalize(text):
+            """Normalize text for fuzzy matching - strip HTML, lowercase, remove extra whitespace."""
+            # Strip HTML tags using BeautifulSoup
+            soup = BeautifulSoup(text, 'html.parser')
+            clean_text = soup.get_text(separator=' ')
+            # Normalize whitespace and lowercase
+            return ' '.join(clean_text.lower().split())
+        
+        # Normalize paragraphs once (for performance)
+        normalized_paragraphs = [normalize(p) for p in book_paragraphs]
+        logger.info(f"Normalized {len(normalized_paragraphs)} book paragraphs for matching")
+        
+        # For each chapter, find matching paragraphs in the book
+        for chapter in chapters:
+            chapter_text = chapter.get('content', '')
+            chapter_number = chapter.get('chapter_number')
+            if not chapter_text or chapter_number is None:
+                continue
+            
+            # Split chapter into paragraphs (to compare paragraph-to-paragraph)
+            chapter_paragraphs = [p.strip() for p in chapter_text.split('\n\n') if p.strip()]
+            normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs]
+            
+            # Check each book paragraph against each chapter paragraph
+            for para_idx, normalized_para in enumerate(normalized_paragraphs):
+                if para_idx in used_paragraph_indices:
+                    continue  # Already marked as used
+                    
+                # Skip empty paragraphs
+                if not normalized_para:
+                    continue
+                
+                # Compare against each paragraph in the chapter
+                # Use Levenshtein similarity with token-based fallback
+                for chapter_para in normalized_chapter_paras:
+                    if not chapter_para:
+                        continue
+                        
+                    # HYBRID APPROACH: Levenshtein + token-based
+                    # 1. Normalized Levenshtein similarity (order-aware, edit-tolerant)
+                    leven_sim = Levenshtein.normalized_similarity(normalized_para, chapter_para) * 100
+                    
+                    # 2. Token-based similarity (vocabulary-aware)
+                    token_sim = fuzz.token_sort_ratio(normalized_para, chapter_para)
+                    
+                    # Use weighted average: favor Levenshtein slightly for order preservation
+                    # 60% Levenshtein + 40% token = better balance
+                    combined_score = (leven_sim * 0.6) + (token_sim * 0.4)
+                    
+                    # 78% threshold allows minor edits while filtering different text
+                    if combined_score >= 78:
+                        used_paragraph_indices.add(para_idx)
+                        paragraph_to_chapter[para_idx] = chapter_number
+                        break  # Found a match, no need to check other chapter paragraphs
+        
+        return jsonify({
+            'used_paragraphs': sorted(list(used_paragraph_indices)),
+            'paragraph_chapters': paragraph_to_chapter  # Maps paragraph_index -> chapter_number
+        })
+        
+    except Exception as e:
+        logger.exception("Failed to analyze text usage")
+        return jsonify({'error': str(e)}), 500

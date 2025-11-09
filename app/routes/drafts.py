@@ -331,7 +331,7 @@ def get_draft_description(draft_id):
 
 @drafts_bp.route('/draft/<draft_id>/usage', methods=['GET'])
 def get_draft_usage(draft_id):
-    """Get token usage statistics for a draft."""
+    """Get paragraph usage statistics for a draft."""
     try:
         db = DatabaseManager()
         usage = db.get_draft_usage(draft_id)
@@ -341,7 +341,8 @@ def get_draft_usage(draft_id):
         
         return jsonify({
             'success': True,
-            'usage': usage
+            'used_paragraphs': usage['used_paragraphs'],
+            'paragraph_chapters': usage['paragraph_chapters']
         })
     except Exception as e:
         logger.exception("Failed to get usage")

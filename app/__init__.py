@@ -7,7 +7,8 @@ from flask import Flask
 from flask_cors import CORS
 from pathlib import Path
 
-from src.ollama_queue import shutdown_queue_manager
+from src.ollama_queue import shutdown_queue_manager, get_queue_manager
+from src.config import settings
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,6 +43,15 @@ def create_app():
     app.config['PARALLEL_GENERATION'] = PARALLEL_GENERATION
     
     logger.info(f"Question generation mode: {'PARALLEL' if PARALLEL_GENERATION else 'SEQUENTIAL'}")
+    
+    # Initialize queue manager with database persistence
+    queue_manager = get_queue_manager()
+    queue_manager._database_url = settings.database_url
+    
+    # Load any pending tasks from previous session
+    pending_tasks = queue_manager.load_persistent_tasks()
+    if pending_tasks:
+        logger.info(f"Loaded {len(pending_tasks)} pending tasks from database")
     
     # Register blueprints
     from app.routes.ui import ui_bp

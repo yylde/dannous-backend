@@ -13,8 +13,10 @@ import logging
 import queue
 import threading
 import time
+import json
+import psycopg2
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, List
 from enum import IntEnum
 
 logger = logging.getLogger(__name__)
@@ -61,11 +63,12 @@ class OllamaQueueManager:
                     cls._instance = super().__new__(cls)
         return cls._instance
     
-    def __init__(self, num_workers: int = 1):
+    def __init__(self, num_workers: int = 1, database_url: Optional[str] = None):
         """Initialize the queue manager.
         
         Args:
             num_workers: Number of worker threads (default: 1)
+            database_url: Database connection URL for persistence (optional)
         """
         if hasattr(self, '_initialized'):
             return
@@ -79,6 +82,8 @@ class OllamaQueueManager:
         self._num_workers = max(1, num_workers)
         self._pending_tasks = {}  # Track pending tasks by ID for detailed info
         self._pending_tasks_lock = threading.Lock()
+        self._database_url = database_url
+        self._db_task_map = {}  # Maps task_id to database UUID
         
         logger.info(f"Initializing OllamaQueueManager with {self._num_workers} worker(s)")
         self._start_workers()
@@ -135,37 +140,42 @@ class OllamaQueueManager:
         max_retries = 3
         retry_delay = 1.0
         
-        for attempt in range(max_retries):
-            try:
-                result = task.func(*task.args, **task.kwargs)
-                
-                if task.result_queue is not None:
-                    task.result_queue.put(('success', result))
-                
-                elapsed = time.time() - start_time
-                logger.info(
-                    f"{thread_name} completed task #{task.task_id} "
-                    f"[{priority_name}] in {elapsed:.2f}s"
-                )
-                return
-                
-            except Exception as e:
-                if attempt < max_retries - 1:
-                    logger.warning(
-                        f"{thread_name} task #{task.task_id} attempt {attempt + 1} failed: {e}, "
-                        f"retrying in {retry_delay}s..."
-                    )
-                    time.sleep(retry_delay)
-                    retry_delay *= 2
-                else:
-                    logger.error(
-                        f"{thread_name} failed task #{task.task_id} "
-                        f"[{priority_name}] after {max_retries} attempts: {e}",
-                        exc_info=True
-                    )
+        try:
+            for attempt in range(max_retries):
+                try:
+                    result = task.func(*task.args, **task.kwargs)
                     
                     if task.result_queue is not None:
-                        task.result_queue.put(('error', e))
+                        task.result_queue.put(('success', result))
+                    
+                    elapsed = time.time() - start_time
+                    logger.info(
+                        f"{thread_name} completed task #{task.task_id} "
+                        f"[{priority_name}] in {elapsed:.2f}s"
+                    )
+                    return
+                    
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        logger.warning(
+                            f"{thread_name} task #{task.task_id} attempt {attempt + 1} failed: {e}, "
+                            f"retrying in {retry_delay}s..."
+                        )
+                        time.sleep(retry_delay)
+                        retry_delay *= 2
+                    else:
+                        logger.error(
+                            f"{thread_name} failed task #{task.task_id} "
+                            f"[{priority_name}] after {max_retries} attempts: {e}",
+                            exc_info=True
+                        )
+                        
+                        if task.result_queue is not None:
+                            task.result_queue.put(('error', e))
+        finally:
+            db_task_id = self._db_task_map.pop(task.task_id, None)
+            if db_task_id:
+                self._delete_task_from_db(db_task_id)
     
     def _get_priority_name(self, priority: int) -> str:
         """Get human-readable name for priority level."""
@@ -245,6 +255,11 @@ class OllamaQueueManager:
                 'chapter_id': chapter_id
             }
         
+        # Save task to database for persistence
+        db_task_id = self._save_task_to_db(task)
+        if db_task_id:
+            self._db_task_map[task_id] = db_task_id
+        
         priority_name = self._get_priority_name(task.priority)
         logger.info(f"Submitting task #{task_id} [{priority_name}]: {task.task_name}")
         
@@ -310,6 +325,153 @@ class OllamaQueueManager:
         
         logger.info(f"Flushed {flushed_count} tasks from queue")
         return flushed_count
+    
+    def _get_db_connection(self):
+        """Get database connection if database_url is configured."""
+        if not self._database_url:
+            return None
+        try:
+            return psycopg2.connect(self._database_url)
+        except Exception as e:
+            logger.error(f"Failed to connect to database: {e}")
+            return None
+    
+    def _save_task_to_db(self, task: OllamaTask) -> Optional[str]:
+        """Save task to database for persistence.
+        
+        Args:
+            task: The OllamaTask to save
+            
+        Returns:
+            Database UUID of saved task, or None if save failed
+        """
+        if not self._database_url:
+            return None
+        
+        conn = self._get_db_connection()
+        if not conn:
+            return None
+        
+        try:
+            with conn.cursor() as cur:
+                args_json = json.dumps({
+                    'task_name': task.task_name,
+                    'args': [str(arg) if not isinstance(arg, (str, int, float, bool, type(None))) else arg 
+                             for arg in task.args],
+                    'kwargs': {k: (str(v) if not isinstance(v, (str, int, float, bool, type(None))) else v) 
+                               for k, v in task.kwargs.items()}
+                })
+                
+                cur.execute("""
+                    INSERT INTO queue_tasks (task_type, book_id, chapter_id, priority, args)
+                    VALUES (%s, %s, %s, %s, %s)
+                    RETURNING id
+                """, (
+                    task.task_type,
+                    task.book_id,
+                    task.chapter_id,
+                    task.priority,
+                    args_json
+                ))
+                
+                db_id = cur.fetchone()[0]
+                conn.commit()
+                logger.debug(f"Saved task #{task.task_id} to database with ID {db_id}")
+                return str(db_id)
+        except Exception as e:
+            logger.error(f"Failed to save task to database: {e}")
+            conn.rollback()
+            return None
+        finally:
+            conn.close()
+    
+    def _delete_task_from_db(self, db_task_id: str):
+        """Delete completed task from database.
+        
+        Args:
+            db_task_id: Database UUID of the task to delete
+        """
+        if not self._database_url or not db_task_id:
+            return
+        
+        conn = self._get_db_connection()
+        if not conn:
+            return
+        
+        try:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM queue_tasks WHERE id = %s", (db_task_id,))
+                conn.commit()
+                logger.debug(f"Deleted task {db_task_id} from database")
+        except Exception as e:
+            logger.error(f"Failed to delete task from database: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
+    
+    def load_persistent_tasks(self) -> List[Dict]:
+        """Load pending tasks from database.
+        
+        This method retrieves tasks that were pending when the server last shut down.
+        Note: Tasks cannot be automatically re-executed because function references 
+        cannot be serialized. This method returns task metadata for inspection and 
+        potential manual re-triggering.
+        
+        Returns:
+            List of task dictionaries with metadata
+        """
+        if not self._database_url:
+            logger.info("No database URL configured, skipping persistent task loading")
+            return []
+        
+        conn = self._get_db_connection()
+        if not conn:
+            return []
+        
+        pending_tasks = []
+        
+        try:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT id, task_type, book_id, chapter_id, priority, args, created_at
+                    FROM queue_tasks
+                    ORDER BY priority, created_at
+                """)
+                
+                rows = cur.fetchall()
+                
+                for row in rows:
+                    task_data = {
+                        'db_id': str(row[0]),
+                        'task_type': row[1],
+                        'book_id': str(row[2]) if row[2] else None,
+                        'chapter_id': str(row[3]) if row[3] else None,
+                        'priority': row[4],
+                        'args': row[5],
+                        'created_at': row[6].isoformat() if row[6] else None
+                    }
+                    pending_tasks.append(task_data)
+                
+                if pending_tasks:
+                    logger.warning(
+                        f"Found {len(pending_tasks)} pending tasks in database from previous session. "
+                        f"These tasks cannot be automatically re-executed and should be manually re-triggered "
+                        f"by the application if still needed."
+                    )
+                    
+                    cur.execute("DELETE FROM queue_tasks")
+                    conn.commit()
+                    logger.info(f"Cleared {len(pending_tasks)} stale tasks from database")
+                else:
+                    logger.info("No pending tasks found in database")
+        
+        except Exception as e:
+            logger.error(f"Failed to load persistent tasks: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
+        
+        return pending_tasks
     
     def shutdown(self, wait: bool = True, timeout: float = 30.0):
         """
