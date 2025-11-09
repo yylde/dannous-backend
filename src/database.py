@@ -402,7 +402,7 @@ class DatabaseManager:
             with conn.cursor() as cur:
                 cur.execute("""
                     SELECT id, chapter_number, title, content, word_count, 
-                           html_formatting, has_questions, created_at
+                           html_formatting, created_at
                     FROM draft_chapters
                     WHERE draft_id = %s
                     ORDER BY chapter_number
@@ -457,7 +457,7 @@ class DatabaseManager:
                 # Get chapter
                 cur.execute("""
                     SELECT id, draft_id, chapter_number, title, content, 
-                           word_count, html_formatting, has_questions, question_status
+                           word_count, html_formatting
                     FROM draft_chapters
                     WHERE id = %s
                 """, (chapter_id,))
@@ -876,19 +876,11 @@ class DatabaseManager:
                         # Update chapter with injected HTML
                         cur.execute("""
                             UPDATE draft_chapters
-                            SET has_questions = true,
-                                html_formatting = %s
+                            SET html_formatting = %s
                             WHERE id = %s
                         """, (updated_html, chapter_id))
                         
                         logger.info(f"Injected {len(vocabulary_list)} vocabulary terms into chapter {chapter_id} HTML")
-                    else:
-                        # No vocabulary, just update has_questions flag
-                        cur.execute("""
-                            UPDATE draft_chapters
-                            SET has_questions = true
-                            WHERE id = %s
-                        """, (chapter_id,))
                 
                 return computed_status
 
