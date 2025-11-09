@@ -544,34 +544,6 @@ class QueueManagerV2:
         logger.info("[QUEUE] Shutting down...")
         self._shutdown = True
     
-    def get_status(self) -> Dict[str, Any]:
-        """
-        Get queue status.
-        
-        Returns:
-            Dictionary with task counts by status
-        """
-        with self._get_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                cur.execute("""
-                    SELECT status, COUNT(*) as count
-                    FROM queue_tasks
-                    GROUP BY status
-                """)
-                
-                status_counts = {row['status']: row['count'] for row in cur.fetchall()}
-                
-                # Get total count
-                cur.execute("SELECT COUNT(*) as total FROM queue_tasks")
-                total = cur.fetchone()['total']
-                
-                return {
-                    'total': total,
-                    'queued': status_counts.get('queued', 0),
-                    'processing': status_counts.get('processing', 0),
-                    'ready': status_counts.get('ready', 0),
-                    'error': status_counts.get('error', 0)
-                }
     
     def clear_completed_tasks(self) -> int:
         """
