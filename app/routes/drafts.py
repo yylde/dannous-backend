@@ -297,22 +297,24 @@ def regenerate_questions(draft_id):
         # Use new queue system
         queue_manager_v2 = get_queue_manager_v2()
         
-        # Step 1: Delete ALL existing queued question tasks for this draft
-        # This ensures we don't have duplicate or stale tasks
+        # Step 1: Delete existing queued question tasks for this draft AND grade levels
+        # Only delete tasks for the grade levels we're about to regenerate
         deleted_count = 0
         with queue_manager_v2._get_connection() as conn:
             with conn.cursor() as cur:
+                # Use jsonb operator to filter by grade_level in payload
                 cur.execute("""
                     DELETE FROM queue_tasks
                     WHERE status = 'queued'
                       AND task_type = 'questions'
                       AND book_id = %s
-                """, (draft_id,))
+                      AND payload->>'grade_level' = ANY(%s)
+                """, (draft_id, grade_levels))
                 deleted_count = cur.rowcount
                 conn.commit()
         
         if deleted_count > 0:
-            logger.info(f"Deleted {deleted_count} existing queued question tasks for draft {draft_id}")
+            logger.info(f"Deleted {deleted_count} existing queued question tasks for draft {draft_id} and grades {grade_levels}")
         
         # Step 2: Batch enqueue tasks per chapter
         # Create n_chapters × n_grades × 3 tasks (3 tasks per grade per chapter)
