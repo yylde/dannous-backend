@@ -407,17 +407,34 @@ def generate_description(draft_id):
             return jsonify({'error': 'Draft not found'}), 404
         
         # Check if description generation is already actively generating
-        # Allow retrying if stuck at "pending" (thread may have failed)
+        # Allow retrying if stuck for more than 10 minutes
         current_description_status = draft.get('description_status')
-        if current_description_status == 'generating':
-            logger.info(f"Blocked duplicate description generation request for draft {draft_id} (currently generating)")
-            return jsonify({
-                'error': 'Description generation already in progress. Please wait for it to complete.'
-            }), 409
         
-        # If stuck at "pending", allow retry and log it
-        if current_description_status == 'pending':
-            logger.warning(f"Retrying description generation for draft {draft_id} (was stuck at pending)")
+        if current_description_status in ('pending', 'generating'):
+            # Check if it's been stuck for more than 10 minutes
+            updated_at = draft.get('updated_at')
+            if updated_at:
+                # Parse the datetime (it comes as a string from the database)
+                if isinstance(updated_at, str):
+                    from dateutil import parser
+                    updated_at = parser.parse(updated_at)
+                
+                time_since_update = datetime.now(updated_at.tzinfo) - updated_at
+                
+                # If it's been generating for more than 10 minutes, consider it stuck
+                if time_since_update > timedelta(minutes=10):
+                    logger.warning(f"Description status stuck in '{current_description_status}' for {time_since_update}. Allowing regeneration.")
+                else:
+                    logger.info(f"Blocked duplicate description generation request for draft {draft_id} (current status: {current_description_status})")
+                    return jsonify({
+                        'error': 'Description generation already in progress. Please wait for it to complete.'
+                    }), 409
+            else:
+                # If no updated_at timestamp, block duplicate request
+                logger.info(f"Blocked duplicate description generation request for draft {draft_id} (currently {current_description_status})")
+                return jsonify({
+                    'error': 'Description generation already in progress. Please wait for it to complete.'
+                }), 409
         
         # Set description status to generating
         db.update_draft(draft_id, description_status='generating')
