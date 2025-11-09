@@ -166,10 +166,8 @@ function handleChapterTextDeletion(oldText, newText) {
 function rebuildBookTextParts() {
     if (!bookData) return;
 
-    // Use text_sections array if available, otherwise fall back to splitting
-    const originalTextParts = bookData.text_sections || bookData.full_text.split('\n\n').filter(p => p.trim());
-    // Use html_sections array if available (preserves HTML formatting), otherwise fall back to splitting
-    const originalHtmlParts = bookData.html_sections || bookData.full_html.split('\n\n').filter(p => p.trim());
+    const originalTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
+    const originalHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
     
     bookTextParts = [...originalTextParts];
     bookHtmlParts = [...originalHtmlParts];
@@ -396,12 +394,10 @@ function setupNewBookAfterDownload() {
     undoStack = [];
 
     // Initialize book text parts (plain text for display)
-    // Use text_sections array if available, otherwise fall back to splitting
-    bookTextParts = bookData.text_sections || bookData.full_text.split('\n\n').filter(p => p.trim());
+    bookTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
     
     // Initialize book HTML parts (HTML for storage)
-    // Use html_sections array if available (preserves HTML formatting), otherwise fall back to splitting
-    bookHtmlParts = bookData.html_sections || bookData.full_html.split('\n\n').filter(p => p.trim());
+    bookHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
 
     // Clear form values for new book
     const coverUrlInput = document.getElementById('cover-image-url');
@@ -455,8 +451,8 @@ function displayFullBook() {
 
     const scrollDiv = document.getElementById('book-text-scroll');
 
-    // Use html_sections array if available (preserves HTML formatting), otherwise fall back to splitting
-    const originalParts = bookData.html_sections || (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
+    // Use full_html to display images and formatting
+    const originalParts = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
     
     console.log('=== DISPLAY FULL BOOK DEBUG ===');
     console.log('Total paragraphs:', originalParts.length);
@@ -579,7 +575,7 @@ async function fetchUsageData() {
             
             console.log('Assigned chapter colors:', chapterColors);
             console.log('Updated usedParagraphs Set:', Array.from(usedParagraphs));
-            console.log('Total paragraphs in book:', (bookData.html_sections || (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim())).length);
+            console.log('Total paragraphs in book:', (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim()).length);
             
             // Refresh the book display to show highlighting
             displayFullBook();
@@ -611,8 +607,7 @@ function autoAddSelectedText(selectedText, selectedIndices) {
     });
 
     // Get corresponding HTML parts for the selected indices
-    // Use html_sections array if available (preserves HTML formatting), otherwise fall back to splitting
-    const originalHtmlParts = bookData.html_sections || bookData.full_html.split('\n\n').filter(p => p.trim());
+    const originalHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
     const selectedHtmlParts = [];
     selectedIndices.forEach(idx => {
         if (idx < originalHtmlParts.length) {
@@ -1165,12 +1160,10 @@ async function loadDraft(draftId) {
         };
         
         // Initialize book text parts (plain text for display)
-        // Use text_sections array if available, otherwise fall back to splitting
-        bookTextParts = draft.text_sections || draft.full_text.split('\n\n').filter(p => p.trim());
+        bookTextParts = draft.full_text.split('\n\n').filter(p => p.trim());
         
         // Initialize book HTML parts (HTML for storage)
-        // Use html_sections array if available (preserves HTML formatting), otherwise fall back to splitting
-        bookHtmlParts = draft.html_sections || (draft.full_html || draft.full_text).split('\n\n').filter(p => p.trim());
+        bookHtmlParts = (draft.full_html || draft.full_text).split('\n\n').filter(p => p.trim());
         
         // Load chapters
         chapters = draft.chapters.map(ch => ({

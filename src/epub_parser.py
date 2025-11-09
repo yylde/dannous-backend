@@ -218,20 +218,10 @@ class EPUBParser:
                         if table_text:
                             text_parts.append(table_text)
                     else:
-                        # For paragraphs, preserve ALL inner HTML including formatting, br tags, nbsp, etc.
-                        # Preserve original attributes (class, style, id)
-                        attrs = []
-                        for attr, value in element.attrs.items():
-                            if attr in ['class', 'style', 'id']:
-                                if isinstance(value, list):
-                                    value = ' '.join(value)
-                                attrs.append(f'{attr}="{value}"')
-                        
-                        attr_str = ' ' + ' '.join(attrs) if attrs else ''
-                        inner_html = element.decode_contents()  # Preserves ALL inner HTML as-is
-                        
+                        # For paragraphs, preserve inner HTML with formatting tags and images
+                        inner_html = self._extract_formatted_html(element)
                         if inner_html.strip():
-                            html_parts.append(f'<p{attr_str}>{inner_html}</p>')
+                            html_parts.append(f'<p>{inner_html}</p>')
                             # Also extract plain text version
                             plain_text = element.get_text(separator=' ', strip=True)
                             plain_text = ' '.join(plain_text.split())

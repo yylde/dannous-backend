@@ -107,8 +107,6 @@ def create_or_update_draft():
                 cover_image_url=data.get('cover_image_url'),
                 metadata=data.get('metadata', {}),
                 full_html=data.get('full_html'),
-                html_sections=data.get('html_sections'),
-                text_sections=data.get('text_sections'),
                 word_count=word_count
             )
             
