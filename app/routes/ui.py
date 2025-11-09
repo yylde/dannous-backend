@@ -11,6 +11,12 @@ def index():
     return render_template('index.html')
 
 
+@ui_bp.route('/draft/<draft_id>')
+def draft_page(draft_id):
+    """Draft editing page."""
+    return render_template('draft.html', draft_id=draft_id)
+
+
 @ui_bp.route('/queue')
 def queue_page():
     """Queue monitoring page."""

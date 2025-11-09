@@ -62,7 +62,10 @@ function cleanUsageHighlighting(container) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-    updateDifficultyRange();
+    // Only update difficulty range if the element exists (on draft page)
+    if (document.getElementById('reading-level')) {
+        updateDifficultyRange();
+    }
     
     // Load drafts in sidebar on page load
     loadDraftsInSidebar();
@@ -198,10 +201,16 @@ function getSelectedParagraphIndices(selection) {
 }
 
 function updateDifficultyRange() {
-    const level = document.getElementById('reading-level').value;
-
-    const info = document.getElementById('difficulty-info');
-    info.innerHTML = `
+    const levelElement = document.getElementById('reading-level');
+    const infoElement = document.getElementById('difficulty-info');
+    
+    // Only proceed if elements exist (on draft page)
+    if (!levelElement || !infoElement) {
+        return;
+    }
+    
+    const level = levelElement.value;
+    infoElement.innerHTML = `
         <strong>Selected Level:</strong> ${level.charAt(0).toUpperCase() + level.slice(1)}
     `;
 
@@ -1038,7 +1047,7 @@ async function loadDraftsInSidebar() {
                 const statusClass = draft.is_completed ? 'completed' : 'in-progress';
                 const statusText = draft.is_completed ? 'Completed' : 'In Progress';
                 return `
-                    <div class="draft-item ${currentDraftId === draft.id ? 'active' : ''}" onclick="loadDraft('${draft.id}')">
+                    <div class="draft-item ${currentDraftId === draft.id ? 'active' : ''}" onclick="window.location.href='/draft/${draft.id}'">
                         <button class="delete-draft-btn" onclick="deleteDraft('${draft.id}', event)" title="Delete this book">
                             &times;
                         </button>

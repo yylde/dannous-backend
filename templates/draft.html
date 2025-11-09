@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Chapter Splitter - Admin UI</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+
+<body>
+    <!-- Draft Sidebar -->
+    <div class="draft-sidebar">
+        <div class="sidebar-header">
+            <h3>📚 Books</h3>
+            <button onclick="showNewBookForm()" class="btn btn-primary btn-small" title="Download New Book">
+                + New
+            </button>
+        </div>
+        <div id="drafts-list-sidebar" class="drafts-list">
+            <p style="color: #718096; text-align: center; padding: 10px;">Loading...</p>
+        </div>
+    </div>
+
+    <!-- Chapter Detail Modal -->
+    <div id="chapter-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="closeChapterModal()">&times;</span>
+            <div id="chapter-detail-content"></div>
+        </div>
+    </div>
+
+    <!-- Reading Info Modal -->
+    <div id="reading-info-modal" class="modal" style="display: none;">
+        <div class="modal-content reading-modal-content">
+            <span class="close" onclick="closeReadingInfoModal()">&times;</span>
+            <h2 style="color: #667eea; margin-bottom: 20px;">Reading Benchmarks by Grade</h2>
+            <div class="reading-table-container">
+                <table class="reading-benchmarks-table">
+                    <thead>
+                        <tr>
+                            <th>Grade</th>
+                            <th>Silent Reading (WPM)</th>
+                            <th>Total Words in 30 Min</th>
+                            <th>Pages in 30 Min</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>1st</td>
+                            <td>80</td>
+                            <td>2,400</td>
+                            <td>5-7.5</td>
+                        </tr>
+                        <tr>
+                            <td>2nd</td>
+                            <td>80-110</td>
+                            <td>2,400-3,300</td>
+                            <td>7.5-12.5</td>
+                        </tr>
+                        <tr>
+                            <td>3rd</td>
+                            <td>110-130</td>
+                            <td>3,300-3,900</td>
+                            <td>10-14</td>
+                        </tr>
+                        <tr>
+                            <td>4th</td>
+                            <td>130-150</td>
+                            <td>3,900-4,500</td>
+                            <td>12.5-15</td>
+                        </tr>
+                        <tr>
+                            <td>5th</td>
+                            <td>150-160</td>
+                            <td>4,500-4,800</td>
+                            <td>16-19</td>
+                        </tr>
+                        <tr>
+                            <td>6th</td>
+                            <td>160-175</td>
+                            <td>4,800-5,250</td>
+                            <td>20-22.5</td>
+                        </tr>
+                        <tr>
+                            <td>7th</td>
+                            <td>175-185</td>
+                            <td>5,250-5,550</td>
+                            <td>20-22.5</td>
+                        </tr>
+                        <tr>
+                            <td>8th</td>
+                            <td>185-200</td>
+                            <td>5,550-6,000</td>
+                            <td>20-22.5</td>
+                        </tr>
+                        <tr>
+                            <td>9th</td>
+                            <td>200-230</td>
+                            <td>6,000-6,900</td>
+                            <td>22.5-30</td>
+                        </tr>
+                        <tr>
+                            <td>Adult</td>
+                            <td>238-260</td>
+                            <td>7,140-7,800</td>
+                            <td>30-40</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>📚 Manual Chapter Splitter</h1>
+            <p>Download books from Project Gutenberg and manually create chapters</p>
+            <div style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
+                <div id="current-draft-info" style="display: none; padding: 10px; background: #e6f7ff; border-radius: 5px; flex: 1; min-width: 250px;">
+                    <strong>Current Draft:</strong> <span id="draft-title"></span>
+                </div>
+                <div id="queue-status-widget" class="queue-status-widget" style="display: none;">
+                    <div class="queue-header">
+                        <span class="queue-title">🔄 AI Queue</span>
+                        <button onclick="refreshQueueStatus()" class="btn-icon" title="Refresh">↻</button>
+                    </div>
+                    <div class="queue-body">
+                        <div class="queue-stat">
+                            <span class="queue-label">Pending:</span>
+                            <span id="queue-size" class="queue-value">0</span>
+                        </div>
+                        <div class="queue-stat">
+                            <span class="queue-label">Workers:</span>
+                            <span id="queue-workers" class="queue-value">0/0</span>
+                        </div>
+                    </div>
+                    <div class="queue-footer">
+                        <a href="/queue" target="_blank" class="btn btn-small btn-primary" style="text-decoration: none; display: inline-block;">
+                            📊 View Full Queue
+                        </a>
+                        <span class="queue-timestamp" id="queue-timestamp">-</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <section id="download-section">
+            <div class="card">
+                <h2>1. Download Book</h2>
+                <div class="form-group">
+                    <label for="gutenberg-id">Project Gutenberg Book ID:</label>
+                    <input type="number" id="gutenberg-id" placeholder="e.g., 11115 (Alice in Wonderland)">
+                    <button onclick="downloadBook()" class="btn btn-primary">Download Book</button>
+                </div>
+                <div id="download-status"></div>
+            </div>
+        </section>
+
+        <section id="book-section" style="display: none;">
+            <div class="card">
+                <div id="book-info"></div>
+
+                <!-- Undo Button -->
+                <div style="margin-bottom: 20px;">
+                    <button id="undo-btn" onclick="undo()" class="btn btn-secondary" disabled>
+                        ↶ Undo
+                    </button>
+                </div>
+
+                <div class="controls">
+                    <h2>2. Configure Settings</h2>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="reading-level">
+                                Reading Level:
+                                <button type="button" class="info-icon-btn" onclick="showReadingInfoModal()" title="View reading benchmarks">ℹ️</button>
+                            </label>
+                            <select id="reading-level" onchange="updateDifficultyRange()">
+                                <option value="beginner">Beginner</option>
+                                <option value="intermediate" selected>Intermediate</option>
+                                <option value="advanced">Advanced</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Tags and Cover URL Section -->
+                    <div class="tags-url-section">
+                        <div class="form-group tags-group">
+                            <label>
+                                Tags:
+                                <span id="tag-status-badge" class="tag-status-badge" style="display: none;"></span>
+                            </label>
+                            <div id="tags-container" class="tags-container">
+                                <div class="tag-chip add-tag-chip" onclick="showAddTagInput()">+ Add Tag</div>
+                            </div>
+                            <div id="add-tag-input-container" class="add-tag-input-container" style="display: none;">
+                                <input type="text" id="new-tag-input" placeholder="e.g., adventure, grade-3" onkeypress="handleTagKeyPress(event)">
+                                <button onclick="addNewTag()" class="btn btn-small">Add</button>
+                                <button onclick="hideAddTagInput()" class="btn btn-small btn-secondary">Cancel</button>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="cover-image-url">Book Cover URL (optional):</label>
+                            <input type="url" id="cover-image-url" placeholder="https://example.com/cover.jpg" oninput="updateCoverPreview()">
+                            <div id="cover-preview-container" style="margin-top: 10px; display: none;">
+                                <img id="cover-preview-img" src="" alt="Cover preview" style="max-width: 100px; max-height: 150px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onerror="this.parentElement.style.display='none'">
+                            </div>
+                        </div>
+                        <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button onclick="saveTagsAndUrl()" class="btn btn-primary" id="save-tags-url-btn">
+                                💾 Save Tags & URL
+                            </button>
+                            <button onclick="regenerateTags()" class="btn btn-secondary" id="regenerate-tags-btn">
+                                ✨ Regenerate Tags
+                            </button>
+                            <button onclick="regenerateQuestions()" class="btn btn-secondary" id="regenerate-questions-btn">
+                                🔄 Regenerate Questions
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Book Description Section -->
+                    <div class="tags-url-section" style="margin-top: 20px;">
+                        <div class="form-group">
+                            <label for="book-description">
+                                Book Description: 
+                                <span id="description-status-badge" class="status-badge" style="display: none;"></span>
+                            </label>
+                            <textarea 
+                                id="book-description" 
+                                rows="10" 
+                                placeholder="Enter book description or click 'Regenerate with AI' to generate one..."
+                                style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-family: inherit; font-size: 14px; resize: vertical;"
+                            ></textarea>
+                        </div>
+                        <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button onclick="saveDescription()" class="btn btn-primary" id="save-description-btn">
+                                💾 Save Description
+                            </button>
+                            <button onclick="generateDescription()" class="btn btn-secondary" id="generate-description-btn">
+                                ✨ Regenerate with AI
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="difficulty-info" class="difficulty-info"></div>
+                </div>
+
+                <h2>3. Chapter Builder & Book Text</h2>
+                
+                <!-- Side-by-side layout for chapter editor and book text -->
+                <div class="side-by-side-container">
+                    <!-- Left: Chapter Editor -->
+                    <div class="side-by-side-left">
+                        <div class="section-header">
+                            <h3>Current Chapter</h3>
+                        </div>
+                        <div class="chapter-builder">
+                            <div class="form-group">
+                                <label for="chapter-title">Chapter Title:</label>
+                                <div style="display: flex; gap: 10px;">
+                                    <input type="text" id="chapter-title" placeholder="Chapter 1" style="flex: 1;">
+                                    <button onclick="generateAITitle()" class="btn btn-secondary"
+                                        title="Generate title with AI">✨ AI Title</button>
+                                </div>
+                            </div>
+                            <div id="current-chapter-content" class="chapter-content" contenteditable="true"></div>
+                            <div id="chapter-stats" class="stats"></div>
+                            <div class="chapter-actions">
+                                <button onclick="discardChapter()" class="btn btn-danger">🗑️ Discard</button>
+                                <button onclick="clearChapter()" class="btn btn-secondary">Clear</button>
+                                <button onclick="finishChapter()" class="btn btn-success">✓ Save</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Book Text -->
+                    <div class="side-by-side-right">
+                        <div class="section-header">
+                            <h3>Book Text</h3>
+                            <button id="refresh-usage-btn" onclick="fetchUsageData()" class="btn btn-secondary btn-small" style="white-space: nowrap;">
+                                🔄 Refresh Usage
+                            </button>
+                        </div>
+                        <div class="text-display-full">
+                            <div id="book-text-scroll" class="book-scroll-content"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="chapters-list">
+                    <h3>Completed Chapters (<span id="chapter-count">0</span>)</h3>
+                    <div id="chapters-container"></div>
+                </div>
+
+                <div class="save-section">
+                    <button onclick="finalizeBook()" class="btn btn-primary btn-large">
+                        ✅ Finalize Book
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <div id="loading" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Processing...</p>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const draftId = '{{ draft_id }}';
+            if (draftId) {
+                loadDraft(draftId);
+            }
+        });
+    </script>
+</body>
+
+</html>
