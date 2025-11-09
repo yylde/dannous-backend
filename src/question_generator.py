@@ -4,7 +4,7 @@ import json
 import logging
 import re
 import time
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Optional
 import ollama
 from .config import settings
 from .ollama_queue import queue_ollama_call, TaskPriority
@@ -245,7 +245,9 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         age_range: str,
         grade_level: str = None,
         num_questions: int = None,
-        vocab_count: int = 8
+        vocab_count: int = 8,
+        book_id: str = None,
+        chapter_id: str = None
     ) -> Tuple[List[Dict[str, any]], List[Dict[str, str]]]:
         """
         Generate questions and vocabulary for a chapter at a specific grade level.
@@ -297,7 +299,10 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                 prompt, 
                 force_json_format=False,  # Start with free-form for thinking models
                 priority=TaskPriority.QUESTION,
-                task_name=f"generate_questions_{title}_ch{chapter_number}"
+                task_name=f"generate_questions_{title}_ch{chapter_number}",
+                task_type="questions",
+                book_id=book_id,
+                chapter_id=chapter_id
             )
             questions, vocabulary, _ = self._parse_response(response, num_questions)
             
@@ -363,7 +368,16 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         
         return raw_response
     
-    def _call_ollama(self, prompt: str, force_json_format: bool = False, priority: TaskPriority = TaskPriority.QUESTION, task_name: str = "") -> str:
+    def _call_ollama(
+        self, 
+        prompt: str, 
+        force_json_format: bool = False, 
+        priority: TaskPriority = TaskPriority.QUESTION, 
+        task_name: str = "",
+        task_type: str = "unknown",
+        book_id: Optional[str] = None,
+        chapter_id: Optional[str] = None
+    ) -> str:
         """Call Ollama API through the priority queue.
         
         Args:
@@ -371,6 +385,9 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             force_json_format: If True, uses format='json' (disables thinking mode)
             priority: Task priority level (GENRE_TAG=1, DESCRIPTION=2, QUESTION=3)
             task_name: Descriptive name for queue logging
+            task_type: Type of task (description, tags, questions)
+            book_id: Book/draft ID if applicable
+            chapter_id: Chapter ID if applicable
         
         Returns:
             Raw model response string
@@ -381,7 +398,10 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                 priority=priority,
                 task_name=task_name or "ollama_call",
                 prompt=prompt,
-                force_json_format=force_json_format
+                force_json_format=force_json_format,
+                task_type=task_type,
+                book_id=book_id,
+                chapter_id=chapter_id
             )
         except Exception as e:
             logger.error(f"Queued Ollama API call failed: {e}")
@@ -428,7 +448,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         title: str,
         author: str,
         reading_level: str,
-        age_range: str
+        age_range: str,
+        book_id: str = None
     ) -> List[str]:
         """
         Generate tags (genre + grade level) for a book using only the title.
@@ -475,7 +496,9 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                 prompt, 
                 force_json_format=False,  # Start with free-form for thinking models
                 priority=TaskPriority.GENRE_TAG,
-                task_name=f"generate_tags_{title}"
+                task_name=f"generate_tags_{title}",
+                task_type="tags",
+                book_id=book_id
             )
             tags = self._parse_tags_response(response)
             
@@ -552,7 +575,8 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         self,
         title: str,
         author: str,
-        book_text_sample: str
+        book_text_sample: str,
+        book_id: str = None
     ) -> str:
         """
         Generate a concise synopsis from book content.
@@ -610,7 +634,9 @@ Your response:"""
                     prompt, 
                     force_json_format=False,
                     priority=TaskPriority.DESCRIPTION,
-                    task_name=f"generate_synopsis_{title}"
+                    task_name=f"generate_synopsis_{title}",
+                    task_type="synopsis",
+                    book_id=book_id
                 )
                 
                 # Clean up response
@@ -647,7 +673,8 @@ Your response:"""
         self,
         title: str,
         author: str,
-        book_text_sample: str = None
+        book_text_sample: str = None,
+        book_id: str = None
     ) -> str:
         """
         Generate a book description, optionally auto-generating synopsis from book content.
@@ -700,7 +727,9 @@ Your response:"""
                     prompt, 
                     force_json_format=False,
                     priority=TaskPriority.DESCRIPTION,
-                    task_name=f"generate_description_{title}"
+                    task_name=f"generate_description_{title}",
+                    task_type="description",
+                    book_id=book_id
                 )
                 
                 # Clean up response

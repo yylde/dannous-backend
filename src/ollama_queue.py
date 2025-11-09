@@ -37,6 +37,9 @@ class OllamaTask:
     kwargs: dict = field(compare=False, default_factory=dict)
     result_queue: queue.Queue = field(compare=False, default=None)
     task_name: str = field(compare=False, default="")
+    task_type: str = field(compare=False, default="unknown")  # description, tags, questions
+    book_id: Optional[str] = field(compare=False, default=None)
+    chapter_id: Optional[str] = field(compare=False, default=None)
 
 
 class OllamaQueueManager:
@@ -74,6 +77,8 @@ class OllamaQueueManager:
         self._task_counter = 0
         self._counter_lock = threading.Lock()
         self._num_workers = max(1, num_workers)
+        self._pending_tasks = {}  # Track pending tasks by ID for detailed info
+        self._pending_tasks_lock = threading.Lock()
         
         logger.info(f"Initializing OllamaQueueManager with {self._num_workers} worker(s)")
         self._start_workers()
@@ -183,6 +188,9 @@ class OllamaQueueManager:
         priority: TaskPriority,
         *args,
         task_name: str = "",
+        task_type: str = "unknown",
+        book_id: Optional[str] = None,
+        chapter_id: Optional[str] = None,
         timeout: Optional[float] = 300.0,
         **kwargs
     ) -> Any:
@@ -194,6 +202,9 @@ class OllamaQueueManager:
             priority: Task priority (TaskPriority enum)
             *args: Positional arguments for func
             task_name: Descriptive name for logging (keyword-only)
+            task_type: Type of task (description, tags, questions)
+            book_id: Book/draft ID associated with task
+            chapter_id: Chapter ID if applicable
             timeout: Maximum time to wait for result in seconds (keyword-only, default: 300)
             **kwargs: Keyword arguments for func
         
@@ -217,8 +228,22 @@ class OllamaQueueManager:
             args=args,
             kwargs=kwargs,
             result_queue=result_queue,
-            task_name=task_name or func.__name__
+            task_name=task_name or func.__name__,
+            task_type=task_type,
+            book_id=book_id,
+            chapter_id=chapter_id
         )
+        
+        # Track pending task
+        with self._pending_tasks_lock:
+            self._pending_tasks[task_id] = {
+                'task_id': task_id,
+                'priority': task.priority,
+                'task_name': task.task_name,
+                'task_type': task_type,
+                'book_id': book_id,
+                'chapter_id': chapter_id
+            }
         
         priority_name = self._get_priority_name(task.priority)
         logger.info(f"Submitting task #{task_id} [{priority_name}]: {task.task_name}")
@@ -231,6 +256,10 @@ class OllamaQueueManager:
             raise TimeoutError(
                 f"Task #{task_id} [{priority_name}] did not complete within {timeout}s"
             )
+        finally:
+            # Remove from pending tasks
+            with self._pending_tasks_lock:
+                self._pending_tasks.pop(task_id, None)
         
         if status == 'error':
             raise result
@@ -245,14 +274,17 @@ class OllamaQueueManager:
         """Get information about the current queue state.
         
         Returns:
-            Dict with queue size, worker count, and pending tasks info
+            Dict with queue size, worker count, and detailed pending tasks
         """
-        # Note: We can't peek into PriorityQueue safely, so we just return size
+        with self._pending_tasks_lock:
+            pending_tasks = list(self._pending_tasks.values())
+        
         return {
             'queue_size': self._task_queue.qsize(),
             'worker_count': len(self._workers),
             'active_workers': sum(1 for w in self._workers if w.is_alive()),
-            'shutdown': self._shutdown
+            'shutdown': self._shutdown,
+            'pending_tasks': pending_tasks
         }
     
     def flush_queue(self) -> int:
@@ -345,7 +377,10 @@ def queue_ollama_call(
     priority: TaskPriority,
     task_name: str,
     prompt: str,
-    force_json_format: bool = False
+    force_json_format: bool = False,
+    task_type: str = "unknown",
+    book_id: Optional[str] = None,
+    chapter_id: Optional[str] = None
 ) -> Any:
     """
     Helper function to submit an Ollama API call to the queue.
@@ -356,9 +391,21 @@ def queue_ollama_call(
         task_name: Descriptive name for the task
         prompt: The prompt string to pass to Ollama
         force_json_format: Whether to force JSON format
+        task_type: Type of task (description, tags, questions)
+        book_id: Book/draft ID if applicable
+        chapter_id: Chapter ID if applicable
     
     Returns:
         Result from the Ollama function
     """
     manager = get_queue_manager()
-    return manager.submit_task(func, priority, prompt, force_json_format, task_name=task_name)
+    return manager.submit_task(
+        func, 
+        priority, 
+        prompt, 
+        force_json_format, 
+        task_name=task_name,
+        task_type=task_type,
+        book_id=book_id,
+        chapter_id=chapter_id
+    )

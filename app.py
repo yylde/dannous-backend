@@ -1047,7 +1047,9 @@ def generate_questions_async(chapter_id, draft_id, title, content, html_content,
                 age_range=age_range or settings.default_age_range,
                 grade_level=grade_level,
                 num_questions=settings.questions_per_chapter,
-                vocab_count=8  # 8 words per grade level
+                vocab_count=8,  # 8 words per grade level
+                book_id=str(draft_id),
+                chapter_id=str(chapter_id)
             )
             
             # Add grade_level to each vocabulary item (as requested by user)
@@ -1166,7 +1168,9 @@ def regenerate_questions_for_draft_async(draft_id):
                         age_range=draft.get('age_range') or settings.default_age_range,
                         grade_level=grade_level,
                         num_questions=settings.questions_per_chapter,
-                        vocab_count=8
+                        vocab_count=8,
+                        book_id=str(draft_id),
+                        chapter_id=str(chapter['id'])
                     )
                     
                     # Add grade_level to vocabulary items
@@ -1245,7 +1249,9 @@ def regenerate_single_chapter_questions_async(chapter_id, draft_id, title, conte
                 age_range=age_range or settings.default_age_range,
                 grade_level=grade_level,
                 num_questions=settings.questions_per_chapter,
-                vocab_count=8
+                vocab_count=8,
+                book_id=str(draft_id),
+                chapter_id=str(chapter_id)
             )
             
             # Add grade_level to each vocabulary item
@@ -1291,7 +1297,8 @@ def generate_tags_async(draft_id, title, author, age_range, reading_level):
             title=title,
             author=author,
             reading_level=reading_level or settings.default_reading_level,
-            age_range=age_range or settings.default_age_range
+            age_range=age_range or settings.default_age_range,
+            book_id=str(draft_id)
         )
         
         # Save tags to the draft (even if using fallback)
@@ -1329,7 +1336,8 @@ def generate_description_async(draft_id, title, author, book_text_sample):
         description = generator.generate_description(
             title=title,
             author=author,
-            book_text_sample=book_text_sample if book_text_sample else None
+            book_text_sample=book_text_sample if book_text_sample else None,
+            book_id=str(draft_id)
         )
         
         # Save description to the draft
