@@ -133,9 +133,21 @@ def regenerate_questions_for_draft_async(draft_id):
             logger.warning(f"No chapters found for draft {draft_id}")
             return
         
-        # Generate questions for new grades
-        if grades_to_add:
-            logger.info(f"Generating questions for new grades: {grades_to_add}")
+        # Determine which grades to regenerate
+        # If there are new grades to add, only add those
+        # Otherwise, regenerate ALL existing grades (force regeneration)
+        grades_to_regenerate = grades_to_add if grades_to_add else new_grade_levels
+        
+        if grades_to_regenerate:
+            # If regenerating all existing grades, delete existing questions first
+            if not grades_to_add and new_grade_levels:
+                logger.info(f"Force regenerating questions for all existing grades: {new_grade_levels}")
+                for chapter in chapters:
+                    with db.get_connection() as conn:
+                        with conn.cursor() as cur:
+                            cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s", (chapter['id'],))
+                            cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s", (chapter['id'],))
+            logger.info(f"Generating questions for grades: {grades_to_regenerate}")
             
             generator = QuestionGenerator()
             
@@ -159,8 +171,8 @@ def regenerate_questions_for_draft_async(draft_id):
                 
                 all_vocabulary = []
                 
-                # Generate questions for each new grade level
-                for grade_level in grades_to_add:
+                # Generate questions for each grade level
+                for grade_level in grades_to_regenerate:
                     logger.info(f"  Generating for {grade_level}...")
                     
                     questions_data, vocabulary_data = generator.generate_questions(
