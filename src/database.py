@@ -253,18 +253,21 @@ class DatabaseManager:
     def create_draft(self, gutenberg_id: Optional[int], title: str, author: str, 
                      full_text: str, age_range: str, reading_level: str, 
                      genre: str, metadata: dict, full_html: str = None, 
-                     cover_image_url: str = None, word_count: int = None) -> str:
+                     cover_image_url: str = None, word_count: int = None,
+                     html_sections: list = None, text_sections: list = None) -> str:
         """Create a new book draft. Returns draft_id."""
         with self.get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
                     INSERT INTO draft_books (
                         gutenberg_id, title, author, full_text, full_html, age_range, 
-                        reading_level, genre, cover_image_url, metadata, word_count
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        reading_level, genre, cover_image_url, metadata, word_count,
+                        html_sections, text_sections
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING id
                 """, (gutenberg_id, title, author, full_text, full_html, age_range, 
-                      reading_level, genre, cover_image_url, json.dumps(metadata), word_count))
+                      reading_level, genre, cover_image_url, json.dumps(metadata), word_count,
+                      json.dumps(html_sections or []), json.dumps(text_sections or [])))
                 draft_id = cur.fetchone()[0]
                 logger.info(f"Created draft: {title} (ID: {draft_id}, {word_count or 'unknown'} words)")
                 return str(draft_id)
@@ -346,7 +349,8 @@ class DatabaseManager:
                 cur.execute("""
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, cover_image_url, metadata, 
-                           tags, description, created_at, updated_at
+                           tags, description, created_at, updated_at,
+                           html_sections, text_sections
                     FROM draft_books
                     WHERE id = %s
                 """, (draft_id,))
@@ -368,6 +372,17 @@ class DatabaseManager:
                     draft['tags'] = json.loads(draft['tags'])
                 elif draft.get('tags') is None:
                     draft['tags'] = []
+                
+                # html_sections and text_sections are JSONB arrays
+                if isinstance(draft.get('html_sections'), str):
+                    draft['html_sections'] = json.loads(draft['html_sections'])
+                elif draft.get('html_sections') is None:
+                    draft['html_sections'] = []
+                    
+                if isinstance(draft.get('text_sections'), str):
+                    draft['text_sections'] = json.loads(draft['text_sections'])
+                elif draft.get('text_sections') is None:
+                    draft['text_sections'] = []
                 
                 return draft
     
