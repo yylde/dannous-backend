@@ -507,11 +507,11 @@ def get_text_usage(draft_id):
         
         # For each chapter, find matching paragraphs in the book
         for chapter in chapters:
-            # Use html_formatting if available (for EPUB books), otherwise use content
-            chapter_text = chapter.get('html_formatting') or chapter.get('content', '')
+            # Use content field (which now contains the HTML formatting when available)
+            chapter_text = chapter.get('content', '')
             chapter_number = chapter.get('chapter_number')
             
-            logger.info(f"Chapter {chapter_number}: has html_formatting={bool(chapter.get('html_formatting'))}, has content={bool(chapter.get('content'))}")
+            logger.info(f"Chapter {chapter_number}: content length={len(chapter_text) if chapter_text else 0}")
             logger.info(f"Chapter {chapter_number} text preview: {chapter_text[:200] if chapter_text else 'EMPTY'}...")
             
             if not chapter_text or chapter_number is None:
