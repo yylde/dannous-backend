@@ -114,6 +114,11 @@ function extractTextFromHtml(html) {
     const images = temp.querySelectorAll('img');
     images.forEach(img => img.remove());
     
+    // Remove all table tags to avoid table formatting interfering with matching
+    // Tables often don't exist in the original book paragraphs
+    const tables = temp.querySelectorAll('table');
+    tables.forEach(table => table.remove());
+    
     return temp.textContent || temp.innerText || '';
 }
 
@@ -130,12 +135,6 @@ function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
     if (chapterWords.length === 0) {
         return [];
     }
-    
-    // Debug: Log first 100 characters of chapter text
-    console.log('[FUZZY DEBUG] Chapter text (first 100 chars):', extractedChapterText.substring(0, 100));
-    console.log('[FUZZY DEBUG] Chapter normalized (first 100 chars):', normalizedChapter.substring(0, 100));
-    console.log('[FUZZY DEBUG] Chapter word count:', chapterWords.length);
-    console.log('[FUZZY DEBUG] First 20 chapter words:', chapterWords.slice(0, 20).join(', '));
     
     const normalizedBookParagraphs = bookParagraphs.map((p, idx) => ({
         index: idx,
@@ -158,7 +157,6 @@ function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
         
         let matchCount = 0;
         let totalWords = para.words.length;
-        let prevChapterWordIndex = chapterWordIndex;
         
         for (let i = 0; i < para.words.length && chapterWordIndex < chapterWords.length; i++) {
             if (para.words[i] === chapterWords[chapterWordIndex]) {
@@ -168,12 +166,6 @@ function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
         }
         
         const matchRatio = matchCount / Math.max(totalWords, 1);
-        
-        // Debug significant matches
-        if (matchCount > 0) {
-            console.log(`[FUZZY DEBUG] Para ${paraIdx}: ${matchCount}/${totalWords} words matched (${Math.round(matchRatio * 100)}%), ratio ${matchRatio.toFixed(2)}, threshold ${minMatchRatio}`);
-            console.log(`[FUZZY DEBUG] Para ${paraIdx} first 50 chars:`, para.text.substring(0, 50));
-        }
         
         if (matchCount >= minMatchWords && matchRatio >= minMatchRatio) {
             if (matchStartIndex === -1) {
