@@ -110,6 +110,10 @@ function extractTextFromHtml(html) {
     const temp = document.createElement('div');
     temp.innerHTML = html;
     
+    // Count elements before removal
+    const imgCount = temp.querySelectorAll('img').length;
+    const tableCount = temp.querySelectorAll('table').length;
+    
     // Remove all img tags to avoid base64 data interfering with matching
     const images = temp.querySelectorAll('img');
     images.forEach(img => img.remove());
@@ -119,7 +123,14 @@ function extractTextFromHtml(html) {
     const tables = temp.querySelectorAll('table');
     tables.forEach(table => table.remove());
     
-    return temp.textContent || temp.innerText || '';
+    const text = temp.textContent || temp.innerText || '';
+    
+    if (imgCount > 0 || tableCount > 0) {
+        console.log(`[EXTRACT DEBUG] Removed ${imgCount} images, ${tableCount} tables. Text length: ${text.length}`);
+        console.log(`[EXTRACT DEBUG] First 100 chars:`, text.substring(0, 100));
+    }
+    
+    return text;
 }
 
 function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
@@ -744,7 +755,8 @@ function recalculateHighlights() {
             return;
         }
         
-        const matchedIndices = fuzzyMatchChapterInBook(chapter.content, bookParagraphs);
+        // Use html_content to allow table/image removal, fallback to content for older chapters
+        const matchedIndices = fuzzyMatchChapterInBook(chapter.html_content || chapter.content, bookParagraphs);
         
         matchedIndices.forEach(idx => {
             if (paragraphChapters[idx] !== undefined) {
@@ -948,7 +960,8 @@ async function finishChapter() {
     
     // Perform fuzzy matching to highlight the chapter text in the book
     const bookParagraphs = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
-    const matchedIndices = fuzzyMatchChapterInBook(chapterData.content, bookParagraphs);
+    // Use html_content to allow table/image removal, fallback to content for older chapters
+    const matchedIndices = fuzzyMatchChapterInBook(chapterData.html_content || chapterData.content, bookParagraphs);
     
     console.log(`Fuzzy matching found ${matchedIndices.length} paragraphs for chapter ${chapterData.chapter_number}`);
     
