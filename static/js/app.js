@@ -98,6 +98,91 @@ function cleanUsageHighlighting(container) {
     });
 }
 
+function normalizeText(text) {
+    return text
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\s]/g, '')
+        .trim();
+}
+
+function extractTextFromHtml(html) {
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    return temp.textContent || temp.innerText || '';
+}
+
+function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
+    if (!chapterText || !bookParagraphs || bookParagraphs.length === 0) {
+        return [];
+    }
+    
+    const normalizedChapter = normalizeText(chapterText);
+    const chapterWords = normalizedChapter.split(/\s+/).filter(w => w.length > 0);
+    
+    if (chapterWords.length === 0) {
+        return [];
+    }
+    
+    const normalizedBookParagraphs = bookParagraphs.map((p, idx) => ({
+        index: idx,
+        text: extractTextFromHtml(p),
+        normalized: normalizeText(extractTextFromHtml(p)),
+        words: normalizeText(extractTextFromHtml(p)).split(/\s+/).filter(w => w.length > 0)
+    }));
+    
+    const matchedIndices = [];
+    const minMatchRatio = 0.6;
+    
+    let chapterWordIndex = 0;
+    let consecutiveMatches = 0;
+    let currentMatch = null;
+    
+    for (let paraIdx = 0; paraIdx < normalizedBookParagraphs.length; paraIdx++) {
+        const para = normalizedBookParagraphs[paraIdx];
+        
+        if (para.words.length === 0) continue;
+        
+        let matchCount = 0;
+        let totalWords = para.words.length;
+        
+        for (let i = 0; i < para.words.length && chapterWordIndex < chapterWords.length; i++) {
+            if (para.words[i] === chapterWords[chapterWordIndex]) {
+                matchCount++;
+                chapterWordIndex++;
+            }
+        }
+        
+        const matchRatio = matchCount / Math.max(totalWords, 1);
+        
+        if (matchRatio >= minMatchRatio || matchCount > 0) {
+            matchedIndices.push(paraIdx);
+            consecutiveMatches++;
+            
+            if (chapterWordIndex >= chapterWords.length) {
+                break;
+            }
+        } else if (consecutiveMatches > 0 && matchCount === 0) {
+            chapterWordIndex = 0;
+            consecutiveMatches = 0;
+        }
+    }
+    
+    console.log(`Fuzzy match found ${matchedIndices.length} paragraphs for chapter with ${chapterWords.length} words`);
+    
+    return matchedIndices;
+}
+
+function removeHighlightsForParagraphs(paragraphIndices) {
+    paragraphIndices.forEach(idx => {
+        if (paragraphChapters[idx] !== undefined) {
+            console.log(`Removing highlight for paragraph ${idx} (was chapter ${paragraphChapters[idx]})`);
+            delete paragraphChapters[idx];
+            usedParagraphs.delete(idx);
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     // Only update difficulty range if the element exists (on draft page)
     if (document.getElementById('reading-level')) {
