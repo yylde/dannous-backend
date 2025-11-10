@@ -1,0 +1,135 @@
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:53] "GET /static/css/style.css HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:53] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:54] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /draft/20a079db-9960-4b88-b728-baace69c28ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /static/js/app.js HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /static/css/style.css HTTP/1.1" 304 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /api/drafts HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /api/draft/20a079db-9960-4b88-b728-baace69c28ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /favicon.ico HTTP/1.1" 404 -
+INFO:app.routes.drafts:Usage tracking for draft 20a079db-9960-4b88-b728-baace69c28ec: 16 total paragraphs
+INFO:app.routes.drafts:Normalized 16 book paragraphs for matching
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /api/draft/20a079db-9960-4b88-b728-baace69c28ec/usage HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /api/drafts HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:56] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:58] "GET /api/draft-chapters/20a079db-9960-4b88-b728-baace69c28ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:58] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+WARNING:src.question_generator:No 'tags' key in response or tags is not a list, defaulting to empty array
+INFO:src.question_generator:Successfully parsed 1 questions, 8 vocabulary words, and 0 tags
+INFO:src.question_generator:✓ Generated 1 questions and 8 vocabulary words for grade-4
+INFO:src.queue_executors:[EXECUTOR] ✓ Generated 1 questions and 8 vocab words
+INFO:src.queue_manager_v2:[QUEUE] Task d7970363-675f-4e5e-b2a9-8a48c327a10f -> ready
+INFO:src.queue_manager_v2:[QUEUE] Batch enqueued 9 questions tasks for chapter 305cb57c-5548-4e7b-aad1-f8520c5a4758
+INFO:app.routes.chapters:Enqueued 9 question generation tasks for chapter 305cb57c-5548-4e7b-aad1-f8520c5a4758
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:07:59] "POST /api/chapter/305cb57c-5548-4e7b-aad1-f8520c5a4758/regenerate-questions HTTP/1.1" 200 -
+INFO:src.queue_manager_v2:[WORKER] Processing task c5c7cc98-5576-4486-9c5a-e00d496d0c6b [questions] (attempt 1)
+INFO:src.queue_executors:[EXECUTOR] Generating questions for chapter 1: The Pool of Tears
+INFO:src.question_generator:Generating 1 questions and 8 vocabulary words for grade-3 - Chapter 1: The Pool of Tears
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:00] "GET /api/draft-chapters/20a079db-9960-4b88-b728-baace69c28ec HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:04] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:08] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:09] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:14] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:19] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:24] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:26] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:29] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:34] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:40] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:45] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:50] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:55] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:08:57] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:00] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:05] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+WARNING:src.question_generator:No 'tags' key in response or tags is not a list, defaulting to empty array
+INFO:src.question_generator:Successfully parsed 1 questions, 8 vocabulary words, and 0 tags
+INFO:src.question_generator:✓ Generated 1 questions and 8 vocabulary words for grade-3
+INFO:src.queue_executors:[EXECUTOR] ✓ Generated 1 questions and 8 vocab words
+INFO:src.queue_manager_v2:[QUEUE] Task c5c7cc98-5576-4486-9c5a-e00d496d0c6b -> ready
+INFO:src.queue_manager_v2:[WORKER] Processing task f52557bc-0989-4e9c-9a0e-567c3b2b445f [questions] (attempt 1)
+INFO:src.queue_executors:[EXECUTOR] Generating questions for chapter 1: The Pool of Tears
+INFO:src.question_generator:Generating 1 questions and 0 vocabulary words for grade-3 - Chapter 1: The Pool of Tears
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:10] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:15] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:20] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:25] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:27] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:32] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:37] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:42] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:47] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:52] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:57] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:09:57] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:02] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:07] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:12] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:17] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:22] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+WARNING:src.question_generator:No 'tags' key in response or tags is not a list, defaulting to empty array
+INFO:src.question_generator:Successfully parsed 1 questions, 10 vocabulary words, and 0 tags
+INFO:src.question_generator:✓ Generated 1 questions and 10 vocabulary words for grade-3
+INFO:src.queue_executors:[EXECUTOR] ✓ Generated 1 questions and 10 vocab words
+INFO:src.queue_manager_v2:[QUEUE] Task f52557bc-0989-4e9c-9a0e-567c3b2b445f -> ready
+INFO:src.queue_manager_v2:[WORKER] Processing task fa576202-a68e-4293-bef5-84aa9ce0cad2 [questions] (attempt 1)
+INFO:src.queue_executors:[EXECUTOR] Generating questions for chapter 1: The Pool of Tears
+INFO:src.question_generator:Generating 1 questions and 0 vocabulary words for grade-3 - Chapter 1: The Pool of Tears
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:27] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:27] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:32] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:37] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:42] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:47] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:52] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:57] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:10:57] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:03] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:08] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:13] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:18] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:18] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:23] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:28] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:28] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:33] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+WARNING:src.question_generator:No 'tags' key in response or tags is not a list, defaulting to empty array
+INFO:src.question_generator:Successfully parsed 1 questions, 10 vocabulary words, and 0 tags
+INFO:src.question_generator:✓ Generated 1 questions and 10 vocabulary words for grade-3
+INFO:src.queue_executors:[EXECUTOR] ✓ Generated 1 questions and 10 vocab words
+INFO:src.queue_manager_v2:[QUEUE] Task fa576202-a68e-4293-bef5-84aa9ce0cad2 -> ready
+INFO:src.queue_manager_v2:[WORKER] Processing task df1fc31a-e657-4996-a7f0-875514c51e77 [questions] (attempt 1)
+INFO:src.queue_executors:[EXECUTOR] Generating questions for chapter 1: The Pool of Tears
+INFO:src.question_generator:Generating 1 questions and 8 vocabulary words for grade-4 - Chapter 1: The Pool of Tears
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:38] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:43] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:49] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:54] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:58] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:11:59] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:04] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:09] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:14] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:19] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:25] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:28] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:30] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:httpx:HTTP Request: POST http://127.0.0.1:11434/api/generate "HTTP/1.1 200 OK"
+WARNING:src.question_generator:No 'tags' key in response or tags is not a list, defaulting to empty array
+INFO:src.question_generator:Successfully parsed 1 questions, 8 vocabulary words, and 0 tags
+INFO:src.question_generator:✓ Generated 1 questions and 8 vocabulary words for grade-4
+INFO:src.queue_executors:[EXECUTOR] ✓ Generated 1 questions and 8 vocab words
+INFO:src.queue_manager_v2:[QUEUE] Task df1fc31a-e657-4996-a7f0-875514c51e77 -> ready
+INFO:src.queue_manager_v2:[WORKER] Processing task 2173f6c9-7e44-41dc-9276-4d928251f60d [questions] (attempt 1)
+INFO:src.queue_executors:[EXECUTOR] Generating questions for chapter 1: The Pool of Tears
+INFO:src.question_generator:Generating 1 questions and 0 vocabulary words for grade-4 - Chapter 1: The Pool of Tears
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:35] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:40] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:45] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:50] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:55] "GET /api/queue/status HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [09/Nov/2025 17:12:58] "GET /api/queue/status HTTP/1.1" 200 -
