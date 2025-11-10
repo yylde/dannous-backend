@@ -536,8 +536,8 @@ def get_text_usage(draft_id):
                 # Use partial_ratio for substring matching (book para IN chapter)
                 score = fuzz.partial_ratio(normalized_para, normalized_full_chapter)
                 
-                # Lower threshold since we're doing substring matching
-                if score >= 85:
+                # Use 70% threshold for visual tracking (doesn't need to be exact)
+                if score >= 70:
                     used_paragraph_indices.add(para_idx)
                     paragraph_to_chapter[para_idx] = chapter_number
                     logger.info(f"✓ MATCHED: Book para {para_idx} -> Chapter {chapter_number} (score: {score}%)")
