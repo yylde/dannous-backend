@@ -106,31 +106,11 @@ function normalizeText(text) {
         .trim();
 }
 
-function extractTextFromHtml(html) {
-    const temp = document.createElement('div');
-    temp.innerHTML = html;
-    
-    // Count elements before removal
-    const imgCount = temp.querySelectorAll('img').length;
-    const tableCount = temp.querySelectorAll('table').length;
-    
-    // Remove all img tags to avoid base64 data interfering with matching
-    const images = temp.querySelectorAll('img');
-    images.forEach(img => img.remove());
-    
-    // Remove all table tags to avoid table formatting interfering with matching
-    // Tables often don't exist in the original book paragraphs
-    const tables = temp.querySelectorAll('table');
-    tables.forEach(table => table.remove());
-    
-    const text = temp.textContent || temp.innerText || '';
-    
-    if (imgCount > 0 || tableCount > 0) {
-        console.log(`[EXTRACT DEBUG] Removed ${imgCount} images, ${tableCount} tables. Text length: ${text.length}`);
-        console.log(`[EXTRACT DEBUG] First 100 chars:`, text.substring(0, 100));
-    }
-    
-    return text;
+// Simple function to strip base64 image data from text
+function stripBase64Images(text) {
+    if (!text) return '';
+    // Remove base64 data URIs (data:image/...) which can be very long
+    return text.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '[IMAGE]');
 }
 
 function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
@@ -138,21 +118,25 @@ function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
         return [];
     }
     
-    // Extract text from chapter (could be HTML)
-    const extractedChapterText = extractTextFromHtml(chapterText);
-    const normalizedChapter = normalizeText(extractedChapterText);
+    // Strip base64 images from chapter text, then normalize
+    const cleanChapterText = stripBase64Images(chapterText);
+    const normalizedChapter = normalizeText(cleanChapterText);
     const chapterWords = normalizedChapter.split(/\s+/).filter(w => w.length > 0);
     
     if (chapterWords.length === 0) {
         return [];
     }
     
-    const normalizedBookParagraphs = bookParagraphs.map((p, idx) => ({
-        index: idx,
-        text: extractTextFromHtml(p),
-        normalized: normalizeText(extractTextFromHtml(p)),
-        words: normalizeText(extractTextFromHtml(p)).split(/\s+/).filter(w => w.length > 0)
-    }));
+    // Strip base64 images from book paragraphs, then normalize
+    const normalizedBookParagraphs = bookParagraphs.map((p, idx) => {
+        const cleanPara = stripBase64Images(p);
+        const normalized = normalizeText(cleanPara);
+        return {
+            index: idx,
+            normalized: normalized,
+            words: normalized.split(/\s+/).filter(w => w.length > 0)
+        };
+    });
     
     const matchedIndices = [];
     const minMatchRatio = 0.7;
@@ -755,8 +739,8 @@ function recalculateHighlights() {
             return;
         }
         
-        // Use html_content to allow table/image removal, fallback to content for older chapters
-        const matchedIndices = fuzzyMatchChapterInBook(chapter.html_content || chapter.content, bookParagraphs);
+        // Simple: just use plain chapter.content text
+        const matchedIndices = fuzzyMatchChapterInBook(chapter.content, bookParagraphs);
         
         matchedIndices.forEach(idx => {
             if (paragraphChapters[idx] !== undefined) {
@@ -960,8 +944,8 @@ async function finishChapter() {
     
     // Perform fuzzy matching to highlight the chapter text in the book
     const bookParagraphs = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
-    // Use html_content to allow table/image removal, fallback to content for older chapters
-    const matchedIndices = fuzzyMatchChapterInBook(chapterData.html_content || chapterData.content, bookParagraphs);
+    // Simple: just use plain chapter.content text
+    const matchedIndices = fuzzyMatchChapterInBook(chapterData.content, bookParagraphs);
     
     console.log(`Fuzzy matching found ${matchedIndices.length} paragraphs for chapter ${chapterData.chapter_number}`);
     
