@@ -507,7 +507,8 @@ def get_text_usage(draft_id):
         
         # For each chapter, find matching paragraphs in the book
         for chapter in chapters:
-            chapter_text = chapter.get('content', '')
+            # Use html_formatting if available (for EPUB books), otherwise use content
+            chapter_text = chapter.get('html_formatting') or chapter.get('content', '')
             chapter_number = chapter.get('chapter_number')
             if not chapter_text or chapter_number is None:
                 continue

@@ -529,9 +529,9 @@ function getUsageHighlightStyles(chapterNum) {
     const bgColor = chapterColors[chapterNum];
     if (!bgColor) {
         console.warn(`Chapter ${chapterNum} has no color assigned`);
-        return ' style="background-color: #d4edda; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"';
+        return ' style="background-color: #d4edda !important; border-left: 4px solid rgba(0,0,0,0.2) !important; padding-left: 8px !important;"';
     }
-    return ` style="background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;"`;
+    return ` style="background-color: ${bgColor} !important; border-left: 4px solid rgba(0,0,0,0.2) !important; padding-left: 8px !important;"`;
 }
 
 // Helper function to add usage highlighting to a paragraph tag while preserving original attributes
@@ -556,7 +556,7 @@ function addUsageHighlightingToParagraph(paragraphHtml, idx, isUsed, chapterNum)
     // Merge styles if paragraph is used
     if (isUsed && chapterNum !== null) {
         const bgColor = chapterColors[chapterNum] || '#d4edda';
-        const usageStyles = `background-color: ${bgColor}; border-left: 4px solid rgba(0,0,0,0.2); padding-left: 8px;`;
+        const usageStyles = `background-color: ${bgColor} !important; border-left: 4px solid rgba(0,0,0,0.2) !important; padding-left: 8px !important;`;
         
         // Normalize existing style to ensure it ends with semicolon
         let normalizedExistingStyle = existingStyle.trim();
