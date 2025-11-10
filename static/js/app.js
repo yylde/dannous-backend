@@ -208,9 +208,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const htmlData = clipboardData.getData('text/html');
             const textData = clipboardData.getData('text/plain');
             
-            // If HTML is available, use it; otherwise use plain text
-            const pastedContent = htmlData || textData;
-            
             // Insert the content at the cursor position
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
