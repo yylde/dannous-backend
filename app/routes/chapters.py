@@ -51,24 +51,26 @@ def save_draft_chapter():
             if grade_tags:
                 logger.info(f"Tags exist for draft {draft_id}. Auto-enqueuing question generation for chapter {chapter_id}")
                 
-                # Build all payloads first
+                # Build all payloads first - create 3 tasks per grade level (1 question each)
                 payloads = []
                 for grade_level in grade_tags:
-                    payload = {
-                        'book_id': draft_id,
-                        'chapter_id': chapter_id,
-                        'title': draft.get('title', ''),
-                        'author': draft.get('author', ''),
-                        'chapter_number': chapter_number,
-                        'chapter_title': title,
-                        'chapter_text': content,
-                        'reading_level': draft.get('reading_level', settings.default_reading_level),
-                        'age_range': draft.get('age_range', settings.default_age_range),
-                        'grade_level': grade_level,
-                        'num_questions': 3,
-                        'vocab_count': 8
-                    }
-                    payloads.append(payload)
+                    for question_num in range(1, 4):  # 3 questions per grade
+                        payload = {
+                            'book_id': draft_id,
+                            'chapter_id': chapter_id,
+                            'title': draft.get('title', ''),
+                            'author': draft.get('author', ''),
+                            'chapter_number': chapter_number,
+                            'chapter_title': title,
+                            'chapter_text': content,
+                            'reading_level': draft.get('reading_level', settings.default_reading_level),
+                            'age_range': draft.get('age_range', settings.default_age_range),
+                            'grade_level': grade_level,
+                            'num_questions': 1,  # 1 question per task
+                            'vocab_count': 8 if question_num == 1 else 0,  # Only first task generates vocabulary
+                            'question_number': question_num
+                        }
+                        payloads.append(payload)
                 
                 # Batch enqueue all tasks at once
                 queue_manager_v2 = get_queue_manager_v2()
@@ -80,7 +82,7 @@ def save_draft_chapter():
                     payloads=payloads
                 )
                 
-                logger.info(f"Enqueued {len(task_ids)} question generation tasks for chapter {chapter_id}")
+                logger.info(f"Enqueued {len(task_ids)} question generation tasks for chapter {chapter_id} ({len(grade_tags)} grades × 3 questions)")
                 
                 return jsonify({
                     'success': True,
