@@ -106,79 +106,69 @@ function normalizeText(text) {
         .trim();
 }
 
-// Simple function to strip base64 image data from text
-function stripBase64Images(text) {
+// FRESH SIMPLE SOLUTION: Clean text by removing base64 images and HTML tags
+function cleanTextForMatching(text) {
     if (!text) return '';
-    // Remove base64 data URIs (data:image/...) which can be very long
-    return text.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '[IMAGE]');
+    
+    // Remove base64 images
+    let cleaned = text.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '');
+    
+    // Remove HTML tags
+    cleaned = cleaned.replace(/<[^>]+>/g, ' ');
+    
+    // Normalize whitespace and make lowercase
+    cleaned = cleaned
+        .toLowerCase()
+        .replace(/\s+/g, ' ')
+        .replace(/[^\w\s]/g, '')
+        .trim();
+    
+    return cleaned;
 }
 
-function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
-    if (!chapterText || !bookParagraphs || bookParagraphs.length === 0) {
+// SIMPLE STRING MATCHING: Find where chapter text appears in book
+function findChapterInBook(chapterText, bookParagraphs) {
+    const cleanChapter = cleanTextForMatching(chapterText);
+    
+    if (!cleanChapter || cleanChapter.length < 10) {
+        console.log('[NEW MATCHING] Chapter too short, skipping');
         return [];
     }
     
-    // Strip base64 images from chapter text, then normalize
-    const cleanChapterText = stripBase64Images(chapterText);
-    const normalizedChapter = normalizeText(cleanChapterText);
-    const chapterWords = normalizedChapter.split(/\s+/).filter(w => w.length > 0);
+    // Take first 50 words of chapter as the search pattern
+    const chapterWords = cleanChapter.split(/\s+/);
+    const searchPattern = chapterWords.slice(0, Math.min(50, chapterWords.length)).join(' ');
     
-    if (chapterWords.length === 0) {
-        return [];
-    }
+    console.log(`[NEW MATCHING] Searching for ${chapterWords.length} words in ${bookParagraphs.length} paragraphs`);
     
-    // Strip base64 images from book paragraphs, then normalize
-    const normalizedBookParagraphs = bookParagraphs.map((p, idx) => {
-        const cleanPara = stripBase64Images(p);
-        const normalized = normalizeText(cleanPara);
-        return {
-            index: idx,
-            normalized: normalized,
-            words: normalized.split(/\s+/).filter(w => w.length > 0)
-        };
-    });
+    const matchedParagraphs = [];
     
-    const matchedIndices = [];
-    const minMatchRatio = 0.7;
-    const minMatchWords = 5;
-    
-    let chapterWordIndex = 0;
-    let matchStartIndex = -1;
-    
-    for (let paraIdx = 0; paraIdx < normalizedBookParagraphs.length; paraIdx++) {
-        const para = normalizedBookParagraphs[paraIdx];
+    // Check each book paragraph
+    for (let i = 0; i < bookParagraphs.length; i++) {
+        const cleanPara = cleanTextForMatching(bookParagraphs[i]);
         
-        if (para.words.length === 0) continue;
-        
-        let matchCount = 0;
-        let totalWords = para.words.length;
-        
-        for (let i = 0; i < para.words.length && chapterWordIndex < chapterWords.length; i++) {
-            if (para.words[i] === chapterWords[chapterWordIndex]) {
-                matchCount++;
-                chapterWordIndex++;
-            }
-        }
-        
-        const matchRatio = matchCount / Math.max(totalWords, 1);
-        
-        if (matchCount >= minMatchWords && matchRatio >= minMatchRatio) {
-            if (matchStartIndex === -1) {
-                matchStartIndex = paraIdx;
-            }
-            matchedIndices.push(paraIdx);
+        // If chapter text appears in this paragraph, it's a match
+        if (cleanPara.includes(searchPattern.substring(0, 100))) {
+            matchedParagraphs.push(i);
             
-            if (chapterWordIndex >= chapterWords.length) {
-                break;
+            // Also add a few paragraphs after for continuation
+            const chapterWordCount = chapterWords.length;
+            const parasNeeded = Math.ceil(chapterWordCount / 100);
+            
+            for (let j = 1; j < parasNeeded && (i + j) < bookParagraphs.length; j++) {
+                matchedParagraphs.push(i + j);
             }
-        } else if (matchStartIndex !== -1 && matchCount === 0) {
-            break;
+            
+            console.log(`[NEW MATCHING] Found match at paragraph ${i}, matched ${matchedParagraphs.length} total paragraphs`);
+            break; // Found the start, stop searching
         }
     }
     
-    console.log(`Fuzzy match found ${matchedIndices.length} paragraphs for chapter with ${chapterWords.length} words (${Math.round(chapterWordIndex / chapterWords.length * 100)}% of chapter matched)`);
+    if (matchedParagraphs.length === 0) {
+        console.log('[NEW MATCHING] No match found');
+    }
     
-    return matchedIndices;
+    return matchedParagraphs;
 }
 
 function removeHighlightsForParagraphs(paragraphIndices) {
@@ -739,8 +729,8 @@ function recalculateHighlights() {
             return;
         }
         
-        // Simple: just use plain chapter.content text
-        const matchedIndices = fuzzyMatchChapterInBook(chapter.content, bookParagraphs);
+        // Simple: find chapter in book using clean text matching
+        const matchedIndices = findChapterInBook(chapter.content, bookParagraphs);
         
         matchedIndices.forEach(idx => {
             if (paragraphChapters[idx] !== undefined) {
@@ -942,12 +932,11 @@ async function finishChapter() {
     // Save chapter (with metadata) - now includes chapter_number
     chapters.push(chapterData);
     
-    // Perform fuzzy matching to highlight the chapter text in the book
+    // Find chapter in book using simple text matching
     const bookParagraphs = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
-    // Simple: just use plain chapter.content text
-    const matchedIndices = fuzzyMatchChapterInBook(chapterData.content, bookParagraphs);
+    const matchedIndices = findChapterInBook(chapterData.content, bookParagraphs);
     
-    console.log(`Fuzzy matching found ${matchedIndices.length} paragraphs for chapter ${chapterData.chapter_number}`);
+    console.log(`Found ${matchedIndices.length} paragraphs for chapter ${chapterData.chapter_number}`);
     
     // Map matched paragraphs to this chapter number
     matchedIndices.forEach(idx => {
