@@ -513,11 +513,18 @@ def get_text_usage(draft_id):
             if not chapter_text or chapter_number is None:
                 continue
             
-            # Split chapter into paragraphs (to compare paragraph-to-paragraph)
-            chapter_paragraphs = [p.strip() for p in chapter_text.split('\n\n') if p.strip()]
-            normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs]
+            # Normalize the entire chapter as one block for comparison
+            # This handles cases where chapters have line breaks mid-sentence
+            normalized_full_chapter = normalize(chapter_text)
             
-            # Check each book paragraph against each chapter paragraph
+            if not normalized_full_chapter:
+                continue
+            
+            # Also try splitting by double newlines to handle multi-paragraph chapters
+            chapter_paragraphs = [p.strip() for p in chapter_text.split('\n\n') if p.strip()]
+            normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs if normalize(p)]
+            
+            # Check each book paragraph against the chapter
             for para_idx, normalized_para in enumerate(normalized_paragraphs):
                 if para_idx in used_paragraph_indices:
                     continue  # Already marked as used
@@ -526,8 +533,20 @@ def get_text_usage(draft_id):
                 if not normalized_para:
                     continue
                 
-                # Compare against each paragraph in the chapter
-                # Use Levenshtein similarity with token-based fallback
+                # First, check if this book paragraph is contained in the full chapter
+                # This handles chapters that are continuous text with line breaks
+                if normalized_para in normalized_full_chapter or normalized_full_chapter in normalized_para:
+                    # Use fuzzy matching to confirm
+                    leven_sim = Levenshtein.normalized_similarity(normalized_para, normalized_full_chapter) * 100
+                    token_sim = fuzz.partial_ratio(normalized_para, normalized_full_chapter)
+                    combined_score = (leven_sim * 0.6) + (token_sim * 0.4)
+                    
+                    if combined_score >= 65:  # Lower threshold for substring matches
+                        used_paragraph_indices.add(para_idx)
+                        paragraph_to_chapter[para_idx] = chapter_number
+                        continue
+                
+                # Also check against individual chapter paragraphs (for multi-para chapters)
                 for chapter_para in normalized_chapter_paras:
                     if not chapter_para:
                         continue
