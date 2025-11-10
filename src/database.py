@@ -570,16 +570,29 @@ class DatabaseManager:
     
     def save_draft_questions(self, chapter_id: str, draft_id: str, 
                             questions: List[dict], vocabulary: List[dict], grade_level: str = None) -> None:
-        """Save generated questions and vocabulary for a draft chapter."""
+        """Save generated questions and vocabulary for a draft chapter.
+        
+        This method is designed to work with concurrent task execution:
+        - Questions are APPENDED, not replaced (to avoid race conditions)
+        - Vocabulary is only deleted/replaced when new vocabulary is provided
+        - Each question gets a unique order_index based on current count
+        """
         with self.get_connection() as conn:
             with conn.cursor() as cur:
-                # Delete existing questions and vocabulary for this grade level only
+                # Get the current max order_index for this chapter/grade to append new questions
                 if grade_level:
-                    cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
-                    cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
+                    cur.execute("""
+                        SELECT COALESCE(MAX(order_index), 0)
+                        FROM draft_questions
+                        WHERE chapter_id = %s AND grade_level = %s
+                    """, (chapter_id, grade_level))
+                    max_order = cur.fetchone()[0]
+                else:
+                    max_order = 0
                 
-                # Insert questions with grade_level
+                # Insert questions with grade_level, starting from next available order_index
                 for i, q in enumerate(questions, 1):
+                    order_index = max_order + i
                     cur.execute("""
                         INSERT INTO draft_questions (
                             draft_id, chapter_id, question_text, question_type,
@@ -589,15 +602,22 @@ class DatabaseManager:
                     """, (
                         draft_id, chapter_id, q['text'], q.get('type', 'comprehension'),
                         q.get('difficulty', 'medium'), json.dumps(q.get('keywords', [])),
-                        q.get('min_words', 20), q.get('max_words', 200), i, grade_level
+                        q.get('min_words', 20), q.get('max_words', 200), order_index, grade_level
                     ))
                 
-                # Insert vocabulary with grade_level
-                for v in vocabulary:
-                    cur.execute("""
-                        INSERT INTO draft_vocabulary (chapter_id, word, definition, example, grade_level)
-                        VALUES (%s, %s, %s, %s, %s)
-                    """, (chapter_id, v['word'], v['definition'], v.get('example', ''), v.get('grade_level', grade_level)))
+                # Only delete and insert vocabulary if we actually have vocabulary to save
+                # This prevents race conditions where vocab_count=0 tasks delete vocabulary
+                if vocabulary and len(vocabulary) > 0:
+                    # Delete existing vocabulary for this grade level before inserting new ones
+                    if grade_level:
+                        cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
+                    
+                    # Insert vocabulary with grade_level
+                    for v in vocabulary:
+                        cur.execute("""
+                            INSERT INTO draft_vocabulary (chapter_id, word, definition, example, grade_level)
+                            VALUES (%s, %s, %s, %s, %s)
+                        """, (chapter_id, v['word'], v['definition'], v.get('example', ''), v.get('grade_level', grade_level)))
                 
                 # Note: Don't update status here - status is managed by generate_questions_async
                 # which sets it to 'ready' only after ALL grade levels are processed

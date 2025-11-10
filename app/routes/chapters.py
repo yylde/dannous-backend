@@ -231,7 +231,7 @@ def regenerate_chapter_questions_simple(chapter_id):
         
         # Step 1: Delete existing queued question tasks for this chapter AND grade levels
         # Only delete tasks for the grade levels we're about to regenerate
-        deleted_count = 0
+        deleted_task_count = 0
         with queue_manager_v2._get_connection() as conn:
             with conn.cursor() as cur:
                 # Use jsonb operator to filter by grade_level in payload
@@ -242,13 +242,29 @@ def regenerate_chapter_questions_simple(chapter_id):
                       AND chapter_id = %s
                       AND payload->>'grade_level' = ANY(%s)
                 """, (chapter_id, grade_levels))
-                deleted_count = cur.rowcount
+                deleted_task_count = cur.rowcount
                 conn.commit()
         
-        if deleted_count > 0:
-            logger.info(f"Deleted {deleted_count} existing queued question tasks for chapter {chapter_id} and grades {grade_levels}")
+        if deleted_task_count > 0:
+            logger.info(f"Deleted {deleted_task_count} existing queued question tasks for chapter {chapter_id} and grades {grade_levels}")
         
-        # Step 2: Create 3 tasks per grade level (same as draft-level regenerate)
+        # Step 2: Delete existing completed questions and vocabulary for these grade levels
+        # This ensures a clean regeneration without race conditions
+        deleted_question_count = 0
+        deleted_vocab_count = 0
+        for grade_level in grade_levels:
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
+                    deleted_question_count += cur.rowcount
+                    cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
+                    deleted_vocab_count += cur.rowcount
+                    conn.commit()
+        
+        if deleted_question_count > 0 or deleted_vocab_count > 0:
+            logger.info(f"Deleted {deleted_question_count} existing questions and {deleted_vocab_count} vocabulary items for chapter {chapter_id} and grades {grade_levels}")
+        
+        # Step 3: Create 3 tasks per grade level (same as draft-level regenerate)
         payloads = []
         for grade_level in grade_levels:
             for question_num in range(1, 4):  # 3 questions per grade
@@ -283,7 +299,8 @@ def regenerate_chapter_questions_simple(chapter_id):
         return jsonify({
             'success': True,
             'message': f'Question regeneration started: {len(grade_levels)} grades × 3 questions = {len(task_ids)} tasks',
-            'deleted_count': deleted_count,
+            'deleted_task_count': deleted_task_count,
+            'deleted_question_count': deleted_question_count,
             'created_count': len(task_ids)
         })
     except Exception as e:
@@ -329,7 +346,7 @@ def regenerate_chapter_questions(draft_id, chapter_id):
         
         # Step 1: Delete existing queued question tasks for this chapter AND grade levels
         # Only delete tasks for the grade levels we're about to regenerate
-        deleted_count = 0
+        deleted_task_count = 0
         with queue_manager_v2._get_connection() as conn:
             with conn.cursor() as cur:
                 # Use jsonb operator to filter by grade_level in payload
@@ -340,13 +357,29 @@ def regenerate_chapter_questions(draft_id, chapter_id):
                       AND chapter_id = %s
                       AND payload->>'grade_level' = ANY(%s)
                 """, (chapter_id, grade_levels))
-                deleted_count = cur.rowcount
+                deleted_task_count = cur.rowcount
                 conn.commit()
         
-        if deleted_count > 0:
-            logger.info(f"Deleted {deleted_count} existing queued question tasks for chapter {chapter_id} and grades {grade_levels}")
+        if deleted_task_count > 0:
+            logger.info(f"Deleted {deleted_task_count} existing queued question tasks for chapter {chapter_id} and grades {grade_levels}")
         
-        # Step 2: Create 3 tasks per grade level (same as draft-level regenerate)
+        # Step 2: Delete existing completed questions and vocabulary for these grade levels
+        # This ensures a clean regeneration without race conditions
+        deleted_question_count = 0
+        deleted_vocab_count = 0
+        for grade_level in grade_levels:
+            with db.get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM draft_questions WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
+                    deleted_question_count += cur.rowcount
+                    cur.execute("DELETE FROM draft_vocabulary WHERE chapter_id = %s AND grade_level = %s", (chapter_id, grade_level))
+                    deleted_vocab_count += cur.rowcount
+                    conn.commit()
+        
+        if deleted_question_count > 0 or deleted_vocab_count > 0:
+            logger.info(f"Deleted {deleted_question_count} existing questions and {deleted_vocab_count} vocabulary items for chapter {chapter_id} and grades {grade_levels}")
+        
+        # Step 3: Create 3 tasks per grade level (same as draft-level regenerate)
         payloads = []
         for grade_level in grade_levels:
             for question_num in range(1, 4):  # 3 questions per grade
@@ -381,7 +414,8 @@ def regenerate_chapter_questions(draft_id, chapter_id):
         return jsonify({
             'success': True,
             'message': f'Question regeneration started: {len(grade_levels)} grades × 3 questions = {len(task_ids)} tasks',
-            'deleted_count': deleted_count,
+            'deleted_task_count': deleted_task_count,
+            'deleted_question_count': deleted_question_count,
             'created_count': len(task_ids)
         })
     except Exception as e:
