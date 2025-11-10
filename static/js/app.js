@@ -703,59 +703,79 @@ function assignChapterColors() {
     console.log('=== FINAL CHAPTER COLORS ===', chapterColors);
 }
 
-async function fetchUsageData() {
-    if (!currentDraftId) return;
+function recalculateHighlights() {
+    if (!bookData || !chapters || chapters.length === 0) {
+        console.log('No book data or chapters to highlight');
+        paragraphChapters = {};
+        usedParagraphs.clear();
+        displayFullBook();
+        return;
+    }
     
-    // Show loading state
     const refreshBtn = document.getElementById('refresh-usage-btn');
     if (refreshBtn) {
         refreshBtn.disabled = true;
-        refreshBtn.textContent = '⏳ Checking...';
+        refreshBtn.textContent = '⏳ Updating...';
     }
     
-    try {
-        const response = await fetch(`/api/draft/${currentDraftId}/usage`);
-        const data = await response.json();
+    console.log('=== RECALCULATING HIGHLIGHTS ===');
+    console.log(`Processing ${chapters.length} chapters`);
+    
+    paragraphChapters = {};
+    usedParagraphs.clear();
+    
+    const bookParagraphs = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
+    
+    chapters.forEach(chapter => {
+        if (!chapter.content || !chapter.chapter_number) {
+            console.warn(`Skipping chapter ${chapter.chapter_number}: no content`);
+            return;
+        }
         
-        if (response.ok && data.used_paragraphs) {
-            console.log('Received used_paragraphs from server:', data.used_paragraphs);
-            console.log('Received paragraph_chapters from server:', data.paragraph_chapters);
-            
-            // Update usedParagraphs set
-            usedParagraphs.clear();
-            data.used_paragraphs.forEach(idx => usedParagraphs.add(idx));
-            
-            // Update paragraphChapters mapping - convert string keys to integers
-            paragraphChapters = {};
-            if (data.paragraph_chapters) {
-                for (const [key, value] of Object.entries(data.paragraph_chapters)) {
-                    paragraphChapters[parseInt(key)] = value;
-                }
+        const matchedIndices = fuzzyMatchChapterInBook(chapter.content, bookParagraphs);
+        
+        matchedIndices.forEach(idx => {
+            if (paragraphChapters[idx] !== undefined) {
+                console.log(`Paragraph ${idx} was assigned to chapter ${paragraphChapters[idx]}, reassigning to chapter ${chapter.chapter_number}`);
             }
-            
-            console.log('Converted paragraphChapters:', paragraphChapters);
-            
-            // Assign colors to chapters
-            assignChapterColors();
-            
-            console.log('Assigned chapter colors:', chapterColors);
-            console.log('Updated usedParagraphs Set:', Array.from(usedParagraphs));
-            console.log('Total paragraphs in book:', (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim()).length);
-            
-            // Refresh the book display to show highlighting
-            displayFullBook();
-            
-            showStatus(`Text usage updated - ${usedParagraphs.size} paragraphs highlighted`, 'success');
+            paragraphChapters[idx] = chapter.chapter_number;
+            usedParagraphs.add(idx);
+        });
+    });
+    
+    assignChapterColors();
+    displayFullBook();
+    
+    console.log(`✓ Recalculated highlights: ${usedParagraphs.size} paragraphs across ${chapters.length} chapters`);
+    console.log('paragraphChapters:', paragraphChapters);
+    console.log('chapterColors:', chapterColors);
+    
+    if (refreshBtn) {
+        refreshBtn.disabled = false;
+        refreshBtn.textContent = '🔄 Refresh Highlights';
+    }
+}
+
+let highlightRefreshInterval = null;
+
+function startPeriodicHighlightRefresh() {
+    stopPeriodicHighlightRefresh();
+    
+    highlightRefreshInterval = setInterval(() => {
+        if (chapters && chapters.length > 0) {
+            console.log('Periodic highlight refresh...');
+            recalculateHighlights();
         }
-    } catch (error) {
-        console.error('Error fetching usage data:', error);
-        showStatus('Failed to update text usage', 'error');
-    } finally {
-        // Reset button state
-        if (refreshBtn) {
-            refreshBtn.disabled = false;
-            refreshBtn.textContent = '🔄 Refresh Usage';
-        }
+    }, 30000);
+    
+    console.log('Started periodic highlight refresh (every 30 seconds)');
+}
+
+function stopPeriodicHighlightRefresh() {
+    if (highlightRefreshInterval) {
+        clearInterval(highlightRefreshInterval);
+        highlightRefreshInterval = null;
+        console.log('Stopped periodic highlight refresh');
     }
 }
 
@@ -949,9 +969,6 @@ async function finishChapter() {
     
     // Start polling to track question generation progress
     startStatusPolling();
-    
-    // Update usage tracking immediately
-    fetchUsageData();
 
     showStatus(`Chapter "${title}" saved! Questions generating...`, 'success');
 }
@@ -1109,10 +1126,8 @@ async function deleteChapter(index) {
     displayFullBook();
     updateUndoButton();
     
-    // Refresh usage data to update color highlighting
-    if (currentDraftId) {
-        await fetchUsageData();
-    }
+    // Recalculate highlights after deleting chapter
+    recalculateHighlights();
     
     // Update chapter title input for next chapter
     const nextChapterNumber = chapters.length + 1;
@@ -1304,6 +1319,7 @@ async function deleteDraft(draftId, event) {
             usedParagraphs.clear();
             stopTagStatusPolling();
             stopDescriptionStatusPolling();
+            stopPeriodicHighlightRefresh();
             document.getElementById('book-section').style.display = 'none';
             document.getElementById('current-draft-info').style.display = 'none';
         }
@@ -1398,12 +1414,12 @@ async function loadDraft(draftId) {
         document.getElementById('draft-title').textContent = `${draft.title} by ${draft.author}`;
         document.getElementById('current-draft-info').style.display = 'block';
         
-        // Fetch usage data BEFORE displaying the book to ensure highlighting is applied
-        await fetchUsageData();
-        
         // Update UI
         showBookInfo(bookData);
-        displayFullBook();
+        
+        // Recalculate highlights from loaded chapters
+        recalculateHighlights();
+        
         updateChaptersList();
         
         // IMPORTANT: Reset current chapter editor state for next chapter
@@ -1444,6 +1460,9 @@ async function loadDraft(draftId) {
         
         // Start polling for chapter status updates
         startStatusPolling();
+        
+        // Start periodic highlight refresh
+        startPeriodicHighlightRefresh();
         
         const nextChapterNumber = chapters.length + 1;
         console.log(`✓ Draft loaded with ${chapters.length} existing chapters. Ready for Chapter ${nextChapterNumber}.`);
@@ -2104,8 +2123,8 @@ async function saveChapter(chapterId) {
         btn.classList.remove('save-btn');
         btn.classList.add('edit-btn');
         
-        // Update usage tracking immediately
-        fetchUsageData();
+        // Recalculate highlights after chapter update
+        recalculateHighlights();
         
         showStatus('Chapter updated successfully', 'success');
     } catch (error) {
@@ -2975,6 +2994,7 @@ window.loadDraft = async function(draftId) {
 // Stop queue polling when leaving the page
 window.addEventListener('beforeunload', () => {
     stopQueuePolling();
+    stopPeriodicHighlightRefresh();
 });
 
 // ================== INDEX PAGE QUEUE WIDGET ==================
