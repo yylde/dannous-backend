@@ -61,22 +61,22 @@ def enqueue_task():
 
 
 @queue_bp.route('/api/queue/clear', methods=['DELETE'])
-def clear_completed_tasks():
-    """Clear completed and errored tasks."""
+def clear_all_tasks():
+    """Clear ALL tasks from the queue regardless of status."""
     try:
         from src.queue_manager_v2 import get_queue_manager_v2
         manager = get_queue_manager_v2()
-        deleted_count = manager.clear_completed_tasks()
+        deleted_count = manager.clear_all_tasks()
         
-        logger.info(f"Cleared {deleted_count} completed tasks")
+        logger.info(f"Cleared ALL {deleted_count} tasks from queue")
         
         return jsonify({
             'success': True,
             'deleted_count': deleted_count,
-            'message': f'Cleared {deleted_count} completed tasks'
+            'message': f'Cleared {deleted_count} tasks from queue'
         })
     except Exception as e:
-        logger.exception("Failed to clear completed tasks")
+        logger.exception("Failed to clear queue")
         return jsonify({'error': str(e)}), 500
 
 
@@ -92,7 +92,7 @@ def flush_queue():
     try:
         from src.queue_manager_v2 import get_queue_manager_v2
         manager = get_queue_manager_v2()
-        deleted_count = manager.clear_completed_tasks()
+        deleted_count = manager.clear_all_tasks()
         
         logger.info(f"Queue flushed: {deleted_count} tasks removed")
         

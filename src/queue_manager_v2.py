@@ -605,6 +605,23 @@ class QueueManagerV2:
         logger.info(f"[QUEUE] Cleared {deleted_count} completed tasks")
         return deleted_count
     
+    def clear_all_tasks(self) -> int:
+        """
+        Clear ALL tasks from the queue regardless of status.
+        This includes queued, processing, ready, and error tasks.
+        
+        Returns:
+            Number of tasks deleted
+        """
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("DELETE FROM queue_tasks")
+                deleted_count = cur.rowcount
+                conn.commit()
+        
+        logger.info(f"[QUEUE] Cleared ALL {deleted_count} tasks from queue")
+        return deleted_count
+    
     def get_task_for_book(self, book_id: str, task_type: str) -> Optional[Dict[str, Any]]:
         """
         Get most recent task for book-level operations.
