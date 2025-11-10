@@ -510,12 +510,19 @@ def get_text_usage(draft_id):
             # Use html_formatting if available (for EPUB books), otherwise use content
             chapter_text = chapter.get('html_formatting') or chapter.get('content', '')
             chapter_number = chapter.get('chapter_number')
+            
+            logger.info(f"Chapter {chapter_number}: has html_formatting={bool(chapter.get('html_formatting'))}, has content={bool(chapter.get('content'))}")
+            logger.info(f"Chapter {chapter_number} text preview: {chapter_text[:200] if chapter_text else 'EMPTY'}...")
+            
             if not chapter_text or chapter_number is None:
                 continue
             
             # Normalize the entire chapter as one block for comparison
             # This handles cases where chapters have line breaks mid-sentence
             normalized_full_chapter = normalize(chapter_text)
+            
+            logger.info(f"Chapter {chapter_number} normalized preview: {normalized_full_chapter[:200]}...")
+            logger.info(f"Chapter {chapter_number} normalized length: {len(normalized_full_chapter)} chars")
             
             if not normalized_full_chapter:
                 continue
@@ -525,6 +532,7 @@ def get_text_usage(draft_id):
             normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs if normalize(p)]
             
             # Check each book paragraph against the chapter
+            matches_found = 0
             for para_idx, normalized_para in enumerate(normalized_paragraphs):
                 if para_idx in used_paragraph_indices:
                     continue  # Already marked as used
@@ -535,7 +543,9 @@ def get_text_usage(draft_id):
                 
                 # First, check if this book paragraph is contained in the full chapter
                 # This handles chapters that are continuous text with line breaks
-                if normalized_para in normalized_full_chapter or normalized_full_chapter in normalized_para:
+                is_substring = normalized_para in normalized_full_chapter or normalized_full_chapter in normalized_para
+                
+                if is_substring:
                     # Use fuzzy matching to confirm
                     leven_sim = Levenshtein.normalized_similarity(normalized_para, normalized_full_chapter) * 100
                     token_sim = fuzz.partial_ratio(normalized_para, normalized_full_chapter)
@@ -544,6 +554,8 @@ def get_text_usage(draft_id):
                     if combined_score >= 65:  # Lower threshold for substring matches
                         used_paragraph_indices.add(para_idx)
                         paragraph_to_chapter[para_idx] = chapter_number
+                        matches_found += 1
+                        logger.info(f"  ✓ MATCH: Para {para_idx} matched chapter {chapter_number} (substring, score={combined_score:.1f})")
                         continue
                 
                 # Also check against individual chapter paragraphs (for multi-para chapters)
@@ -566,7 +578,11 @@ def get_text_usage(draft_id):
                     if combined_score >= 78:
                         used_paragraph_indices.add(para_idx)
                         paragraph_to_chapter[para_idx] = chapter_number
+                        matches_found += 1
+                        logger.info(f"  ✓ MATCH: Para {para_idx} matched chapter {chapter_number} (paragraph, score={combined_score:.1f})")
                         break  # Found a match, no need to check other chapter paragraphs
+            
+            logger.info(f"Chapter {chapter_number}: Found {matches_found} matching paragraphs")
         
         return jsonify({
             'used_paragraphs': sorted(list(used_paragraph_indices)),
