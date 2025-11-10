@@ -109,6 +109,11 @@ function normalizeText(text) {
 function extractTextFromHtml(html) {
     const temp = document.createElement('div');
     temp.innerHTML = html;
+    
+    // Remove all img tags to avoid base64 data interfering with matching
+    const images = temp.querySelectorAll('img');
+    images.forEach(img => img.remove());
+    
     return temp.textContent || temp.innerText || '';
 }
 
