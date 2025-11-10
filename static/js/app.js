@@ -915,6 +915,28 @@ async function finishChapter() {
 
     // Save chapter (with metadata) - now includes chapter_number
     chapters.push(chapterData);
+    
+    // Perform fuzzy matching to highlight the chapter text in the book
+    const bookParagraphs = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
+    const matchedIndices = fuzzyMatchChapterInBook(chapterData.content, bookParagraphs);
+    
+    console.log(`Fuzzy matching found ${matchedIndices.length} paragraphs for chapter ${chapterData.chapter_number}`);
+    
+    // Map matched paragraphs to this chapter number
+    matchedIndices.forEach(idx => {
+        // Remove any previous chapter assignment for this paragraph (to handle overlaps)
+        if (paragraphChapters[idx] !== undefined) {
+            console.log(`Paragraph ${idx} was previously assigned to chapter ${paragraphChapters[idx]}, reassigning to chapter ${chapterData.chapter_number}`);
+        }
+        paragraphChapters[idx] = chapterData.chapter_number;
+        usedParagraphs.add(idx);
+    });
+    
+    // Assign color to this chapter
+    assignChapterColors();
+    
+    // Update the display to show highlighted paragraphs
+    displayFullBook();
 
     // Reset for next chapter - clear title field instead of setting default
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
@@ -923,7 +945,7 @@ async function finishChapter() {
     updateChapterDisplay();
     updateChapterStats();
     
-    console.log(`✓ Chapter ${chapterData.chapter_number} saved. Ready for next chapter.`);
+    console.log(`✓ Chapter ${chapterData.chapter_number} saved with ${matchedIndices.length} paragraphs highlighted. Ready for next chapter.`);
     updateChaptersList();
     updateUndoButton();
     
