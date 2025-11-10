@@ -9,6 +9,7 @@ from src.database import DatabaseManager
 from src.models import Book, Chapter, Question, ProcessedBook
 from src.config import settings
 from src.chapter_splitter import calculate_reading_time
+from src.status_calculator import get_question_status
 
 drafts_bp = Blueprint('drafts', __name__)
 logger = logging.getLogger(__name__)

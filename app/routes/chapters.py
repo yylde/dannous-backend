@@ -6,6 +6,7 @@ from flask import Blueprint, request, jsonify
 
 from src.database import DatabaseManager
 from app.tasks.question_tasks import regenerate_single_chapter_questions_async
+from src.status_calculator import get_question_status
 
 chapters_bp = Blueprint('chapters', __name__)
 logger = logging.getLogger(__name__)
