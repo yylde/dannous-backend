@@ -7,7 +7,7 @@ queue_bp = Blueprint('queue', __name__)
 logger = logging.getLogger(__name__)
 
 
-@queue_bp.route('/api/queue/status', methods=['GET'])
+@queue_bp.route('/queue/status', methods=['GET'])
 def get_queue_status():
     """Get current status of the queue (V2)."""
     try:
@@ -24,7 +24,7 @@ def get_queue_status():
         return jsonify({'error': str(e)}), 500
 
 
-@queue_bp.route('/api/queue/enqueue', methods=['POST'])
+@queue_bp.route('/queue/enqueue', methods=['POST'])
 def enqueue_task():
     """Enqueue a new task."""
     try:
@@ -60,7 +60,7 @@ def enqueue_task():
         return jsonify({'error': str(e)}), 500
 
 
-@queue_bp.route('/api/queue/clear', methods=['DELETE'])
+@queue_bp.route('/queue/clear', methods=['DELETE'])
 def clear_all_tasks():
     """Clear ALL tasks from the queue regardless of status."""
     try:
@@ -80,10 +80,6 @@ def clear_all_tasks():
         return jsonify({'error': str(e)}), 500
 
 
-@queue_bp.route('/queue/status', methods=['GET'])
-def get_queue_status_legacy():
-    """Legacy endpoint - redirects to new endpoint."""
-    return get_queue_status()
 
 
 @queue_bp.route('/queue/flush', methods=['POST'])
