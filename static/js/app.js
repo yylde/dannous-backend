@@ -132,11 +132,11 @@ function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
     }));
     
     const matchedIndices = [];
-    const minMatchRatio = 0.6;
+    const minMatchRatio = 0.7;
+    const minMatchWords = 5;
     
     let chapterWordIndex = 0;
-    let consecutiveMatches = 0;
-    let currentMatch = null;
+    let matchStartIndex = -1;
     
     for (let paraIdx = 0; paraIdx < normalizedBookParagraphs.length; paraIdx++) {
         const para = normalizedBookParagraphs[paraIdx];
@@ -155,20 +155,21 @@ function fuzzyMatchChapterInBook(chapterText, bookParagraphs) {
         
         const matchRatio = matchCount / Math.max(totalWords, 1);
         
-        if (matchRatio >= minMatchRatio || matchCount > 0) {
+        if (matchCount >= minMatchWords && matchRatio >= minMatchRatio) {
+            if (matchStartIndex === -1) {
+                matchStartIndex = paraIdx;
+            }
             matchedIndices.push(paraIdx);
-            consecutiveMatches++;
             
             if (chapterWordIndex >= chapterWords.length) {
                 break;
             }
-        } else if (consecutiveMatches > 0 && matchCount === 0) {
-            chapterWordIndex = 0;
-            consecutiveMatches = 0;
+        } else if (matchStartIndex !== -1 && matchCount === 0) {
+            break;
         }
     }
     
-    console.log(`Fuzzy match found ${matchedIndices.length} paragraphs for chapter with ${chapterWords.length} words`);
+    console.log(`Fuzzy match found ${matchedIndices.length} paragraphs for chapter with ${chapterWords.length} words (${Math.round(chapterWordIndex / chapterWords.length * 100)}% of chapter matched)`);
     
     return matchedIndices;
 }
