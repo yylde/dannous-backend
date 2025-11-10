@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["libxcrypt", "rapidfuzz-cpp", "taskflow", "xcodebuild", "zlib"]
+packages = ["arrow-cpp", "awsebcli", "c-ares", "cacert", "cargo", "dos2unix", "ffmpeg-full", "file", "freetype", "geos", "gitFull", "glibcLocales", "grpc", "hydrus", "iana-etc", "lcms2", "libGL", "libGLU", "libffi", "libiconv", "libimagequant", "libjpeg", "libsndfile", "libtiff", "libuv", "libwebp", "libxcrypt", "oneDNN", "openjpeg", "openssl", "pandoc", "pkg-config", "playwright-driver", "postgresql", "rapidfuzz-cpp", "re2", "rustc", "sqlite", "taskflow", "tcl", "tk", "util-linux", "xcodebuild", "xsimd", "zlib"]
 
 [workflows]
 runButton = "Project"
