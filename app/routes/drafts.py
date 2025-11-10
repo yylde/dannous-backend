@@ -485,8 +485,9 @@ def get_text_usage(draft_id):
         
         # Get all chapters
         chapters = db.get_draft_chapters(draft_id)
+        logger.info(f"Found {len(chapters) if chapters else 0} chapters for draft {draft_id}")
         if not chapters:
-            return jsonify({'used_paragraphs': []})
+            return jsonify({'used_paragraphs': [], 'paragraph_chapters': {}})
         
         # Track which paragraphs are used and which chapter they belong to
         used_paragraph_indices = set()
@@ -509,12 +510,16 @@ def get_text_usage(draft_id):
         for chapter in chapters:
             chapter_text = chapter.get('content', '')
             chapter_number = chapter.get('chapter_number')
+            logger.info(f"Processing chapter {chapter_number}: content length = {len(chapter_text) if chapter_text else 0}")
             if not chapter_text or chapter_number is None:
+                logger.warning(f"Skipping chapter {chapter_number}: no content or number")
                 continue
             
             # Split chapter into paragraphs (to compare paragraph-to-paragraph)
             chapter_paragraphs = [p.strip() for p in chapter_text.split('\n\n') if p.strip()]
+            logger.info(f"Chapter {chapter_number}: split into {len(chapter_paragraphs)} paragraphs by \\n\\n")
             normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs]
+            logger.info(f"Chapter {chapter_number}: {len(normalized_chapter_paras)} normalized paragraphs")
             
             # Check each book paragraph against each chapter paragraph
             for para_idx, normalized_para in enumerate(normalized_paragraphs):
@@ -546,6 +551,7 @@ def get_text_usage(draft_id):
                     if combined_score >= 78:
                         used_paragraph_indices.add(para_idx)
                         paragraph_to_chapter[para_idx] = chapter_number
+                        logger.info(f"✓ MATCHED: Book para {para_idx} -> Chapter {chapter_number} (score: {combined_score:.1f}%)")
                         break  # Found a match, no need to check other chapter paragraphs
         
         return jsonify({
