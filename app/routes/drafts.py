@@ -521,7 +521,10 @@ def get_text_usage(draft_id):
             normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs]
             logger.info(f"Chapter {chapter_number}: {len(normalized_chapter_paras)} normalized paragraphs")
             
-            # Check each book paragraph against each chapter paragraph
+            # Normalize full chapter as one text block for substring matching
+            normalized_full_chapter = normalize(chapter_text)
+            
+            # Check each book paragraph to see if it's in the chapter
             for para_idx, normalized_para in enumerate(normalized_paragraphs):
                 if para_idx in used_paragraph_indices:
                     continue  # Already marked as used
@@ -530,29 +533,14 @@ def get_text_usage(draft_id):
                 if not normalized_para:
                     continue
                 
-                # Compare against each paragraph in the chapter
-                # Use Levenshtein similarity with token-based fallback
-                for chapter_para in normalized_chapter_paras:
-                    if not chapter_para:
-                        continue
-                        
-                    # HYBRID APPROACH: Levenshtein + token-based
-                    # 1. Normalized Levenshtein similarity (order-aware, edit-tolerant)
-                    leven_sim = Levenshtein.normalized_similarity(normalized_para, chapter_para) * 100
-                    
-                    # 2. Token-based similarity (vocabulary-aware)
-                    token_sim = fuzz.token_sort_ratio(normalized_para, chapter_para)
-                    
-                    # Use weighted average: favor Levenshtein slightly for order preservation
-                    # 60% Levenshtein + 40% token = better balance
-                    combined_score = (leven_sim * 0.6) + (token_sim * 0.4)
-                    
-                    # 78% threshold allows minor edits while filtering different text
-                    if combined_score >= 78:
-                        used_paragraph_indices.add(para_idx)
-                        paragraph_to_chapter[para_idx] = chapter_number
-                        logger.info(f"✓ MATCHED: Book para {para_idx} -> Chapter {chapter_number} (score: {combined_score:.1f}%)")
-                        break  # Found a match, no need to check other chapter paragraphs
+                # Use partial_ratio for substring matching (book para IN chapter)
+                score = fuzz.partial_ratio(normalized_para, normalized_full_chapter)
+                
+                # Lower threshold since we're doing substring matching
+                if score >= 85:
+                    used_paragraph_indices.add(para_idx)
+                    paragraph_to_chapter[para_idx] = chapter_number
+                    logger.info(f"✓ MATCHED: Book para {para_idx} -> Chapter {chapter_number} (score: {score}%)")
         
         return jsonify({
             'used_paragraphs': sorted(list(used_paragraph_indices)),
