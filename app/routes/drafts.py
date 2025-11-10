@@ -521,26 +521,27 @@ def get_text_usage(draft_id):
             normalized_chapter_paras = [normalize(p) for p in chapter_paragraphs]
             logger.info(f"Chapter {chapter_number}: {len(normalized_chapter_paras)} normalized paragraphs")
             
-            # Normalize full chapter as one text block for substring matching
+            # Normalize full chapter as one text block for fast substring matching
             normalized_full_chapter = normalize(chapter_text)
             
-            # Check each book paragraph to see if it's in the chapter
+            # Check each book paragraph to see if it's in the chapter (FAST substring check)
             for para_idx, normalized_para in enumerate(normalized_paragraphs):
                 if para_idx in used_paragraph_indices:
                     continue  # Already marked as used
                     
-                # Skip empty paragraphs
-                if not normalized_para:
+                # Skip empty or very short paragraphs
+                if not normalized_para or len(normalized_para) < 10:
                     continue
                 
-                # Use partial_ratio for substring matching (book para IN chapter)
-                score = fuzz.partial_ratio(normalized_para, normalized_full_chapter)
+                # Fast substring check - if most words from book para are in chapter
+                para_words = set(normalized_para.split())
+                chapter_words = set(normalized_full_chapter.split())
                 
-                # Use 70% threshold for visual tracking (doesn't need to be exact)
-                if score >= 70:
-                    used_paragraph_indices.add(para_idx)
-                    paragraph_to_chapter[para_idx] = chapter_number
-                    logger.info(f"✓ MATCHED: Book para {para_idx} -> Chapter {chapter_number} (score: {score}%)")
+                if len(para_words) > 0:
+                    overlap = len(para_words & chapter_words) / len(para_words)
+                    if overlap >= 0.7:  # 70% of words must match
+                        used_paragraph_indices.add(para_idx)
+                        paragraph_to_chapter[para_idx] = chapter_number
         
         return jsonify({
             'used_paragraphs': sorted(list(used_paragraph_indices)),
