@@ -23,7 +23,13 @@ class Settings(BaseSettings):
     ollama_model: str = "llama3.2"
     ollama_timeout: int = 120
     
+    # OpenRouter
+    openrouter_api_key: Optional[str] = None
+    openrouter_free_model: str = "x-ai/grok-4.1-fast:free"
+    openrouter_paid_model: str = "google/gemini-flash-1.5"
+    
     # Processing defaults
+    queue_worker_count: int = 10
     default_age_range: str = "8-12"
     default_reading_level: str = "intermediate"
     default_genre: str = "fiction"

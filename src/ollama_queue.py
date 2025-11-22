@@ -18,6 +18,7 @@ import psycopg2
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Optional, List
 from enum import IntEnum
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class OllamaQueueManager:
                     cls._instance = super().__new__(cls)
         return cls._instance
     
-    def __init__(self, num_workers: int = 1, database_url: Optional[str] = None):
+    def __init__(self, num_workers: int = None, database_url: Optional[str] = None):
         """Initialize the queue manager.
         
         Args:
@@ -79,7 +80,8 @@ class OllamaQueueManager:
         self._shutdown = False
         self._task_counter = 0
         self._counter_lock = threading.Lock()
-        self._num_workers = max(1, num_workers)
+        # Use configured worker count if not specified, defaulting to 1
+        self._num_workers = max(1, num_workers or settings.queue_worker_count)
         self._pending_tasks = {}  # Track pending tasks by ID for detailed info
         self._pending_tasks_lock = threading.Lock()
         self._database_url = database_url
@@ -109,7 +111,7 @@ class OllamaQueueManager:
             try:
                 task = self._task_queue.get(timeout=1.0)
                 
-                if task is None:
+                if task.task_type == 'shutdown':
                     self._task_queue.task_done()
                     logger.info(f"{thread_name} received shutdown sentinel")
                     break
@@ -443,7 +445,7 @@ class OllamaQueueManager:
         while not self._task_queue.empty():
             try:
                 task = self._task_queue.get_nowait()
-                if task is None:  # Shutdown sentinel
+                if task.task_type == 'shutdown':  # Shutdown sentinel
                     remaining_tasks.append(task)
                     continue
                 
@@ -524,12 +526,21 @@ class OllamaQueueManager:
         while not self._task_queue.empty():
             try:
                 task = self._task_queue.get_nowait()
-                if task is not None:  # Don't count shutdown sentinels
+                if task.task_type != 'shutdown':  # Don't count shutdown sentinels
                     flushed_count += 1
                     # Send error to any waiting threads
                     if task.result_queue is not None:
                         task.result_queue.put(('error', Exception('Queue flushed')))
                     self._task_queue.task_done()
+                else:
+                    # Put shutdown sentinel back? Or just drop it if we are flushing?
+                    # If we flush, we probably want to keep the queue empty but running?
+                    # If we drop sentinel, workers might not stop if they were supposed to.
+                    # But flush_queue usually implies clearing tasks, not stopping workers.
+                    # Let's put it back if we encounter it, or just ignore it (it's not a task).
+                    # For safety, let's put it back to ensure shutdown signal persists if it was there.
+                    self._task_queue.task_done()
+                    self._task_queue.put(task)
             except queue.Empty:
                 break
         
@@ -738,8 +749,18 @@ class OllamaQueueManager:
         
         self._shutdown = True
         
+        self._shutdown = True
+        
         for _ in self._workers:
-            self._task_queue.put(None)
+            # Use a sentinel task with high priority (0) to ensure it's picked up
+            sentinel = OllamaTask(
+                priority=0, 
+                task_id=0, 
+                func=lambda: None, 
+                task_type='shutdown', 
+                task_name='SHUTDOWN'
+            )
+            self._task_queue.put(sentinel)
         
         start_time = time.time()
         for worker in self._workers:

@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -378,12 +379,29 @@
             .task-meta {
                 flex-wrap: wrap;
             }
+
             .task-details-content {
                 grid-template-columns: 1fr;
             }
         }
+
+        .btn-icon-danger {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px;
+            border-radius: 50%;
+            transition: background 0.2s;
+            margin-left: 8px;
+        }
+
+        .btn-icon-danger:hover {
+            background: #fee2e2;
+        }
     </style>
 </head>
+
 <body>
     <div class="queue-container">
         <!-- Header -->
@@ -442,9 +460,9 @@
         function toggleCompleted() {
             const content = document.getElementById('completed-content');
             const icon = document.getElementById('collapse-icon');
-            
+
             completedCollapsed = !completedCollapsed;
-            
+
             if (completedCollapsed) {
                 content.classList.add('collapsed');
                 icon.classList.add('collapsed');
@@ -457,7 +475,7 @@
         function toggleTaskDetails(taskId) {
             const details = document.getElementById(`details-${taskId}`);
             const icon = document.getElementById(`icon-${taskId}`);
-            
+
             if (expandedTasks.has(taskId)) {
                 expandedTasks.delete(taskId);
                 details.classList.remove('expanded');
@@ -491,7 +509,7 @@
             if (bookTitles[bookId]) {
                 return bookTitles[bookId];
             }
-            
+
             try {
                 const response = await fetch(`/api/draft/${bookId}`);
                 if (response.ok) {
@@ -507,15 +525,15 @@
 
         function calculateDuration(startTime, endTime) {
             if (!startTime || !endTime) return null;
-            
+
             const start = new Date(startTime);
             const end = new Date(endTime);
             const durationMs = end - start;
-            
+
             const seconds = Math.floor(durationMs / 1000);
             const minutes = Math.floor(seconds / 60);
             const hours = Math.floor(minutes / 60);
-            
+
             if (hours > 0) {
                 return `${hours}h ${minutes % 60}m`;
             } else if (minutes > 0) {
@@ -534,22 +552,22 @@
 
             // Build summary line with meaningful info (book title, chapter, grade, timestamps)
             let summaryParts = [];
-            
+
             // Book title (comes from backend LEFT JOIN)
             if (task.book_title) {
                 summaryParts.push(`<span>${task.book_title}</span>`);
             }
-            
+
             // Chapter number
             if (task.payload && task.payload.chapter_number) {
                 summaryParts.push(`<span>Ch. ${task.payload.chapter_number}</span>`);
             }
-            
+
             // Grade level
             if (task.payload && task.payload.grade_level) {
                 summaryParts.push(`<span>📚 ${task.payload.grade_level}</span>`);
             }
-            
+
             // Timestamps based on status
             if (task.status === 'queued' && task.created_at) {
                 const createdTime = new Date(task.created_at).toLocaleTimeString();
@@ -560,7 +578,7 @@
             } else if ((task.status === 'ready' || task.status === 'error') && task.completed_at) {
                 const completedTime = new Date(task.completed_at).toLocaleTimeString();
                 summaryParts.push(`<span>✓ ${completedTime}</span>`);
-                
+
                 // Add duration for finished tasks
                 const duration = calculateDuration(task.locked_at || task.created_at, task.completed_at);
                 if (duration) {
@@ -642,6 +660,7 @@
                         </div>
                         <span class="task-status ${statusClass}">${task.status}</span>
                         <span class="task-priority ${priorityClass}">${priorityLabel}</span>
+                        <button onclick="deleteTask('${task.id}', event)" class="btn-icon-danger" title="Delete Task">❌</button>
                     </div>
                     ${detailsHTML}
                 </div>
@@ -669,11 +688,11 @@
                     const activeTasksList = document.getElementById('active-tasks-list');
                     const activeTasks = status.active_tasks || [];
                     const activeCount = activeTasks.length;
-                    
+
                     document.getElementById('active-count-badge').textContent = activeCount;
 
                     if (activeCount > 0) {
-                        activeTasksList.innerHTML = activeTasks.map(task => 
+                        activeTasksList.innerHTML = activeTasks.map(task =>
                             renderTaskExpandable(task, expandedTasks.has(task.id))
                         ).join('');
                     } else {
@@ -689,19 +708,19 @@
                     const completedSection = document.getElementById('completed-section');
                     const completedTasksList = document.getElementById('completed-tasks-list');
                     const clearBtn = document.getElementById('clear-btn');
-                    
+
                     // Combine ready and error tasks
                     const readyTasks = status.ready_tasks || [];
                     const errorTasks = status.error_tasks || [];
                     const completedTasks = [...readyTasks, ...errorTasks];
                     const completedCount = completedTasks.length;
-                    
+
                     document.getElementById('completed-count-badge').textContent = completedCount;
 
                     if (completedCount > 0) {
                         completedSection.style.display = 'block';
                         clearBtn.style.display = 'block';
-                        completedTasksList.innerHTML = completedTasks.map(task => 
+                        completedTasksList.innerHTML = completedTasks.map(task =>
                             renderTaskExpandable(task, expandedTasks.has(task.id))
                         ).join('');
                     } else {
@@ -746,6 +765,36 @@
             }
         }
 
+        async function deleteTask(taskId, event) {
+            if (event) {
+                event.stopPropagation(); // Prevent expanding the task details
+            }
+
+            if (!confirm('Are you sure you want to delete this task?')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/queue/${taskId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    // Remove element immediately for better UX
+                    const element = document.getElementById(`details-${taskId}`).parentElement;
+                    element.remove();
+
+                    // Update counts via refresh
+                    refreshQueue();
+                } else {
+                    alert('Failed to delete task');
+                }
+            } catch (error) {
+                console.error('Error deleting task:', error);
+                alert('Error deleting task');
+            }
+        }
+
         function startAutoRefresh() {
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
@@ -770,4 +819,5 @@
         });
     </script>
 </body>
+
 </html>

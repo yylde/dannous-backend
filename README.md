@@ -84,27 +84,31 @@ PGUSER=postgres
 PGPASSWORD=your_password
 PGDATABASE=kids_reading_db
 
-# Ollama Configuration (optional, defaults shown)
-OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_MODEL=llama3.2
+# OpenRouter Configuration (Required)
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# OpenRouter Models (Optional, defaults shown)
+OPENROUTER_FREE_MODEL=x-ai/grok-4.1-fast:free
+OPENROUTER_PAID_MODEL=google/gemini-flash-1.5
+
+# Queue Configuration (Optional)
+QUEUE_WORKER_COUNT=10
 ```
 
-**Important:** Replace `your_password` with your PostgreSQL password.
+**Important:** Replace `your_password` with your PostgreSQL password and `your_openrouter_api_key_here` with your actual API key.
 
-### 6. Verify Ollama is Running
+### 6. Verify OpenRouter Integration
 
-Make sure Ollama is running in the background:
+You can verify the OpenRouter integration using the provided verification script:
 
 ```bash
-# Check if Ollama is running
-ollama list
-
-# If not running, start it
-ollama serve
-
-# Pull the model (if not already installed)
-ollama pull llama3.2
+# Run the verification script
+python verify_openrouter.py
 ```
+
+This script simulates API calls to ensure:
+1. The free model is used by default.
+2. The system automatically switches to the paid model if the rate limit is reached.
 
 ### 7. Run the Application
 

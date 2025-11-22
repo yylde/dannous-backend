@@ -69,7 +69,9 @@ class QueueManagerV2:
         self._initialized = True
         self.database_url = database_url or settings.database_url
         self._shutdown = False
-        self._worker_thread = None
+        self.database_url = database_url or settings.database_url
+        self._shutdown = False
+        self._worker_threads = []
         self._watchdog_thread = None
         
         logger.info("QueueManagerV2 initialized")
@@ -554,15 +556,25 @@ class QueueManagerV2:
         logger.info("[WATCHDOG] Watchdog loop stopped")
     
     def start_worker(self):
-        """Start worker thread."""
-        if self._worker_thread is None or not self._worker_thread.is_alive():
-            self._worker_thread = threading.Thread(
-                target=self.worker_loop,
-                name="QueueWorker",
-                daemon=True
-            )
-            self._worker_thread.start()
-            logger.info("[QUEUE] Worker thread started")
+        """Start worker threads."""
+        # Clear any dead threads
+        self._worker_threads = [t for t in self._worker_threads if t.is_alive()]
+        
+        # Start missing threads
+        current_count = len(self._worker_threads)
+        target_count = settings.queue_worker_count
+        
+        if current_count < target_count:
+            for i in range(current_count, target_count):
+                t = threading.Thread(
+                    target=self.worker_loop,
+                    name=f"QueueWorker-{i+1}",
+                    daemon=True
+                )
+                t.start()
+                self._worker_threads.append(t)
+            
+            logger.info(f"[QUEUE] Started {target_count - current_count} worker threads (total: {target_count})")
     
     def start_watchdog(self):
         """Start watchdog thread."""
@@ -621,6 +633,30 @@ class QueueManagerV2:
         
         logger.info(f"[QUEUE] Cleared ALL {deleted_count} tasks from queue")
         return deleted_count
+    
+    def delete_task(self, task_id: str) -> bool:
+        """
+        Delete a specific task from the queue.
+        
+        Args:
+            task_id: Task ID to delete
+            
+        Returns:
+            True if deleted, False if not found
+        """
+        with self._get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    DELETE FROM queue_tasks
+                    WHERE id = %s
+                """, (task_id,))
+                deleted_count = cur.rowcount
+                conn.commit()
+        
+        if deleted_count > 0:
+            logger.info(f"[QUEUE] Deleted task {task_id}")
+            return True
+        return False
     
     def get_task_for_book(self, book_id: str, task_type: str) -> Optional[Dict[str, Any]]:
         """

@@ -1,11 +1,12 @@
-"""Question generation using Ollama LLM."""
+"""Question generation using OpenRouter LLM."""
 
 import json
 import logging
 import re
 import time
+import os
 from typing import List, Dict, Tuple, Optional
-import ollama
+from openai import OpenAI, RateLimitError
 from .config import settings
 from .ollama_queue import queue_ollama_call, TaskPriority
 
@@ -20,7 +21,7 @@ def remove_thinking_tokens(response: str) -> str:
     - <think>...</think>
     - <thinking>...</thinking>
     - <thought>...</thought>
-    - Special tokens like <｜begin▁of▁thinking｜>
+    - Special tokens like <｜begin of thinking｜>
     - And variations with attributes
     
     Args:
@@ -47,9 +48,9 @@ def remove_thinking_tokens(response: str) -> str:
     response = re.sub(r'<thinking[^>]*>.*?</thinking>', '', response, flags=re.DOTALL | re.IGNORECASE)
     
     # Remove special DeepSeek thinking tokens
-    response = re.sub(r'<｜begin▁of▁thinking｜>.*?<｜end▁of▁thinking｜>', '', response, flags=re.DOTALL)
-    response = re.sub(r'<｜begin▁of▁sentence｜>', '', response)
-    response = re.sub(r'<｜end▁of▁sentence｜>', '', response)
+    response = re.sub(r'<｜begin of thinking｜>.*?<｜end of thinking｜>', '', response, flags=re.DOTALL)
+    response = re.sub(r'<｜begin of sentence｜>', '', response)
+    response = re.sub(r'<｜end of sentence｜>', '', response)
     
     # Clean up extra whitespace
     response = re.sub(r'\n\s*\n+', '\n\n', response)
@@ -59,13 +60,22 @@ def remove_thinking_tokens(response: str) -> str:
 
 
 class QuestionGenerator:
-    """Generate comprehension questions using Ollama."""
+    """Generate comprehension questions using OpenRouter LLM."""
     
     def __init__(self, model: str = None):
         """Initialize question generator."""
-        self.model = model or settings.ollama_model
-        self.base_url = settings.ollama_base_url
-        self.timeout = settings.ollama_timeout
+        # Default to configured free model if not specified
+        self.model = model or settings.openrouter_free_model
+        
+        # Initialize OpenAI client for OpenRouter
+        api_key = settings.openrouter_api_key or os.getenv("OPENROUTER_API_KEY")
+        if not api_key:
+            logger.warning("OPENROUTER_API_KEY not found in environment variables")
+            
+        self.client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=api_key,
+        )
         
         # Load prompt template
         self.prompt_template = self._load_prompt_template()
@@ -78,12 +88,11 @@ Book: "{title}" by {author}
 Chapter {chapter_number}: {chapter_title}
 Target Grade: {grade_level}
 Reading Level: {reading_level}
-Age Range: {age_range}
 
 Chapter Text:
 {chapter_text}
 
-CRITICAL: All content MUST be strictly age-appropriate for {grade_level} students (ages {age_range}). Use vocabulary, concepts, and themes that match their developmental stage and cognitive abilities.
+CRITICAL: All content MUST be strictly appropriate for {grade_level} students. Use vocabulary, concepts, and themes that match their developmental stage and cognitive abilities.
 
 Generate exactly {num_questions} open-ended comprehension questions appropriate for {grade_level} students:
 1. Are NOT multiple choice or yes/no questions
@@ -92,7 +101,7 @@ Generate exactly {num_questions} open-ended comprehension questions appropriate 
 4. Test understanding beyond simple recall
 5. Are specifically tailored for {grade_level} reading and comprehension abilities
 6. Focus on themes, character motivation, cause-and-effect, or inference
-7. Use language and concepts that are developmentally appropriate for ages {age_range}
+7. Use language and concepts that are developmentally appropriate for {grade_level}
 8. Avoid abstract or complex themes beyond {grade_level} comprehension
 
 Additionally, identify {vocab_count} words that might be difficult for a {grade_level} student. For each word, provide:
@@ -105,8 +114,9 @@ IMPORTANT for vocabulary selection:
 - DO include country names and geographical locations (e.g., "Wonderland", "England") - these help students learn geography
 - Focus on challenging adjectives, verbs, and descriptive words that enhance comprehension
 - Select vocabulary that is challenging yet achievable for {grade_level} students
-- Ensure definitions use simple language appropriate for ages {age_range}
+- Ensure definitions use simple language appropriate for {grade_level}
 - Examples should relate to situations and experiences familiar to {grade_level} children
+- DO NOT choose words with the same root (e.g., do not include both "travel" and "traveling") - select unique word families only
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
@@ -122,7 +132,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
     def _parse_response(self, response: str, expected_count: int) -> Tuple[List[Dict], List[Dict], List[str]]:
         """
         Parse JSON response from LLM with robust error handling.
-        Works with ANY Ollama model - thinking or non-thinking.
+        Works with ANY model - thinking or non-thinking.
         
         Returns:
             Tuple of (questions, vocabulary, tags)
@@ -258,7 +268,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             vocab_count: Number of vocabulary words to generate
             book_id: Book ID
             chapter_id: Chapter ID
-            use_queue: If True, use queue; if False, call Ollama directly
+            use_queue: If True, use queue; if False, call LLM directly
         
         Returns:
             Tuple of (questions_list, vocabulary_list)
@@ -289,7 +299,6 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             chapter_title=chapter_title,
             chapter_text=chapter_text,
             reading_level=reading_level,
-            age_range=age_range,
             grade_level=grade_level,
             num_questions=num_questions,
             vocab_count=vocab_count,
@@ -297,7 +306,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             max_words=settings.max_answer_words
         )
         
-        # Call Ollama (queue or direct based on use_queue parameter)
+        # Call LLM (queue or direct based on use_queue parameter)
         try:
             if use_queue:
                 response = self._call_ollama(
@@ -327,54 +336,38 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             return self._generate_fallback_questions(chapter_title, num_questions), []
     
     def _call_ollama_direct(self, prompt: str, force_json_format: bool = False) -> str:
-        """Direct Ollama API call (internal, not queued).
-        
-        This method is designed to work with ANY Ollama model:
-        - Thinking models (DeepSeek-R1, etc.) - outputs <think> tags
-        - Standard models (Llama, Mistral, etc.) - direct JSON output
-        - Any model with custom response formats
+        """Direct LLM API call (internal, not queued).
         
         Args:
             prompt: The prompt to send to the model
-            force_json_format: If True, uses format='json' (disables thinking mode)
+            force_json_format: If True, appends instruction for JSON
         
         Returns:
             Raw model response string
         """
-        # Build request options
-        options = {
-            'temperature': 0.7,
-            'top_p': 0.9,
-            'num_predict': 4000  # Generous token limit for all models
-        }
-        
-        # Decide whether to use format='json'
-        # - If force_json_format=True: Use it (for retry attempts)
-        # - Otherwise: Don't use it (allows thinking models to work)
-        generate_params = {
-            'model': self.model,
-            'prompt': prompt,
-            'options': options
-        }
-        
+        # Append JSON instruction if forced
         if force_json_format:
-            generate_params['format'] = 'json'
-            logger.debug(f"Using format='json' for model: {self.model}")
-        else:
-            logger.debug(f"Using free-form output for model: {self.model}")
-        
-        # Call Ollama
-        response = ollama.generate(**generate_params)
-        raw_response = response['response']
-        
-        # Log diagnostic info
-        has_thinking_tags = '<think>' in raw_response.lower() or '<thinking>' in raw_response.lower()
-        logger.debug(f"Model: {self.model}")
-        logger.debug(f"Response length: {len(raw_response)} chars")
-        logger.debug(f"Contains thinking tags: {has_thinking_tags}")
-        logger.debug(f"First 500 chars: {raw_response[:500]}")
-        
-        return raw_response
+            prompt += "\\n\\nIMPORTANT: Respond ONLY in valid JSON format."
+            
+        try:
+            # 1. Try Default Model (Free)
+            return self.client.chat.completions.create(
+                model=self.model,
+                messages=[{"role": "user", "content": prompt}]
+            ).choices[0].message.content
+
+        except RateLimitError:
+            # 2. Hit the limit? Switch to PAID Model
+            logger.info(f"Rate limit reached for {self.model}. Switching to paid model ({settings.openrouter_paid_model})...")
+            
+            return self.client.chat.completions.create(
+                model=settings.openrouter_paid_model,
+                messages=[{"role": "user", "content": prompt}]
+            ).choices[0].message.content
+            
+        except Exception as e:
+            logger.error(f"LLM call failed: {e}")
+            raise
     
     def _call_ollama(
         self, 
@@ -386,11 +379,11 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
         book_id: Optional[str] = None,
         chapter_id: Optional[str] = None
     ) -> str:
-        """Call Ollama API through the priority queue.
+        """Call LLM API through the priority queue.
         
         Args:
             prompt: The prompt to send to the model
-            force_json_format: If True, uses format='json' (disables thinking mode)
+            force_json_format: If True, appends instruction for JSON
             priority: Task priority level (GENRE_TAG=1, DESCRIPTION=2, QUESTION=3)
             task_name: Descriptive name for queue logging
             task_type: Type of task (description, tags, questions)
@@ -404,7 +397,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             return queue_ollama_call(
                 func=self._call_ollama_direct,
                 priority=priority,
-                task_name=task_name or "ollama_call",
+                task_name=task_name or "llm_call",
                 prompt=prompt,
                 force_json_format=force_json_format,
                 task_type=task_type,
@@ -412,7 +405,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
                 chapter_id=chapter_id
             )
         except Exception as e:
-            logger.error(f"Queued Ollama API call failed: {e}")
+            logger.error(f"Queued LLM API call failed: {e}")
             raise
     
     def _generate_fallback_questions(
@@ -469,7 +462,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             reading_level: Reading level
             age_range: Age range
             book_id: Book ID
-            use_queue: If True, use queue; if False, call Ollama directly
+            use_queue: If True, use queue; if False, call LLM directly
         
         Returns:
             List of tags (e.g., ["adventure", "fantasy", "grades-4-6"])
@@ -481,27 +474,28 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
 
 Book: "{title}" by {author}
 Reading Level: {reading_level}
-Age Range: {age_range}
 
 Based on the book title and author, provide appropriate tags:
-1. Genre tags (as many as applicable, 1-4 tags): Select from: "adventure", "fantasy", "mystery", "historical-fiction", "science-fiction", "realistic-fiction", "humor", "horror", "romance", "poetry", "biography", "educational"
-2. Individual grade-level tags (MAXIMUM 4 GRADES): Select the 4 most likely grades from: "grade-K", "grade-1", "grade-2", "grade-3", "grade-4", "grade-5", "grade-6", "grade-7", "grade-8", "grade-9", "grade-10", "grade-11", "grade-12"
-   - Include ONLY the 4 most appropriate consecutive grades for this book
-   - For example, if suitable for 3rd-6th graders, include: "grade-3", "grade-4", "grade-5", "grade-6"
-   - LIMIT: Maximum 4 grade tags total
+1. Genre tags (as many as applicable, 1-4 tags): Use your best judgement to identify the most appropriate STANDARD genres based on the title and author. You MUST use standard, widely recognized genre names (e.g., "science-fiction", "biography", "folklore"). Do NOT use "cute", made-up, or non-standard tags. Keep it professional and standard.
+2. Individual grade-level tags (MAXIMUM 3 GRADES): Select the 3 most likely grades from: "grade-K", "grade-1", "grade-2", "grade-3", "grade-4", "grade-5", "grade-6", "grade-7", "grade-8", "grade-9", "grade-10", "grade-11", "grade-12"
+   - Include ONLY the 3 most appropriate consecutive grades for this book
+   - For example, if suitable for 3rd-5th graders, include: "grade-3", "grade-4", "grade-5"
+   - LIMIT: Maximum 3 grade tags total
+   - STRICTLY ENFORCED: Do not provide more than 3 grade tags.
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY valid JSON - no markdown, no code blocks, no explanations
 - Return a simple array of strings
-- Include 1-4 genre tags + EXACTLY 4 individual grade tags (or fewer if the book has a narrower audience)
-- Focus on the MOST LIKELY grades for this book
+- Include 1-4 genre tags + AT MOST 3 individual grade tags (or fewer if the book has a narrower audience)
+- Focus on the MOST LIKELY grades for this book based on its complexity and themes
+- CRITICAL: Be accurate with grade levels. Do not assign complex books (like "Pride and Prejudice" or "Moby Dick") to lower grades. Do not assign simple picture books to high school grades.
 
 EXACT FORMAT (copy this structure):
-{{"tags":["adventure","fantasy","grade-3","grade-4","grade-5","grade-6"]}}
+{{"tags":["adventure","fantasy","grade-3","grade-4","grade-5"]}}
 
 Your entire response must be valid JSON starting with {{ and ending with }}"""
         
-        # Call Ollama (queue or direct based on use_queue parameter)
+        # Call LLM (queue or direct based on use_queue parameter)
         try:
             if use_queue:
                 response = self._call_ollama(
@@ -531,7 +525,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
     
     def _parse_tags_response(self, response: str) -> List[str]:
         """Parse tags-only response from LLM.
-        Works with ANY Ollama model - thinking or non-thinking."""
+        Works with ANY model - thinking or non-thinking."""
         try:
             original_response = response
             
@@ -602,7 +596,7 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             author: Book author
             book_text_sample: Sample of book text (e.g., first 2000 words)
             book_id: Book ID
-            use_queue: If True, use queue; if False, call Ollama directly
+            use_queue: If True, use queue; if False, call LLM directly
         
         Returns:
             Generated synopsis string (max 10-12 sentences)
@@ -643,7 +637,7 @@ CRITICAL INSTRUCTIONS:
 
 Your response:"""
         
-        # Call Ollama with retries
+        # Call LLM with retries
         max_retries = 2
         for attempt in range(max_retries):
             try:
@@ -706,7 +700,7 @@ Your response:"""
             author: Book author
             book_text_sample: Optional sample of book text for auto-generating synopsis
             book_id: Book ID
-            use_queue: If True, use queue; if False, call Ollama directly
+            use_queue: If True, use queue; if False, call LLM directly
         
         Returns:
             Generated description string (200-500 characters)
@@ -742,7 +736,7 @@ CRITICAL INSTRUCTIONS:
 
 Your response:"""
         
-        # Call Ollama with retries
+        # Call LLM with retries
         max_retries = 2
         for attempt in range(max_retries):
             try:
@@ -798,15 +792,3 @@ Your response:"""
         
         grade_tags = level_map.get(reading_level, ['grade-4', 'grade-5', 'grade-6'])
         return ['fiction'] + grade_tags
-
-
-def save_prompt_template(filepath: str = "prompts/question_generation.txt"):
-    """Save the prompt template to a file for documentation."""
-    import os
-    os.makedirs(os.path.dirname(filepath), exist_ok=True)
-    
-    generator = QuestionGenerator()
-    with open(filepath, 'w') as f:
-        f.write(generator.prompt_template)
-    
-    logger.info(f"Saved prompt template to {filepath}")

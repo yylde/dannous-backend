@@ -2615,8 +2615,8 @@ async function regenerateTags() {
         
         showStatus('Tag regeneration started! AI is analyzing the book...', 'success');
         
-        // Start polling for tag status and auto-trigger question regeneration when done
-        startTagStatusPollingWithAutoRegen(currentDraftId);
+        // Start polling for tag status (auto-regen disabled as requested)
+        startTagStatusPolling(currentDraftId);
         
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');

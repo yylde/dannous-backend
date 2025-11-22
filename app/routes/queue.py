@@ -100,3 +100,25 @@ def flush_queue():
     except Exception as e:
         logger.exception("Failed to flush queue")
         return jsonify({'error': str(e)}), 500
+
+
+@queue_bp.route('/queue/<task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    """Delete a specific task from the queue."""
+    try:
+        from src.queue_manager_v2 import get_queue_manager_v2
+        manager = get_queue_manager_v2()
+        success = manager.delete_task(task_id)
+        
+        if success:
+            logger.info(f"Deleted task {task_id}")
+            return jsonify({
+                'success': True,
+                'message': f'Task {task_id} deleted'
+            })
+        else:
+            return jsonify({'error': 'Task not found'}), 404
+            
+    except Exception as e:
+        logger.exception(f"Failed to delete task {task_id}")
+        return jsonify({'error': str(e)}), 500
