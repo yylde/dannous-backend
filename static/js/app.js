@@ -31,10 +31,10 @@ function escapeHtml(str) {
 function cleanUsageHighlighting(container) {
     // Get all elements in the container
     const allElements = container.querySelectorAll('*');
-    
+
     // Usage tracking colors to remove (hex values)
     const trackingColorsHex = ['#E3F2FD', '#E8F5E9', '#FFF9C4', '#FCE4EC', '#F3E5F5', '#d4edda'];
-    
+
     // Convert hex to rgb for comparison (browsers often normalize colors)
     const trackingColorsRgb = [
         'rgb(227, 242, 253)',  // #E3F2FD
@@ -44,22 +44,22 @@ function cleanUsageHighlighting(container) {
         'rgb(243, 229, 245)',  // #F3E5F5
         'rgb(212, 237, 218)'   // #d4edda
     ];
-    
+
     allElements.forEach(element => {
         // Remove the data-para-index attribute used for tracking
         element.removeAttribute('data-para-index');
-        
+
         // Clean the style attribute
         if (element.hasAttribute('style')) {
             const currentStyle = element.getAttribute('style');
-            
+
             // Parse the style string and remove ONLY usage tracking style values
             const styleProps = currentStyle.split(';').map(s => s.trim()).filter(s => s);
             const cleanedProps = styleProps.filter(prop => {
                 const [propName, propValue] = prop.split(':').map(s => s.trim());
                 const nameLower = propName?.toLowerCase() || '';
                 const valueLower = propValue?.toLowerCase() || '';
-                
+
                 // Remove specific usage tracking styles:
                 // 1. Background colors used for chapter highlighting (both hex and rgb)
                 if (nameLower === 'background-color') {
@@ -73,21 +73,21 @@ function cleanUsageHighlighting(container) {
                         return false;
                     }
                 }
-                
+
                 // 2. Border-left used for chapter highlighting (4px solid rgba(0,0,0,0.2))
                 if (nameLower === 'border-left' && valueLower.includes('4px') && valueLower.includes('rgba(0') && valueLower.includes('0.2')) {
                     return false;
                 }
-                
+
                 // 3. Padding-left of exactly 8px (used for chapter highlighting)
                 if (nameLower === 'padding-left' && valueLower === '8px') {
                     return false;
                 }
-                
+
                 // Keep all other styles (including original background-color, border-left, padding-left with different values)
                 return true;
             });
-            
+
             // Update or remove the style attribute
             if (cleanedProps.length > 0) {
                 element.setAttribute('style', cleanedProps.join('; ') + ';');
@@ -109,65 +109,65 @@ function normalizeText(text) {
 // FRESH SIMPLE SOLUTION: Clean text by removing base64 images and HTML tags
 function cleanTextForMatching(text) {
     if (!text) return '';
-    
+
     // Remove base64 images
     let cleaned = text.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]+/g, '');
-    
+
     // Remove HTML tags
     cleaned = cleaned.replace(/<[^>]+>/g, ' ');
-    
+
     // Normalize whitespace and make lowercase
     cleaned = cleaned
         .toLowerCase()
         .replace(/\s+/g, ' ')
         .replace(/[^\w\s]/g, '')
         .trim();
-    
+
     return cleaned;
 }
 
 // SIMPLE STRING MATCHING: Find where chapter text appears in book
 function findChapterInBook(chapterText, bookParagraphs) {
     const cleanChapter = cleanTextForMatching(chapterText);
-    
+
     if (!cleanChapter || cleanChapter.length < 10) {
         console.log('[NEW MATCHING] Chapter too short, skipping');
         return [];
     }
-    
+
     // Take first 50 words of chapter as the search pattern
     const chapterWords = cleanChapter.split(/\s+/);
     const searchPattern = chapterWords.slice(0, Math.min(50, chapterWords.length)).join(' ');
-    
+
     console.log(`[NEW MATCHING] Searching for ${chapterWords.length} words in ${bookParagraphs.length} paragraphs`);
-    
+
     const matchedParagraphs = [];
-    
+
     // Check each book paragraph
     for (let i = 0; i < bookParagraphs.length; i++) {
         const cleanPara = cleanTextForMatching(bookParagraphs[i]);
-        
+
         // If chapter text appears in this paragraph, it's a match
         if (cleanPara.includes(searchPattern.substring(0, 100))) {
             matchedParagraphs.push(i);
-            
+
             // Also add a few paragraphs after for continuation
             const chapterWordCount = chapterWords.length;
             const parasNeeded = Math.ceil(chapterWordCount / 100);
-            
+
             for (let j = 1; j < parasNeeded && (i + j) < bookParagraphs.length; j++) {
                 matchedParagraphs.push(i + j);
             }
-            
+
             console.log(`[NEW MATCHING] Found match at paragraph ${i}, matched ${matchedParagraphs.length} total paragraphs`);
             break; // Found the start, stop searching
         }
     }
-    
+
     if (matchedParagraphs.length === 0) {
         console.log('[NEW MATCHING] No match found');
     }
-    
+
     return matchedParagraphs;
 }
 
@@ -186,7 +186,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (document.getElementById('reading-level')) {
         updateDifficultyRange();
     }
-    
+
     // Load drafts in sidebar on page load
     loadDraftsInSidebar();
 
@@ -196,30 +196,30 @@ document.addEventListener('DOMContentLoaded', () => {
         chapterContent.addEventListener('input', () => {
             updateChapterFromEditable();
         });
-        
+
         // Handle paste events to preserve HTML formatting
         chapterContent.addEventListener('paste', (e) => {
             e.preventDefault();
-            
+
             // Get the pasted data
             const clipboardData = e.clipboardData || window.clipboardData;
             const htmlData = clipboardData.getData('text/html');
             const textData = clipboardData.getData('text/plain');
-            
+
             // Insert the content at the cursor position
             const selection = window.getSelection();
             if (selection.rangeCount > 0) {
                 const range = selection.getRangeAt(0);
                 range.deleteContents();
-                
+
                 if (htmlData) {
                     // Create a temporary div to parse the HTML
                     const temp = document.createElement('div');
                     temp.innerHTML = htmlData;
-                    
+
                     // Remove usage tracking attributes and styles from all elements
                     cleanUsageHighlighting(temp);
-                    
+
                     const fragment = document.createDocumentFragment();
                     while (temp.firstChild) {
                         fragment.appendChild(temp.firstChild);
@@ -230,13 +230,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     const textNode = document.createTextNode(textData);
                     range.insertNode(textNode);
                 }
-                
+
                 // Move cursor to end of pasted content
                 range.collapse(false);
                 selection.removeAllRanges();
                 selection.addRange(range);
             }
-            
+
             // Update the chapter data
             updateChapterFromEditable();
         });
@@ -285,7 +285,7 @@ function rebuildBookTextParts() {
 
     const originalTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
     const originalHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
-    
+
     bookTextParts = [...originalTextParts];
     bookHtmlParts = [...originalHtmlParts];
 }
@@ -320,12 +320,12 @@ function getSelectedParagraphIndices(selection) {
 function updateDifficultyRange() {
     const levelElement = document.getElementById('reading-level');
     const infoElement = document.getElementById('difficulty-info');
-    
+
     // Only proceed if elements exist (on draft page)
     if (!levelElement || !infoElement) {
         return;
     }
-    
+
     const level = levelElement.value;
     infoElement.innerHTML = `
         <strong>Selected Level:</strong> ${level.charAt(0).toUpperCase() + level.slice(1)}
@@ -340,24 +340,24 @@ function updateDifficultyRange() {
 function startStatusPolling() {
     // Clear any existing interval
     stopStatusPolling();
-    
+
     if (!currentDraftId) return;
-    
+
     // Set up polling every 1.5 seconds for more responsive updates
     statusPollingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/draft-chapters/${currentDraftId}`);
             const data = await response.json();
-            
+
             if (!response.ok) {
                 console.error('Failed to fetch chapter statuses:', data.error);
                 return;
             }
-            
+
             // Check if any status has changed
             let hasChanges = false;
             let allComplete = true;
-            
+
             data.chapters.forEach(serverChapter => {
                 const localChapter = chapters.find(ch => ch.id === serverChapter.id);
                 if (localChapter && localChapter.question_status !== serverChapter.question_status) {
@@ -365,30 +365,30 @@ function startStatusPolling() {
                     localChapter.question_status = serverChapter.question_status;
                     console.log(`✓ Chapter "${serverChapter.title}" status updated: ${serverChapter.question_status}`);
                 }
-                
+
                 // Check if any chapter is still generating
                 if (serverChapter.question_status === 'generating' || serverChapter.question_status === 'pending') {
                     allComplete = false;
                 }
             });
-            
+
             // Update UI if there were changes
             if (hasChanges) {
                 console.log('Updating chapters list with new statuses');
                 updateChaptersList();
             }
-            
+
             // Stop polling if all chapters are complete (ready or error)
             if (allComplete && data.chapters.length > 0) {
                 stopStatusPolling();
                 console.log('All chapters complete, stopped polling');
             }
-            
+
         } catch (error) {
             console.error('Error polling chapter status:', error);
         }
     }, 1500);  // Poll every 1.5 seconds for faster per-chapter updates
-    
+
     console.log('Started status polling');
 }
 
@@ -426,11 +426,11 @@ async function downloadBook() {
 
         // Stop any existing polling when loading a new book
         stopStatusPolling();
-        
+
         // Try to save as draft, handle duplicate detection
         bookData = data;
         const draftResponse = await saveDraftAfterDownload();
-        
+
         if (!draftResponse.success) {
             // If it's a duplicate, offer to load the existing draft
             if (draftResponse.status === 409 && draftResponse.existing_draft_id) {
@@ -447,7 +447,7 @@ async function downloadBook() {
             }
             throw new Error(draftResponse.error || 'Failed to save draft');
         }
-        
+
         // Navigate to the newly created draft page
         if (currentDraftId) {
             window.location.href = `/draft/${currentDraftId}`;
@@ -478,15 +478,15 @@ async function saveDraftAfterDownload() {
                 genre: 'general'  // Default genre
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (response.ok) {
             currentDraftId = data.draft_id;
             return { success: true };
         } else {
-            return { 
-                success: false, 
+            return {
+                success: false,
                 error: data.error,
                 status: response.status,
                 existing_draft_id: data.existing_draft_id
@@ -499,20 +499,20 @@ async function saveDraftAfterDownload() {
 
 function setupNewBookAfterDownload() {
     if (!bookData) return;
-    
+
     // Only run on draft page (not index page)
     if (!document.getElementById('book-section')) {
         console.log('setupNewBookAfterDownload: not on draft page, skipping');
         return;
     }
-    
+
     chapters = [];
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
     undoStack = [];
 
     // Initialize book text parts (plain text for display)
     bookTextParts = bookData.full_text.split('\n\n').filter(p => p.trim());
-    
+
     // Initialize book HTML parts (HTML for storage)
     bookHtmlParts = bookData.full_html.split('\n\n').filter(p => p.trim());
 
@@ -521,12 +521,12 @@ function setupNewBookAfterDownload() {
     if (coverUrlInput) {
         coverUrlInput.value = '';
     }
-    
+
     // Initialize tags as empty and set status to pending
     currentTags = [];
     renderTags();
     updateTagStatusBadge('pending');
-    
+
     // Start polling for tag status after a short delay (to allow backend to start)
     if (currentDraftId) {
         setTimeout(() => {
@@ -534,7 +534,7 @@ function setupNewBookAfterDownload() {
             startTagStatusPolling(currentDraftId);
         }, 1000);
     }
-    
+
     // Show draft info
     document.getElementById('draft-title').textContent = `${bookData.title} by ${bookData.author}`;
     document.getElementById('current-draft-info').style.display = 'block';
@@ -544,7 +544,7 @@ function setupNewBookAfterDownload() {
     updateChapterStats();
     updateChaptersList();
     updateUndoButton();
-    
+
     // Refresh sidebar to show new draft
     loadDraftsInSidebar();
 
@@ -568,40 +568,38 @@ function displayFullBook() {
 
     const scrollDiv = document.getElementById('book-text-scroll');
 
-    // Use full_html to display images and formatting
-    const originalParts = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
-    
-    console.log('=== DISPLAY FULL BOOK DEBUG ===');
-    console.log('Total paragraphs:', originalParts.length);
-    console.log('paragraphChapters mapping:', paragraphChapters);
-    console.log('chapterColors mapping:', chapterColors);
-    console.log('chapters array:', chapters);
+    // Parse the HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(bookData.full_html || bookData.full_text, 'text/html');
+
+    // Identify chunks using the same logic as recalculateHighlights
+    const chunks = getBookChunks(doc);
 
     let highlightedCount = 0;
-    scrollDiv.innerHTML = originalParts.map((part, idx) => {
-        const trimmedPart = part.trim();
-        
-        // Check if this paragraph belongs to a chapter
+
+    // Apply highlights to the chunks in the DOM
+    chunks.forEach((chunk, idx) => {
+        // Tag with index for debugging/reference
+        chunk.setAttribute('data-chunk-index', idx);
+
         const chapterNum = paragraphChapters[idx];
-        const isUsed = chapterNum !== undefined;
-        
-        // Check if this is already an HTML tag (heading, paragraph, image, etc.)
-        if (trimmedPart.startsWith('<') && trimmedPart.includes('>')) {
-            // Add data-para-index to paragraphs for tracking and merge usage highlighting styles
-            if (trimmedPart.startsWith('<p')) {
-                highlightedCount += isUsed ? 1 : 0;
-                return addUsageHighlightingToParagraph(trimmedPart, idx, isUsed, chapterNum);
-            }
-            return trimmedPart;
-        } else {
-            // Wrap plain text in paragraph tag
-            const usedStyles = isUsed && chapterNum !== null ? getUsageHighlightStyles(chapterNum) : '';
-            return `<p data-para-index="${idx}"${usedStyles}>${trimmedPart}</p>`;
+        if (chapterNum !== undefined) {
+            highlightedCount++;
+            const bgColor = chapterColors[chapterNum] || '#d4edda';
+
+            // Apply styles directly to the element
+            chunk.style.backgroundColor = bgColor;
+            chunk.style.borderLeft = '4px solid rgba(0,0,0,0.2)';
+            chunk.style.paddingLeft = '8px';
+            chunk.style.borderRadius = '4px';
+            chunk.style.margin = '4px 0';
         }
-    }).join('');
-    
-    console.log('Total highlighted:', highlightedCount, 'paragraphs');
-    console.log('=== END DEBUG ===');
+    });
+
+    // Render the modified DOM
+    scrollDiv.innerHTML = doc.body.innerHTML;
+
+    console.log(`Displayed book with ${highlightedCount} highlighted chunks out of ${chunks.length}`);
 }
 
 // Helper function to get usage highlighting styles for a chapter
@@ -622,31 +620,31 @@ function addUsageHighlightingToParagraph(paragraphHtml, idx, isUsed, chapterNum)
         // Fallback if parsing fails
         return paragraphHtml;
     }
-    
+
     const existingAttrs = openTagMatch[1];
     const content = paragraphHtml.substring(openTagMatch[0].length);
-    
+
     // Extract existing style attribute if present
     const styleMatch = existingAttrs.match(/style=["']([^"']*)["']/);
     const existingStyle = styleMatch ? styleMatch[1] : '';
-    
+
     // Build new attributes
     let newAttrs = ` data-para-index="${idx}"`;
-    
+
     // Merge styles if paragraph is used
     if (isUsed && chapterNum !== null) {
         const bgColor = chapterColors[chapterNum] || '#d4edda';
         const usageStyles = `background-color: ${bgColor} !important; border-left: 4px solid rgba(0,0,0,0.2) !important; padding-left: 8px !important;`;
-        
+
         // Normalize existing style to ensure it ends with semicolon
         let normalizedExistingStyle = existingStyle.trim();
         if (normalizedExistingStyle && !normalizedExistingStyle.endsWith(';')) {
             normalizedExistingStyle += ';';
         }
-        
+
         const mergedStyle = normalizedExistingStyle ? `${normalizedExistingStyle} ${usageStyles}` : usageStyles;
         newAttrs += ` style="${mergedStyle}"`;
-        
+
         // Add other attributes (class, id, etc.) but skip the old style attribute
         const otherAttrs = existingAttrs.replace(/style=["'][^"']*["']/, '').trim();
         if (otherAttrs) {
@@ -658,7 +656,7 @@ function addUsageHighlightingToParagraph(paragraphHtml, idx, isUsed, chapterNum)
             newAttrs += ' ' + existingAttrs.trim();
         }
     }
-    
+
     return `<p${newAttrs}>${content}`;
 }
 
@@ -670,84 +668,241 @@ function assignChapterColors() {
         '#E3F2FD', // Light Blue
         '#E8F5E9', // Light Green
         '#FFF9C4', // Light Yellow
-        '#FCE4EC', // Light Pink
-        '#F3E5F5'  // Light Purple
+        '#FCE4EC'  // Light Pink
     ];
-    
+
     chapterColors = {};
-    
+
     if (!chapters || chapters.length === 0) {
         console.warn('No chapters available for color assignment');
         return;
     }
-    
+
     console.log('=== ASSIGNING CHAPTER COLORS ===');
     console.log('Total chapters:', chapters.length);
     console.log('Chapters data:', chapters);
-    
+
     // Sort chapters by chapter number
     const sortedChapters = [...chapters].sort((a, b) => a.chapter_number - b.chapter_number);
-    
+
     sortedChapters.forEach((chapter, index) => {
         // Use index modulo to cycle through colors
         const colorIndex = index % colors.length;
         const chapterNum = chapter.chapter_number;
-        
+
         chapterColors[chapterNum] = colors[colorIndex];
         console.log(`Chapter ${chapterNum} → Color index ${colorIndex} → ${colors[colorIndex]}`);
     });
-    
+
     console.log('=== FINAL CHAPTER COLORS ===', chapterColors);
+}
+
+// ==================== FUZZY MATCHING (TRIGRAM SHINGLING) ====================
+
+// Generate trigrams (3-word sequences) from text
+function generateTrigrams(text) {
+    if (!text) return new Set();
+
+    // Normalize: lowercase, remove punctuation, collapse whitespace
+    const normalized = text.toLowerCase()
+        .replace(/[^\w\s]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+    const words = normalized.split(' ');
+    if (words.length < 3) return new Set([normalized]);
+
+    const trigrams = new Set();
+    for (let i = 0; i < words.length - 2; i++) {
+        trigrams.add(`${words[i]} ${words[i + 1]} ${words[i + 2]}`);
+    }
+    return trigrams;
+}
+
+// Build an index of the book: trigram -> Set of chunk indices
+function buildBookIndex(chunkTexts) {
+    const index = new Map();
+
+    chunkTexts.forEach((text, idx) => {
+        const trigrams = generateTrigrams(text);
+        trigrams.forEach(trigram => {
+            if (!index.has(trigram)) {
+                index.set(trigram, []);
+            }
+            index.get(trigram).push(idx);
+        });
+    });
+
+    return index;
+}
+
+// Find chunks that match the chapter text using the index
+function findMatchingChunks(chapterText, bookIndex, chunkTexts) {
+    const chapterTrigrams = generateTrigrams(chapterText);
+    if (chapterTrigrams.size === 0) return [];
+
+    // Score chunks based on trigram hits
+    const chunkScores = new Map(); // chunkIndex -> hitCount
+
+    chapterTrigrams.forEach(trigram => {
+        const matches = bookIndex.get(trigram);
+        if (matches) {
+            matches.forEach(chunkIdx => {
+                chunkScores.set(chunkIdx, (chunkScores.get(chunkIdx) || 0) + 1);
+            });
+        }
+    });
+
+    // Filter matches based on coverage threshold
+    const matchedIndices = [];
+    const MIN_COVERAGE = 0.1; // Lower threshold (10%) since chapters might be long
+
+    chunkScores.forEach((hits, chunkIdx) => {
+        const chunkText = chunkTexts[chunkIdx];
+        const wordCount = chunkText.trim().split(/\s+/).length;
+        const totalTrigrams = Math.max(1, wordCount - 2);
+
+        const coverage = hits / totalTrigrams;
+
+        if (coverage > MIN_COVERAGE) {
+            matchedIndices.push(chunkIdx);
+        }
+    });
+
+    return matchedIndices.sort((a, b) => a - b);
+}
+
+// Helper to parse HTML and identify highlightable chunks (Logical Sections)
+function getBookChunks(doc) {
+    // Strategy: Group content by "Logical Sections" starting with div.chapter
+
+    // 1. Find all chapter headers to see if we have any
+    const chapterHeaders = Array.from(doc.querySelectorAll('div.chapter'));
+
+    if (chapterHeaders.length === 0) {
+        console.log('No div.chapter found, falling back to paragraphs');
+        return Array.from(doc.body.querySelectorAll('p')).map(p => ({
+            text: p.textContent,
+            elements: [p]
+        }));
+    }
+
+    // 2. Identify the container. Usually the parent of the first chapter header.
+    const container = chapterHeaders[0].parentElement || doc.body;
+    const children = Array.from(container.children);
+
+    const chunks = [];
+    let currentChunk = null;
+
+    children.forEach(el => {
+        // Skip non-content tags
+        if (['SCRIPT', 'STYLE', 'LINK', 'META', 'TITLE'].includes(el.tagName)) return;
+
+        // Check if this is a chapter header
+        if (el.tagName === 'DIV' && el.classList.contains('chapter')) {
+            // Start new chunk
+            currentChunk = {
+                text: el.textContent,
+                elements: [el]
+            };
+            chunks.push(currentChunk);
+        } else if (currentChunk) {
+            // Append to current chunk
+            currentChunk.text += '\n' + el.textContent;
+            currentChunk.elements.push(el);
+        }
+        // Content before first chapter is ignored for highlighting
+    });
+
+    console.log(`Created ${chunks.length} logical chapter chunks`);
+    return chunks;
+}
+
+// Helper to remove Gutenberg boilerplate
+function cleanBookContent(doc) {
+    const idsToRemove = ['pg-header', 'pg-footer', 'pg-end-separator'];
+    const classesToRemove = ['pg-boilerplate'];
+
+    let removedCount = 0;
+
+    idsToRemove.forEach(id => {
+        const el = doc.getElementById(id);
+        if (el) {
+            el.remove();
+            removedCount++;
+        }
+    });
+
+    classesToRemove.forEach(cls => {
+        const elements = doc.querySelectorAll(`.${cls}`);
+        elements.forEach(el => {
+            el.remove();
+            removedCount++;
+        });
+    });
+
+    console.log(`Cleaned ${removedCount} boilerplate elements`);
 }
 
 function recalculateHighlights() {
     if (!bookData || !chapters || chapters.length === 0) {
         console.log('No book data or chapters to highlight');
-        paragraphChapters = {};
+        paragraphChapters = {}; // This now maps chunkIndex -> chapterNumber
         usedParagraphs.clear();
         displayFullBook();
         return;
     }
-    
+
     const refreshBtn = document.getElementById('refresh-usage-btn');
     if (refreshBtn) {
         refreshBtn.disabled = true;
         refreshBtn.textContent = '⏳ Updating...';
     }
-    
-    console.log('=== RECALCULATING HIGHLIGHTS ===');
-    console.log(`Processing ${chapters.length} chapters`);
-    
+
+    console.log('=== RECALCULATING HIGHLIGHTS (DOM-BASED) ===');
+    const startTime = performance.now();
+
     paragraphChapters = {};
     usedParagraphs.clear();
-    
-    const bookParagraphs = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
-    
+
+    // Parse the book HTML once to get text content for indexing
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(bookData.full_html || bookData.full_text, 'text/html');
+
+    // Clean boilerplate before processing
+    cleanBookContent(doc);
+
+    const chunks = getBookChunks(doc);
+    const chunkTexts = chunks.map(c => c.text); // Use .text property from logical chunk
+
+    // 1. Build Index
+    console.log(`Building index for ${chunks.length} chunks...`);
+    const bookIndex = buildBookIndex(chunkTexts);
+
+    // 2. Match Chapters
     chapters.forEach(chapter => {
         if (!chapter.content || !chapter.chapter_number) {
-            console.warn(`Skipping chapter ${chapter.chapter_number}: no content`);
             return;
         }
-        
-        // Simple: find chapter in book using clean text matching
-        const matchedIndices = findChapterInBook(chapter.content, bookParagraphs);
-        
+
+        const matchedIndices = findMatchingChunks(chapter.content, bookIndex, chunkTexts);
+
         matchedIndices.forEach(idx => {
-            if (paragraphChapters[idx] !== undefined) {
-                console.log(`Paragraph ${idx} was assigned to chapter ${paragraphChapters[idx]}, reassigning to chapter ${chapter.chapter_number}`);
+            if (paragraphChapters[idx] === undefined) {
+                paragraphChapters[idx] = chapter.chapter_number;
+                usedParagraphs.add(idx);
             }
-            paragraphChapters[idx] = chapter.chapter_number;
-            usedParagraphs.add(idx);
         });
+
+        console.log(`Chapter ${chapter.chapter_number}: matched ${matchedIndices.length} chunks`);
     });
-    
+
+    const endTime = performance.now();
+    console.log(`✓ Highlights updated in ${(endTime - startTime).toFixed(2)}ms`);
+
     assignChapterColors();
     displayFullBook();
-    
-    console.log(`✓ Recalculated highlights: ${usedParagraphs.size} paragraphs across ${chapters.length} chapters`);
-    console.log('paragraphChapters:', paragraphChapters);
-    console.log('chapterColors:', chapterColors);
-    
+
     if (refreshBtn) {
         refreshBtn.disabled = false;
         refreshBtn.textContent = '🔄 Refresh Highlights';
@@ -758,14 +913,14 @@ let highlightRefreshInterval = null;
 
 function startPeriodicHighlightRefresh() {
     stopPeriodicHighlightRefresh();
-    
+
     highlightRefreshInterval = setInterval(() => {
         if (chapters && chapters.length > 0) {
             console.log('Periodic highlight refresh...');
             recalculateHighlights();
         }
     }, 30000);
-    
+
     console.log('Started periodic highlight refresh (every 30 seconds)');
 }
 
@@ -775,6 +930,50 @@ function stopPeriodicHighlightRefresh() {
         highlightRefreshInterval = null;
         console.log('Stopped periodic highlight refresh');
     }
+}
+
+function displayFullBook() {
+    if (!bookData) return;
+
+    const scrollDiv = document.getElementById('book-text-scroll');
+
+    // Parse the HTML
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(bookData.full_html || bookData.full_text, 'text/html');
+
+    // Clean boilerplate before rendering
+    cleanBookContent(doc);
+
+    // Identify chunks using the same logic as recalculateHighlights
+    const chunks = getBookChunks(doc);
+
+    let highlightedCount = 0;
+
+    // Apply highlights to the chunks in the DOM
+    chunks.forEach((chunk, idx) => {
+        const chapterNum = paragraphChapters[idx];
+
+        if (chapterNum !== undefined) {
+            highlightedCount++;
+            const bgColor = chapterColors[chapterNum] || '#d4edda';
+
+            // Apply styles to ALL elements in the chunk
+            chunk.elements.forEach((el, elIdx) => {
+                // Mark the first element of the chunk specially if needed, or just highlight all
+                el.style.backgroundColor = bgColor;
+                el.style.borderLeft = '4px solid rgba(0,0,0,0.2)';
+                el.style.paddingLeft = '8px';
+                // Add some spacing to separate from previous/next
+                if (elIdx === 0) el.style.marginTop = '16px';
+                if (elIdx === chunk.elements.length - 1) el.style.marginBottom = '16px';
+            });
+        }
+    });
+
+    // Render the modified DOM
+    scrollDiv.innerHTML = doc.body.innerHTML;
+
+    console.log(`Displayed book with ${highlightedCount} highlighted chunks out of ${chunks.length}`);
 }
 
 // IMPROVED FUNCTION: Now stores metadata about original indices and HTML
@@ -896,7 +1095,7 @@ async function finishChapter() {
     }
 
     const title = document.getElementById('chapter-title').value.trim();
-    
+
     // Validate title is not empty
     if (!title) {
         showStatus('Chapter title is required', 'error');
@@ -922,7 +1121,7 @@ async function finishChapter() {
         question_status: 'pending',
         chapter_number: chapters.length + 1  // Track chapter number in local state too
     };
-    
+
     // Save to draft and trigger async question generation
     const chapterId = await saveDraftChapter(chapterData);
     if (chapterId) {
@@ -931,28 +1130,9 @@ async function finishChapter() {
 
     // Save chapter (with metadata) - now includes chapter_number
     chapters.push(chapterData);
-    
-    // Find chapter in book using simple text matching
-    const bookParagraphs = (bookData.full_html || bookData.full_text).split('\n\n').filter(p => p.trim());
-    const matchedIndices = findChapterInBook(chapterData.content, bookParagraphs);
-    
-    console.log(`Found ${matchedIndices.length} paragraphs for chapter ${chapterData.chapter_number}`);
-    
-    // Map matched paragraphs to this chapter number
-    matchedIndices.forEach(idx => {
-        // Remove any previous chapter assignment for this paragraph (to handle overlaps)
-        if (paragraphChapters[idx] !== undefined) {
-            console.log(`Paragraph ${idx} was previously assigned to chapter ${paragraphChapters[idx]}, reassigning to chapter ${chapterData.chapter_number}`);
-        }
-        paragraphChapters[idx] = chapterData.chapter_number;
-        usedParagraphs.add(idx);
-    });
-    
-    // Assign color to this chapter
-    assignChapterColors();
-    
-    // Update the display to show highlighted paragraphs
-    displayFullBook();
+
+    // Recalculate highlights using the new fuzzy matching logic
+    recalculateHighlights();
 
     // Reset for next chapter - clear title field instead of setting default
     currentChapter = { title: '', content: '', html_content: '', word_count: 0, textChunks: [] };
@@ -960,11 +1140,11 @@ async function finishChapter() {
 
     updateChapterDisplay();
     updateChapterStats();
-    
-    console.log(`✓ Chapter ${chapterData.chapter_number} saved with ${matchedIndices.length} paragraphs highlighted. Ready for next chapter.`);
+
+    console.log(`✓ Chapter ${chapterData.chapter_number} saved. Ready for next chapter.`);
     updateChaptersList();
     updateUndoButton();
-    
+
     // Start polling to track question generation progress
     startStatusPolling();
 
@@ -1042,7 +1222,7 @@ function updateChaptersList() {
         // Question status badge
         const questionStatus = chapter.question_status || 'pending';
         const statusBadge = `<span class="status-badge status-${questionStatus}">${questionStatus.toUpperCase()}</span>`;
-        
+
         // Make clickable if has ID (saved to draft)
         const clickHandler = chapter.id ? `onclick="viewChapter('${chapter.id}')" class="chapter-item-clickable"` : '';
 
@@ -1070,34 +1250,34 @@ function getColorForChapter(index) {
 
 async function deleteChapter(index) {
     const chapter = chapters[index];
-    
+
     if (!chapter) {
         showStatus('Chapter not found', 'error');
         return;
     }
-    
+
     if (!confirm(`Delete "${chapter.title}"? This will permanently remove the chapter and its questions from the database.`)) {
         return;
     }
-    
+
     // If chapter has an ID, it's saved in database - delete from backend
     if (chapter.id) {
         try {
             showLoading(true);
-            
+
             const response = await fetch(`/api/draft-chapter/${chapter.id}`, {
                 method: 'DELETE'
             });
-            
+
             const data = await response.json();
-            
+
             if (!response.ok) {
                 throw new Error(data.error || 'Failed to delete chapter from database');
             }
-            
+
             console.log(`✓ Chapter "${chapter.title}" deleted from database`);
             showStatus('Chapter deleted from database', 'success');
-            
+
         } catch (error) {
             showStatus(`Error deleting chapter: ${error.message}`, 'error');
             showLoading(false);
@@ -1106,7 +1286,7 @@ async function deleteChapter(index) {
             showLoading(false);
         }
     }
-    
+
     // Save state for undo
     undoStack.push({
         bookTextParts: [...bookTextParts],
@@ -1123,10 +1303,10 @@ async function deleteChapter(index) {
     updateChaptersList();
     displayFullBook();
     updateUndoButton();
-    
+
     // Recalculate highlights after deleting chapter
     recalculateHighlights();
-    
+
     // Update chapter title input for next chapter
     const nextChapterNumber = chapters.length + 1;
     document.getElementById('chapter-title').value = `Chapter ${nextChapterNumber}`;
@@ -1224,13 +1404,13 @@ function showLoading(show) {
 
 function showStatus(message, type = 'info') {
     const statusDiv = document.getElementById('download-status');
-    
+
     // If status div doesn't exist (e.g., on draft page), just log to console
     if (!statusDiv) {
         console.log(`[${type.toUpperCase()}] ${message}`);
         return;
     }
-    
+
     const alertClass = type === 'error' ? 'alert-error' : type === 'success' ? 'alert-success' : 'alert-info';
 
     statusDiv.innerHTML = `<div class="alert ${alertClass}">${message}</div>`;
@@ -1253,13 +1433,13 @@ async function loadDraftsInSidebar() {
     try {
         const response = await fetch('/api/drafts');
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to load drafts');
         }
-        
+
         const container = document.getElementById('drafts-list-sidebar');
-        
+
         if (data.drafts.length === 0) {
             container.innerHTML = '<p style="color: #718096; text-align: center; padding: 20px; font-size: 14px;">No books yet.<br>Click "+ New" to start!</p>';
         } else {
@@ -1290,24 +1470,24 @@ async function deleteDraft(draftId, event) {
     if (event) {
         event.stopPropagation();
     }
-    
+
     if (!confirm('Are you sure you want to delete this book? This action cannot be undone.')) {
         return;
     }
-    
+
     try {
         showLoading(true);
-        
+
         const response = await fetch(`/api/draft/${draftId}`, {
             method: 'DELETE'
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to delete draft');
         }
-        
+
         // If we just deleted the currently open draft, clear the UI
         if (currentDraftId === draftId) {
             currentDraftId = null;
@@ -1321,11 +1501,11 @@ async function deleteDraft(draftId, event) {
             document.getElementById('book-section').style.display = 'none';
             document.getElementById('current-draft-info').style.display = 'none';
         }
-        
+
         // Force refresh the sidebar list
         console.log('Draft deleted, refreshing sidebar...');
         await loadDraftsInSidebar();
-        
+
         showStatus('Book deleted successfully', 'success');
     } catch (error) {
         console.error('Error deleting draft:', error);
@@ -1338,18 +1518,18 @@ async function deleteDraft(draftId, event) {
 async function loadDraft(draftId) {
     try {
         showLoading(true);
-        
+
         const response = await fetch(`/api/draft/${draftId}`);
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to load draft');
         }
-        
+
         // Set current draft
         currentDraftId = draftId;
         const draft = data.draft;
-        
+
         // Set book data
         bookData = {
             book_id: draft.gutenberg_id,
@@ -1359,13 +1539,13 @@ async function loadDraft(draftId) {
             full_html: draft.full_html || draft.full_text,
             metadata: draft.metadata
         };
-        
+
         // Initialize book text parts (plain text for display)
         bookTextParts = draft.full_text.split('\n\n').filter(p => p.trim());
-        
+
         // Initialize book HTML parts (HTML for storage)
         bookHtmlParts = (draft.full_html || draft.full_text).split('\n\n').filter(p => p.trim());
-        
+
         // Load chapters
         chapters = draft.chapters.map(ch => ({
             id: ch.id,
@@ -1375,73 +1555,73 @@ async function loadDraft(draftId) {
             word_count: ch.word_count,
             question_status: ch.question_status
         }));
-        
-        
+
+
         // Set form values (only if elements exist)
         const coverUrlInput = document.getElementById('cover-image-url');
         if (coverUrlInput) {
             coverUrlInput.value = draft.cover_image_url || '';
             updateCoverPreview(); // Show preview if URL exists
         }
-        
+
         // Load tags and tag status
         currentTags = draft.tags || [];
         console.log('Draft loaded - Tags:', currentTags, 'Status:', draft.tag_status);
         renderTags();
         updateTagStatusBadge(draft.tag_status);
-        
+
         // Start tag status polling if generating
         if (draft.tag_status === 'pending' || draft.tag_status === 'generating') {
             console.log('Starting tag status polling...');
             startTagStatusPolling(draftId);
         }
-        
+
         // Load description and description status
         const descriptionTextarea = document.getElementById('book-description');
         descriptionTextarea.value = draft.description || '';
         console.log('Draft loaded - Description status:', draft.description_status);
         updateDescriptionStatusBadge(draft.description_status);
-        
+
         // Start description status polling if generating
         if (draft.description_status === 'pending' || draft.description_status === 'generating') {
             console.log('Starting description status polling...');
             startDescriptionStatusPolling(draftId);
         }
-        
+
         // Show draft info
         document.getElementById('draft-title').textContent = `${draft.title} by ${draft.author}`;
         document.getElementById('current-draft-info').style.display = 'block';
-        
+
         // Update UI
         showBookInfo(bookData);
-        
+
         // Recalculate highlights from loaded chapters
         recalculateHighlights();
-        
+
         updateChaptersList();
-        
+
         // IMPORTANT: Reset current chapter editor state for next chapter
         // This ensures when user returns after saving chapters, they can continue splitting
-        currentChapter = { 
-            title: '', 
-            content: '', 
-            html_content: '', 
-            word_count: 0, 
-            textChunks: [] 
+        currentChapter = {
+            title: '',
+            content: '',
+            html_content: '',
+            word_count: 0,
+            textChunks: []
         };
-        
+
         // Clear chapter title when switching books/drafts
         document.getElementById('chapter-title').value = '';
-        
+
         // Clear the chapter editor
         const chapterEditor = document.getElementById('current-chapter-content');
         if (chapterEditor) {
             chapterEditor.innerHTML = '';
         }
-        
+
         // Update chapter stats to show empty state
         updateChapterStats();
-        
+
         // DEBUG: Check if book-section exists and show it
         const bookSection = document.getElementById('book-section');
         console.log('About to show book-section:', bookSection);
@@ -1452,20 +1632,20 @@ async function loadDraft(draftId) {
         } else {
             console.error('ERROR: book-section element not found!');
         }
-        
+
         // Refresh sidebar to show active draft
         loadDraftsInSidebar();
-        
+
         // Start polling for chapter status updates
         startStatusPolling();
-        
+
         // Start periodic highlight refresh
         startPeriodicHighlightRefresh();
-        
+
         const nextChapterNumber = chapters.length + 1;
         console.log(`✓ Draft loaded with ${chapters.length} existing chapters. Ready for Chapter ${nextChapterNumber}.`);
         showStatus(`Loaded draft: ${draft.title}`, 'success');
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -1475,13 +1655,13 @@ async function loadDraft(draftId) {
 
 async function saveDraft() {
     if (!bookData) return null;
-    
+
     try {
         const ageRange = '8-12'; // Default age range
         const readingLevel = 'intermediate'; // Always use intermediate as default
         const coverUrlInput = document.getElementById('cover-image-url');
         let coverImageUrl = coverUrlInput ? coverUrlInput.value.trim() : '';
-        
+
         // If cover URL is empty and we're creating a new draft, ask user
         if (!coverImageUrl && !currentDraftId) {
             const addCover = confirm('Would you like to add a book cover URL?\n\nClick OK to add one now, or Cancel to skip.');
@@ -1493,7 +1673,7 @@ async function saveDraft() {
                 }
             }
         }
-        
+
         const response = await fetch('/api/draft', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1510,15 +1690,15 @@ async function saveDraft() {
                 metadata: bookData.metadata
             })
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to save draft');
         }
-        
+
         currentDraftId = data.draft_id;
         return currentDraftId;
-        
+
     } catch (error) {
         console.error('Error saving draft:', error);
         return null;
@@ -1529,21 +1709,21 @@ async function saveDraftChapter(chapterData) {
     if (!currentDraftId) {
         await saveDraft();
     }
-    
+
     if (!currentDraftId) {
         showStatus('Failed to save draft', 'error');
         return null;
     }
-    
+
     try {
         const ageRange = '8-12'; // Default age range
         const readingLevel = 'intermediate'; // Always use intermediate as default
-        
+
         // Calculate the next chapter number based on existing chapters
         const nextChapterNumber = chapters.length + 1;
-        
+
         console.log(`Saving chapter ${nextChapterNumber} for draft ${currentDraftId}`);
-        
+
         const response = await fetch('/api/draft-chapter', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1558,14 +1738,14 @@ async function saveDraftChapter(chapterData) {
                 reading_level: readingLevel
             })
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to save chapter');
         }
-        
+
         return data.chapter_id;
-        
+
     } catch (error) {
         console.error('Error saving draft chapter:', error);
         showStatus(`Error: ${error.message}`, 'error');
@@ -1576,16 +1756,16 @@ async function saveDraftChapter(chapterData) {
 async function viewChapter(chapterId) {
     try {
         showLoading(true);
-        
+
         const response = await fetch(`/api/draft-chapter/${chapterId}`);
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to load chapter');
         }
-        
+
         const chapter = data.chapter;
-        
+
         // Build modal content
         let modalHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
@@ -1596,7 +1776,7 @@ async function viewChapter(chapterId) {
             <p><strong>Status:</strong> <span class="status-badge status-${chapter.question_status}">${chapter.question_status.toUpperCase()}</span></p>
             <hr style="margin: 20px 0;">
         `;
-        
+
         if (chapter.html_formatting) {
             modalHTML += `
                 <h3>Chapter Content</h3>
@@ -1610,7 +1790,7 @@ async function viewChapter(chapterId) {
                 <hr style="margin: 20px 0;">
             `;
         }
-        
+
         if (chapter.question_status === 'pending' || chapter.question_status === 'generating') {
             modalHTML += `<p style="color: #718096;">Questions are being generated...</p>`;
         } else if (chapter.question_status === 'error') {
@@ -1627,15 +1807,15 @@ async function viewChapter(chapterId) {
                     questionsByGrade[grade].push(q);
                 });
             }
-            
+
             // Display questions and vocabulary grouped by grade
             const grades = Object.keys(questionsByGrade).sort();
-            
+
             if (grades.length > 0) {
                 grades.forEach(grade => {
                     const gradeLabel = grade.replace('grade-', 'Grade ');
                     modalHTML += `<h3 style="margin-top: 30px; color: #2d3748;">${gradeLabel}</h3>`;
-                    
+
                     // Show questions for this grade
                     const questions = questionsByGrade[grade];
                     modalHTML += `<div style="margin-bottom: 20px;">`;
@@ -1645,7 +1825,7 @@ async function viewChapter(chapterId) {
                         const questionTextEscaped = escapeHtml(q.question_text || '');
                         const questionTypeEscaped = escapeHtml(q.question_type || '');
                         const difficultyEscaped = escapeHtml(q.difficulty_level || '');
-                        
+
                         modalHTML += `
                             <div class="question-item" id="question-container-${q.id}" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
                                 <div style="display: flex; justify-content: space-between; align-items: start;">
@@ -1673,10 +1853,10 @@ async function viewChapter(chapterId) {
                         `;
                     });
                     modalHTML += `</div>`;
-                    
+
                     // Show vocabulary for this grade (filter by grade_level)
                     const gradeVocab = (chapter.vocabulary || []).filter(v => v.grade_level === grade);
-                    
+
                     if (gradeVocab.length > 0) {
                         modalHTML += `<div style="margin-top: 20px;">`;
                         modalHTML += `<h4 style="color: #4a5568; margin-bottom: 10px;">Vocabulary:</h4>`;
@@ -1684,7 +1864,7 @@ async function viewChapter(chapterId) {
                             const wordEscaped = escapeHtml(v.word || '');
                             const defEscaped = escapeHtml(v.definition || '');
                             const exEscaped = escapeHtml(v.example || '');
-                            
+
                             modalHTML += `
                                 <div class="vocab-item" id="vocab-container-${v.id}" style="margin-bottom: 15px; padding: 10px; background: #f7fafc; border-radius: 5px;">
                                     <div style="display: flex; justify-content: space-between; align-items: start;">
@@ -1706,10 +1886,10 @@ async function viewChapter(chapterId) {
                 });
             }
         }
-        
+
         document.getElementById('chapter-detail-content').innerHTML = modalHTML;
         document.getElementById('chapter-modal').style.display = 'flex';
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -1721,10 +1901,10 @@ function getEditingItems() {
     // Get all items currently in edit mode
     const modal = document.getElementById('chapter-modal');
     if (!modal) return { questions: [], vocabulary: [] };
-    
+
     const questions = [];
     const vocabulary = [];
-    
+
     // Find all Save buttons (indicates edit mode)
     const saveBtns = modal.querySelectorAll('.save-btn');
     saveBtns.forEach(btn => {
@@ -1737,18 +1917,18 @@ function getEditingItems() {
             vocabulary.push(vocabId);
         }
     });
-    
+
     return { questions, vocabulary };
 }
 
 async function closeChapterModal() {
     const editing = getEditingItems();
     const hasEdits = editing.questions.length > 0 || editing.vocabulary.length > 0;
-    
+
     // Check for unsaved edits
     if (hasEdits) {
         const userChoice = confirm('You have unsaved changes. Do you want to save them?\n\nOK = Save and close\nCancel = Don\'t save and close');
-        
+
         if (userChoice) {
             // User wants to save - get the chapter ID from the modal
             const chapterIdElem = document.querySelector('[id^="question-container-"], [id^="vocab-container-"]');
@@ -1756,7 +1936,7 @@ async function closeChapterModal() {
                 document.getElementById('chapter-modal').style.display = 'none';
                 return;
             }
-            
+
             // Extract chapter ID from any save button's onclick attribute
             const anyBtn = document.querySelector('.save-btn');
             let chapterId = null;
@@ -1767,18 +1947,18 @@ async function closeChapterModal() {
                     chapterId = match[1].replace(/'/g, '');
                 }
             }
-            
+
             if (!chapterId) {
                 showStatus('Could not determine chapter ID', 'error');
                 document.getElementById('chapter-modal').style.display = 'none';
                 return;
             }
-            
+
             // Save all questions
             for (const qId of editing.questions) {
                 await saveQuestion(qId, chapterId);
             }
-            
+
             // Save all vocabulary
             for (const vId of editing.vocabulary) {
                 await saveVocabulary(vId, chapterId);
@@ -1786,7 +1966,7 @@ async function closeChapterModal() {
         }
         // If user clicked Cancel, we don't save but still close
     }
-    
+
     document.getElementById('chapter-modal').style.display = 'none';
 }
 
@@ -1795,9 +1975,9 @@ function toggleEditQuestion(questionId, chapterId) {
     const typeElem = document.getElementById(`q-type-${questionId}`);
     const diffElem = document.getElementById(`q-diff-${questionId}`);
     const btn = document.getElementById(`edit-q-btn-${questionId}`);
-    
+
     if (!textElem || !btn) return;
-    
+
     // Check if currently in edit mode
     if (textElem.contentEditable === 'true') {
         // Save mode
@@ -1807,11 +1987,11 @@ function toggleEditQuestion(questionId, chapterId) {
         textElem.contentEditable = 'true';
         typeElem.contentEditable = 'true';
         diffElem.contentEditable = 'true';
-        
+
         btn.textContent = 'Save';
         btn.classList.remove('edit-btn');
         btn.classList.add('save-btn');
-        
+
         textElem.focus();
     }
 }
@@ -1821,23 +2001,23 @@ async function saveQuestion(questionId, chapterId) {
     const typeElem = document.getElementById(`q-type-${questionId}`);
     const diffElem = document.getElementById(`q-diff-${questionId}`);
     const btn = document.getElementById(`edit-q-btn-${questionId}`);
-    
+
     const questionText = textElem.innerText.trim();
     const questionType = typeElem.innerText.trim();
     const difficulty = diffElem.innerText.trim();
-    
+
     if (!questionText) {
         showStatus('Question text cannot be empty', 'error');
         return;
     }
-    
+
     try {
         showLoading(true);
-        
+
         const keywords = JSON.parse(textElem.dataset.keywords || '[]');
         const minWords = parseInt(textElem.dataset.min) || 20;
         const maxWords = parseInt(textElem.dataset.max) || 200;
-        
+
         const response = await fetch(`/api/question/${questionId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1850,26 +2030,26 @@ async function saveQuestion(questionId, chapterId) {
                 max_word_count: maxWords
             })
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to update question');
         }
-        
+
         // Exit edit mode
         textElem.contentEditable = 'false';
         typeElem.contentEditable = 'false';
         diffElem.contentEditable = 'false';
-        
+
         btn.textContent = 'Edit';
         btn.classList.remove('save-btn');
         btn.classList.add('edit-btn');
-        
+
         // Update data attributes
         textElem.dataset.original = questionText;
         typeElem.dataset.original = questionType;
         diffElem.dataset.original = difficulty;
-        
+
         showStatus('Question updated successfully', 'success');
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
@@ -1880,18 +2060,18 @@ async function saveQuestion(questionId, chapterId) {
 
 async function deleteQuestionItem(questionId, chapterId) {
     if (!confirm('Are you sure you want to delete this question?')) return;
-    
+
     try {
         showLoading(true);
         const response = await fetch(`/api/question/${questionId}`, {
             method: 'DELETE'
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to delete question');
         }
-        
+
         showStatus('Question deleted successfully', 'success');
         viewChapter(chapterId); // Reload the view
     } catch (error) {
@@ -1906,9 +2086,9 @@ function toggleEditVocabulary(vocabId, chapterId) {
     const defElem = document.getElementById(`v-def-${vocabId}`);
     const exElem = document.getElementById(`v-ex-${vocabId}`);
     const btn = document.getElementById(`edit-v-btn-${vocabId}`);
-    
+
     if (!wordElem || !btn) return;
-    
+
     // Check if currently in edit mode
     if (wordElem.contentEditable === 'true') {
         // Save mode
@@ -1918,26 +2098,26 @@ function toggleEditVocabulary(vocabId, chapterId) {
         wordElem.contentEditable = 'true';
         defElem.contentEditable = 'true';
         exElem.contentEditable = 'true';
-        
+
         wordElem.style.backgroundColor = '#fff';
         wordElem.style.padding = '5px';
         wordElem.style.borderRadius = '3px';
         wordElem.style.border = '1px solid #cbd5e0';
-        
+
         defElem.style.backgroundColor = '#fff';
         defElem.style.padding = '5px';
         defElem.style.borderRadius = '3px';
         defElem.style.border = '1px solid #cbd5e0';
-        
+
         exElem.style.backgroundColor = '#fff';
         exElem.style.padding = '5px';
         exElem.style.borderRadius = '3px';
         exElem.style.border = '1px solid #cbd5e0';
-        
+
         btn.textContent = 'Save';
         btn.classList.remove('edit-btn');
         btn.classList.add('save-btn');
-        
+
         wordElem.focus();
     }
 }
@@ -1947,21 +2127,21 @@ async function saveVocabulary(vocabId, chapterId) {
     const defElem = document.getElementById(`v-def-${vocabId}`);
     const exElem = document.getElementById(`v-ex-${vocabId}`);
     const btn = document.getElementById(`edit-v-btn-${vocabId}`);
-    
+
     const word = wordElem.innerText.trim();
     const definition = defElem.innerText.trim();
     const example = exElem.innerText.trim().replace(/^"|"$/g, ''); // Remove quotes if present
-    
+
     if (!word) {
         showStatus('Word cannot be empty', 'error');
         return;
     }
-    
+
     if (!definition) {
         showStatus('Definition cannot be empty', 'error');
         return;
     }
-    
+
     try {
         showLoading(true);
         const response = await fetch(`/api/vocabulary/${vocabId}`, {
@@ -1973,17 +2153,17 @@ async function saveVocabulary(vocabId, chapterId) {
                 example: example
             })
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to update vocabulary');
         }
-        
+
         // Exit edit mode
         wordElem.contentEditable = 'false';
         defElem.contentEditable = 'false';
         exElem.contentEditable = 'false';
-        
+
         wordElem.style.backgroundColor = '';
         wordElem.style.padding = '';
         wordElem.style.border = '';
@@ -1993,17 +2173,17 @@ async function saveVocabulary(vocabId, chapterId) {
         exElem.style.backgroundColor = '';
         exElem.style.padding = '';
         exElem.style.border = '';
-        
+
         btn.textContent = 'Edit';
         btn.classList.remove('save-btn');
         btn.classList.add('edit-btn');
-        
+
         // Update display
         wordElem.dataset.original = word;
         defElem.dataset.original = definition;
         exElem.dataset.original = example;
         exElem.innerHTML = example ? `"${example}"` : '';
-        
+
         showStatus('Vocabulary updated successfully', 'success');
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
@@ -2014,18 +2194,18 @@ async function saveVocabulary(vocabId, chapterId) {
 
 async function deleteVocabularyItem(vocabId, chapterId) {
     if (!confirm('Are you sure you want to delete this vocabulary item?')) return;
-    
+
     try {
         showLoading(true);
         const response = await fetch(`/api/vocabulary/${vocabId}`, {
             method: 'DELETE'
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to delete vocabulary');
         }
-        
+
         showStatus('Vocabulary deleted successfully', 'success');
         viewChapter(chapterId); // Reload the view
     } catch (error) {
@@ -2039,9 +2219,9 @@ function toggleEditChapter(chapterId) {
     const contentElem = document.getElementById(`chapter-content-${chapterId}`);
     const titleElem = document.getElementById(`chapter-title-${chapterId}`);
     const btn = document.getElementById(`edit-chapter-btn-${chapterId}`);
-    
+
     if (!contentElem || !btn) return;
-    
+
     // Check if currently in edit mode
     if (contentElem.contentEditable === 'true') {
         // Save mode
@@ -2050,21 +2230,21 @@ function toggleEditChapter(chapterId) {
         // Edit mode
         contentElem.contentEditable = 'true';
         titleElem.contentEditable = 'true';
-        
+
         contentElem.style.backgroundColor = '#fff';
         contentElem.style.padding = '10px';
         contentElem.style.borderRadius = '5px';
         contentElem.style.border = '2px solid #667eea';
-        
+
         titleElem.style.backgroundColor = '#fff';
         titleElem.style.padding = '5px';
         titleElem.style.borderRadius = '3px';
         titleElem.style.border = '2px solid #667eea';
-        
+
         btn.textContent = 'Save Chapter';
         btn.classList.remove('edit-btn');
         btn.classList.add('save-btn');
-        
+
         titleElem.focus();
     }
 }
@@ -2073,24 +2253,24 @@ async function saveChapter(chapterId) {
     const contentElem = document.getElementById(`chapter-content-${chapterId}`);
     const titleElem = document.getElementById(`chapter-title-${chapterId}`);
     const btn = document.getElementById(`edit-chapter-btn-${chapterId}`);
-    
+
     const newTitle = titleElem.innerText.trim();
     const newContent = contentElem.innerText.trim();
     const newHtml = contentElem.innerHTML;
-    
+
     if (!newTitle) {
         showStatus('Chapter title cannot be empty', 'error');
         return;
     }
-    
+
     if (!newContent) {
         showStatus('Chapter content cannot be empty', 'error');
         return;
     }
-    
+
     try {
         showLoading(true);
-        
+
         const response = await fetch(`/api/chapter/${chapterId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -2100,30 +2280,30 @@ async function saveChapter(chapterId) {
                 html_formatting: newHtml
             })
         });
-        
+
         const data = await response.json();
         if (!response.ok) {
             throw new Error(data.error || 'Failed to update chapter');
         }
-        
+
         // Exit edit mode
         contentElem.contentEditable = 'false';
         titleElem.contentEditable = 'false';
-        
+
         contentElem.style.backgroundColor = '';
         contentElem.style.padding = '';
         contentElem.style.border = '';
         titleElem.style.backgroundColor = '';
         titleElem.style.padding = '';
         titleElem.style.border = '';
-        
+
         btn.textContent = 'Edit Chapter';
         btn.classList.remove('save-btn');
         btn.classList.add('edit-btn');
-        
+
         // Recalculate highlights after chapter update
         recalculateHighlights();
-        
+
         showStatus('Chapter updated successfully', 'success');
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
@@ -2137,44 +2317,44 @@ async function finalizeBook() {
         showStatus('No draft to finalize', 'error');
         return;
     }
-    
+
     if (chapters.length === 0) {
         showStatus('Please add at least one chapter before finalizing', 'error');
         return;
     }
-    
+
     if (!confirm('Are you ready to finalize this book? This will move it to the main books table.')) {
         return;
     }
-    
+
     // Stop polling before finalizing
     stopStatusPolling();
-    
+
     try {
         showLoading(true);
         showStatus('Finalizing book...', 'info');
-        
+
         const response = await fetch(`/api/finalize-draft/${currentDraftId}`, {
             method: 'POST'
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Finalization failed');
         }
-        
+
         showStatus(
             `Success! Book finalized with ${data.chapters} chapters and ${data.questions} questions. Book ID: ${data.book_id}`,
             'success'
         );
-        
+
         setTimeout(() => {
             if (confirm('Book finalized successfully! Do you want to process another book?')) {
                 location.reload();
             }
         }, 2000);
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -2200,11 +2380,11 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
         const readingModal = document.getElementById('reading-info-modal');
         const chapterModal = document.getElementById('chapter-modal');
-        
+
         if (readingModal && readingModal.style.display === 'flex') {
             closeReadingInfoModal();
         }
-        
+
         if (chapterModal && chapterModal.style.display === 'flex') {
             closeChapterModal();
         }
@@ -2214,11 +2394,11 @@ document.addEventListener('keydown', (e) => {
 document.addEventListener('click', (e) => {
     const readingModal = document.getElementById('reading-info-modal');
     const chapterModal = document.getElementById('chapter-modal');
-    
+
     if (readingModal && e.target === readingModal) {
         closeReadingInfoModal();
     }
-    
+
     if (chapterModal && e.target === chapterModal) {
         closeChapterModal();
     }
@@ -2250,16 +2430,16 @@ function handleTagKeyPress(event) {
 function addNewTag() {
     const input = document.getElementById('new-tag-input');
     const tagValue = input.value.trim().toLowerCase();
-    
+
     if (!tagValue) {
         return;
     }
-    
+
     if (currentTags.includes(tagValue)) {
         showStatus('Tag already exists', 'error');
         return;
     }
-    
+
     currentTags.push(tagValue);
     renderTags();
     hideAddTagInput();
@@ -2273,7 +2453,7 @@ function removeTag(tag) {
 function renderTags() {
     const container = document.getElementById('tags-container');
     container.innerHTML = '';
-    
+
     currentTags.forEach(tag => {
         const tagChip = document.createElement('div');
         tagChip.className = 'tag-chip';
@@ -2283,7 +2463,7 @@ function renderTags() {
         `;
         container.appendChild(tagChip);
     });
-    
+
     const addChip = document.createElement('div');
     addChip.className = 'tag-chip add-tag-chip';
     addChip.textContent = '+ Add Tag';
@@ -2293,21 +2473,21 @@ function renderTags() {
 
 function updateTagStatusBadge(status) {
     const badge = document.getElementById('tag-status-badge');
-    
+
     if (!status || status === 'ready') {
         badge.style.display = 'none';
         return;
     }
-    
+
     badge.style.display = 'inline-block';
     badge.className = 'tag-status-badge ' + status;
-    
+
     const statusText = {
         'pending': 'Pending',
         'generating': 'Generating...',
         'error': 'Error'
     };
-    
+
     badge.textContent = statusText[status] || status;
 }
 
@@ -2316,13 +2496,13 @@ async function saveTagsAndUrl() {
         showStatus('No draft selected', 'error');
         return;
     }
-    
+
     try {
         const coverUrl = document.getElementById('cover-image-url').value.trim();
-        
+
         showLoading(true);
         showStatus('Saving tags and cover URL...', 'info');
-        
+
         const response = await fetch(`/api/draft-tags-url/${currentDraftId}`, {
             method: 'PUT',
             headers: {
@@ -2333,53 +2513,53 @@ async function saveTagsAndUrl() {
                 cover_image_url: coverUrl
             })
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to save');
         }
-        
+
         showStatus('Tags and cover URL saved successfully! Regenerating questions...', 'success');
-        
+
         // Update cover preview after saving
         updateCoverPreview();
-        
+
         // Immediately update all chapter statuses to "generating" in the UI
         updateAllChapterStatusesToGenerating();
-        
+
         // Automatically trigger question regeneration after saving tags
         setTimeout(async () => {
             try {
                 showStatus('Regenerating questions based on grade tags...', 'info');
-                
+
                 const regenResponse = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     }
                 });
-                
+
                 const regenData = await regenResponse.json();
-                
+
                 if (!regenResponse.ok) {
                     throw new Error(regenData.error || 'Failed to regenerate questions');
                 }
-                
+
                 showStatus('Question regeneration started! Updating chapters...', 'success');
-                
+
                 // Wait a bit then refresh to get backend status
                 setTimeout(() => {
                     startStatusPolling();
                 }, 500);
-                
+
             } catch (regenError) {
                 showStatus(`Error regenerating questions: ${regenError.message}`, 'error');
             } finally {
                 showLoading(false);
             }
         }, 500);
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
         showLoading(false);
@@ -2393,18 +2573,18 @@ async function saveDescription() {
         showStatus('No draft selected', 'error');
         return;
     }
-    
+
     const descTextarea = document.getElementById('book-description');
     const description = descTextarea.value.trim();
-    
+
     if (!description) {
         showStatus('Please enter a description', 'warning');
         return;
     }
-    
+
     try {
         showLoading(true);
-        
+
         const response = await fetch(`/api/draft/${currentDraftId}/description`, {
             method: 'PUT',
             headers: {
@@ -2412,15 +2592,15 @@ async function saveDescription() {
             },
             body: JSON.stringify({ description })
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to save description');
         }
-        
+
         showStatus('Description saved successfully!', 'success');
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -2433,11 +2613,11 @@ async function generateDescription() {
         showStatus('No draft selected', 'error');
         return;
     }
-    
+
     try {
         showLoading(true);
         showStatus('Generating book description with AI...', 'info');
-        
+
         // Trigger description generation
         const response = await fetch(`/api/draft/${currentDraftId}/generate-description`, {
             method: 'POST',
@@ -2445,9 +2625,9 @@ async function generateDescription() {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             // Handle 409 Conflict specifically (description generation already in progress)
             if (response.status === 409) {
@@ -2456,12 +2636,12 @@ async function generateDescription() {
             }
             throw new Error(data.error || 'Failed to generate description');
         }
-        
+
         showStatus('Description generation started! AI is analyzing the book...', 'success');
-        
+
         // Start polling for description status
         startDescriptionStatusPolling(currentDraftId);
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -2474,14 +2654,14 @@ async function regenerateQuestions() {
         showStatus('No draft selected', 'error');
         return;
     }
-    
+
     try {
         showLoading(true);
-        
+
         // First, save the current tags
         showStatus('Saving tags...', 'info');
         const coverUrl = document.getElementById('cover-image-url').value.trim();
-        
+
         const saveResponse = await fetch(`/api/draft-tags-url/${currentDraftId}`, {
             method: 'PUT',
             headers: {
@@ -2492,36 +2672,36 @@ async function regenerateQuestions() {
                 cover_image_url: coverUrl
             })
         });
-        
+
         if (!saveResponse.ok) {
             const saveData = await saveResponse.json();
             throw new Error(saveData.error || 'Failed to save tags');
         }
-        
+
         // Then trigger question regeneration
         showStatus('Regenerating questions for grade changes...', 'info');
-        
+
         // Immediately update all chapter statuses to "generating" in the UI
         updateAllChapterStatusesToGenerating();
-        
+
         const regenResponse = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         const regenData = await regenResponse.json();
-        
+
         if (!regenResponse.ok) {
             throw new Error(regenData.error || 'Failed to regenerate questions');
         }
-        
+
         showStatus('Question regeneration started! Updating chapters...', 'success');
-        
+
         // Start polling for chapter status updates
         startStatusPolling();
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -2534,27 +2714,27 @@ async function regenerateChapterQuestions(chapterId) {
         showStatus('No draft selected', 'error');
         return;
     }
-    
+
     try {
         showLoading(true);
         showStatus('Regenerating questions for this chapter...', 'info');
-        
+
         // Update this chapter's status to "generating" in the UI
         const chapter = chapters.find(ch => ch.id === chapterId);
         if (chapter) {
             chapter.question_status = 'generating';
             updateChaptersList();
         }
-        
+
         const response = await fetch(`/api/chapter/${chapterId}/regenerate-questions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             // Handle 409 Conflict specifically (question generation already in progress)
             if (response.status === 409) {
@@ -2563,12 +2743,12 @@ async function regenerateChapterQuestions(chapterId) {
             }
             throw new Error(data.error || 'Failed to regenerate questions');
         }
-        
+
         showStatus('Question regeneration started for chapter!', 'success');
-        
+
         // Start polling for chapter status updates
         startStatusPolling();
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
@@ -2581,19 +2761,19 @@ async function regenerateTags() {
         showStatus('No draft selected', 'error');
         return;
     }
-    
+
     const btn = document.getElementById('regenerate-tags-btn');
-    
+
     try {
         // Disable button to prevent duplicate clicks
         if (btn) {
             btn.disabled = true;
             btn.style.opacity = '0.6';
         }
-        
+
         showLoading(true);
         showStatus('Regenerating tags with AI...', 'info');
-        
+
         // Trigger tag regeneration
         const response = await fetch(`/api/draft/${currentDraftId}/regenerate-tags`, {
             method: 'POST',
@@ -2601,9 +2781,9 @@ async function regenerateTags() {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             // Handle 409 Conflict specifically (tag generation already in progress)
             if (response.status === 409) {
@@ -2612,17 +2792,17 @@ async function regenerateTags() {
             }
             throw new Error(data.error || 'Failed to regenerate tags');
         }
-        
+
         showStatus('Tag regeneration started! AI is analyzing the book...', 'success');
-        
+
         // Start polling for tag status (auto-regen disabled as requested)
         startTagStatusPolling(currentDraftId);
-        
+
     } catch (error) {
         showStatus(`Error: ${error.message}`, 'error');
     } finally {
         showLoading(false);
-        
+
         // Re-enable button after a short delay to prevent rapid re-clicking
         if (btn) {
             setTimeout(() => {
@@ -2636,19 +2816,19 @@ async function regenerateTags() {
 function startTagStatusPollingWithAutoRegen(draftId) {
     // Always stop existing polling first to prevent dangling intervals
     stopTagStatusPolling();
-    
+
     console.log('Started tag status polling with auto-regen for draft:', draftId);
-    
+
     tagStatusPollingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/draft/${draftId}`);
             const data = await response.json();
-            
+
             if (data.success && data.draft) {
                 const tagStatus = data.draft.tag_status;
                 console.log('Tag status:', tagStatus);
                 updateTagStatusBadge(tagStatus);
-                
+
                 if (tagStatus === 'ready') {
                     if (data.draft.tags && data.draft.tags.length > 0) {
                         currentTags = data.draft.tags;
@@ -2656,7 +2836,7 @@ function startTagStatusPollingWithAutoRegen(draftId) {
                         console.log('✓ Tags loaded:', currentTags);
                         stopTagStatusPolling();
                         showStatus('Tags generated successfully! Now regenerating questions...', 'success');
-                        
+
                         // Auto-trigger question regeneration after a brief delay
                         setTimeout(() => {
                             triggerQuestionRegenAfterTags();
@@ -2682,31 +2862,31 @@ async function triggerQuestionRegenAfterTags() {
     try {
         showLoading(true);
         showStatus('Regenerating questions based on new tags...', 'info');
-        
+
         // Immediately update all chapter statuses to "generating" in the UI
         updateAllChapterStatusesToGenerating();
-        
+
         const response = await fetch(`/api/draft/${currentDraftId}/regenerate-questions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             }
         });
-        
+
         const data = await response.json();
-        
+
         if (!response.ok) {
             throw new Error(data.error || 'Failed to regenerate questions');
         }
-        
+
         showStatus('Question regeneration started! Updating all chapters...', 'success');
-        
+
         // Start polling for chapter status updates
         startStatusPolling();
-        
+
         // Refresh the draft to show updated data
         await loadDraft(currentDraftId);
-        
+
     } catch (error) {
         showStatus(`Error regenerating questions: ${error.message}`, 'error');
         showLoading(false);
@@ -2717,19 +2897,19 @@ function startTagStatusPolling(draftId) {
     if (tagStatusPollingInterval) {
         clearInterval(tagStatusPollingInterval);
     }
-    
+
     console.log('Started tag status polling for draft:', draftId);
-    
+
     tagStatusPollingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/draft/${draftId}`);
             const data = await response.json();
-            
+
             if (data.success && data.draft) {
                 const tagStatus = data.draft.tag_status;
                 console.log('Tag status:', tagStatus);
                 updateTagStatusBadge(tagStatus);
-                
+
                 if (tagStatus === 'ready') {
                     if (data.draft.tags && data.draft.tags.length > 0) {
                         currentTags = data.draft.tags;
@@ -2765,19 +2945,19 @@ function stopTagStatusPolling() {
 function startDescriptionStatusPolling(draftId) {
     // Always stop existing polling first to prevent dangling intervals
     stopDescriptionStatusPolling();
-    
+
     console.log('Started description status polling for draft:', draftId);
-    
+
     descriptionStatusPollingInterval = setInterval(async () => {
         try {
             const response = await fetch(`/api/draft/${draftId}`);
             const data = await response.json();
-            
+
             if (data.success && data.draft) {
                 const descriptionStatus = data.draft.description_status;
                 console.log('Description status:', descriptionStatus);
                 updateDescriptionStatusBadge(descriptionStatus);
-                
+
                 if (descriptionStatus === 'ready') {
                     if (data.draft.description) {
                         const descriptionTextarea = document.getElementById('book-description');
@@ -2812,9 +2992,9 @@ function stopDescriptionStatusPolling() {
 function updateDescriptionStatusBadge(status) {
     const badge = document.getElementById('description-status-badge');
     if (!badge) return;
-    
+
     badge.className = 'status-badge';
-    
+
     if (status === 'pending' || status === 'generating') {
         badge.classList.add('status-generating');
         badge.textContent = status === 'pending' ? '⏳ Pending' : '⚙️ Generating';
@@ -2836,15 +3016,15 @@ function updateCoverPreview() {
     const urlInput = document.getElementById('cover-image-url');
     const previewContainer = document.getElementById('cover-preview-container');
     const previewImg = document.getElementById('cover-preview-img');
-    
+
     // Check if elements exist
     if (!urlInput || !previewContainer || !previewImg) {
         console.warn('Cover preview elements not found');
         return;
     }
-    
+
     const url = urlInput.value ? urlInput.value.trim() : '';
-    
+
     // Show preview if URL is not empty and looks valid
     if (url && url.length > 0) {
         console.log('Setting cover preview URL:', url);
@@ -2873,15 +3053,15 @@ function startQueuePolling() {
     if (widget) {
         widget.style.display = 'block';
     }
-    
+
     // Poll immediately
     refreshQueueStatus();
-    
+
     // Then poll every 20 seconds
     if (queuePollingInterval) {
         clearInterval(queuePollingInterval);
     }
-    
+
     queuePollingInterval = setInterval(refreshQueueStatus, 30000);
     console.log('Started queue status polling');
 }
@@ -2892,7 +3072,7 @@ function stopQueuePolling() {
         queuePollingInterval = null;
         console.log('Stopped queue status polling');
     }
-    
+
     // Hide queue widget
     const widget = document.getElementById('queue-status-widget');
     if (widget) {
@@ -2904,22 +3084,22 @@ async function refreshQueueStatus() {
     try {
         const response = await fetch('/api/queue/status');
         const data = await response.json();
-        
+
         if (response.ok && data.queue) {
             const queue = data.queue;
-            
+
             // Update queue size
             document.getElementById('queue-size').textContent = queue.queue_size;
-            
+
             // Update workers
-            document.getElementById('queue-workers').textContent = 
+            document.getElementById('queue-workers').textContent =
                 `${queue.active_workers}/${queue.worker_count}`;
-            
+
             // Update timestamp
             const now = new Date();
             const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             document.getElementById('queue-timestamp').textContent = timeStr;
-            
+
         }
     } catch (error) {
         console.error('Error refreshing queue status:', error);
@@ -2942,25 +3122,25 @@ function closeFlushConfirmation() {
 
 async function confirmFlushQueue() {
     closeFlushConfirmation();
-    
+
     const flushBtn = document.getElementById('flush-queue-btn');
     if (flushBtn) {
         flushBtn.disabled = true;
         flushBtn.textContent = 'Flushing...';
     }
-    
+
     try {
         const response = await fetch('/api/queue/flush', {
             method: 'POST'
         });
         const data = await response.json();
-        
+
         if (response.ok) {
             showStatus(`Queue flushed: ${data.flushed_count} tasks removed`, 'success');
-            
+
             // Refresh queue status immediately
             await refreshQueueStatus();
-            
+
             // Reload chapters to update question status
             if (currentDraftId) {
                 loadDraftChapters(currentDraftId);
@@ -2981,7 +3161,7 @@ async function confirmFlushQueue() {
 
 // Start queue polling when draft is loaded
 const originalLoadDraft = window.loadDraft;
-window.loadDraft = async function(draftId) {
+window.loadDraft = async function (draftId) {
     if (originalLoadDraft) {
         await originalLoadDraft(draftId);
     }
@@ -3004,22 +3184,22 @@ async function refreshQueueWidget() {
     try {
         const response = await fetch('/api/queue/status');
         const data = await response.json();
-        
+
         if (response.ok && data.status) {
             const status = data.status;
-            
+
             // Update counts
             const queuedEl = document.getElementById('index-queued-count');
             const processingEl = document.getElementById('index-processing-count');
             const readyEl = document.getElementById('index-ready-count');
             const errorEl = document.getElementById('index-error-count');
             const messageEl = document.getElementById('index-queue-message');
-            
+
             if (queuedEl) queuedEl.textContent = status.total_queued || 0;
             if (processingEl) processingEl.textContent = status.total_processing || 0;
             if (readyEl) readyEl.textContent = status.total_ready || 0;
             if (errorEl) errorEl.textContent = status.total_error || 0;
-            
+
             // Update message
             if (messageEl) {
                 const total = (status.total_queued || 0) + (status.total_processing || 0);
@@ -3060,7 +3240,7 @@ function stopIndexQueueRefresh() {
 // Initialize index page on load
 if (document.getElementById('index-queued-count')) {
     startIndexQueueRefresh();
-    
+
     // Stop when leaving page
     window.addEventListener('beforeunload', stopIndexQueueRefresh);
 }
