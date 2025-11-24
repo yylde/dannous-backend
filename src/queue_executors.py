@@ -157,3 +157,45 @@ def execute_question_generation(
         'questions': questions,
         'vocabulary': vocabulary
     }
+
+
+def execute_safety_check(book_id: str, book_text: str, grade_level: str, is_safety_check: bool = False) -> List[Dict[str, Any]]:
+    """
+    Direct Ollama execution for content safety check - NO QUEUEING.
+    
+    Args:
+        book_id: Draft book ID
+        book_text: Full text of the book (should be stripped of HTML)
+        grade_level: Target grade level
+    
+    Returns:
+        List of safety flags/issues
+    """
+    from src.question_generator import QuestionGenerator
+    from src.database import DatabaseManager
+    from src.text_cleaner import TextCleaner
+    import re
+    
+    logger.info(f"[EXECUTOR] Running safety check for book {book_id} (grade: {grade_level})")
+    
+    # 1. Strip HTML if present (just in case, though user said full_text is clean)
+    clean_text = re.sub(r'<[^>]+>', ' ', book_text)
+    
+    # 2. Strip Gutenberg headers/footers using TextCleaner
+    cleaner = TextCleaner()
+    clean_text = cleaner.clean(clean_text)
+    
+    # 3. Final whitespace normalization
+    clean_text = re.sub(r'\s+', ' ', clean_text).strip()
+    
+    logger.info(f"[EXECUTOR] Text cleaned: {len(book_text)} -> {len(clean_text)} chars")
+    
+    db = DatabaseManager()
+    generator = QuestionGenerator()
+    
+    flags = generator.analyze_content_safety(clean_text, grade_level)
+    
+    db.update_draft(book_id, content_flags=flags)
+    
+    logger.info(f"[EXECUTOR] ✓ Safety check completed: {len(flags)} issues found")
+    return flags

@@ -569,3 +569,105 @@ def finalize_draft(draft_id):
     except Exception as e:
         logger.exception("Failed to finalize draft")
         return jsonify({'error': str(e)}), 500
+@drafts_bp.route('/draft/<draft_id>/safety-check', methods=['POST'])
+def run_safety_check(draft_id):
+    """Run content safety check on a draft (async)."""
+    try:
+        from src.queue_manager_v2 import get_queue_manager_v2
+        
+        db = DatabaseManager()
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+            
+        # Get full text - prefer full_text, fallback to concatenating chapters if needed
+        book_text = draft.get('full_text', '')
+        if not book_text:
+            # Fallback: try to reconstruct from chapters
+            chapters = db.get_draft_chapters(draft_id)
+            book_text = "\n\n".join([c['content'] for c in chapters])
+            
+        if not book_text:
+            return jsonify({'error': 'No content found for this draft'}), 400
+            
+        # Determine grade level from age_range or reading_level
+        age_range = draft.get('age_range', '8-12')
+        grade_map = {
+            '6-8': '1st-3rd Grade',
+            '8-12': '4th-6th Grade',
+            '12-15': '7th-9th Grade',
+            '15-18': 'High School'
+        }
+        grade_level = grade_map.get(age_range, 'General Audience')
+        
+        # Use new queue system
+        queue_manager_v2 = get_queue_manager_v2()
+        
+        payload = {
+            'book_id': draft_id,
+            'book_text': book_text,
+            'grade_level': grade_level,
+            'is_safety_check': True  # Flag to distinguish from normal tag generation
+        }
+        
+        # Enqueue task as 'tags' to bypass DB constraint and get high priority (1)
+        task_id = queue_manager_v2.enqueue_task(
+            task_type='tags',
+            priority=1,
+            book_id=draft_id,
+            chapter_id=None,
+            payload=payload
+        )
+        
+        logger.info(f"Enqueued safety check for draft {draft_id} (task: {task_id})")
+        
+        return jsonify({
+            'success': True, 
+            'message': 'Safety check started',
+            'task_id': task_id
+        })
+        
+    except Exception as e:
+        logger.exception("Failed to start safety check")
+        return jsonify({'error': str(e)}), 500
+
+
+@drafts_bp.route('/draft/<draft_id>/safety-check/status', methods=['GET'])
+def get_safety_check_status(draft_id):
+    """Get status of safety check."""
+    try:
+        from src.queue_manager_v2 import get_queue_manager_v2
+        
+        db = DatabaseManager()
+        draft = db.get_draft(draft_id)
+        if not draft:
+            return jsonify({'error': 'Draft not found'}), 404
+            
+        queue_manager_v2 = get_queue_manager_v2()
+        # Check for 'tags' task since we're using that type for safety checks now
+        task = queue_manager_v2.get_task_for_book(draft_id, 'tags')
+        
+        status = 'pending'
+        if task:
+            # Verify if this tag task is actually a safety check
+            payload = task.get('payload', {})
+            # If it has is_safety_check flag OR book_text (legacy), treat as safety check
+            if payload.get('is_safety_check') or 'book_text' in payload:
+                status = task['status']
+            else:
+                # It's a real tag task, ignore it for safety check status
+                # But if we can't find a safety check task, fallback to checking flags
+                status = 'idle'
+        
+        if status == 'idle' and draft.get('content_flags') is not None and len(draft.get('content_flags', [])) >= 0:
+            status = 'ready'
+            
+        return jsonify({
+            'success': True,
+            'status': status,
+            'flags': draft.get('content_flags', [])
+        })
+        
+    except Exception as e:
+        logger.exception("Failed to get safety check status")
+        return jsonify({'error': str(e)}), 500

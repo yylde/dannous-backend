@@ -1530,6 +1530,19 @@ async function loadDraft(draftId) {
         currentDraftId = draftId;
         const draft = data.draft;
 
+        // Render existing safety flags if any
+        if (draft.content_flags && draft.content_flags.length > 0) {
+            renderSafetyResults(draft.content_flags);
+        } else {
+            // Reset safety tab
+            document.getElementById('safety-results-container').innerHTML =
+                '<p style="text-align: center; color: #718096; padding: 20px;">No safety check results yet. Click "Run Safety Check" to analyze.</p>';
+        }
+
+        // Initialize undo stack
+        undoStack = [];
+        updateUndoButton();
+
         // Set book data
         bookData = {
             book_id: draft.gutenberg_id,
@@ -3243,4 +3256,231 @@ if (document.getElementById('index-queued-count')) {
 
     // Stop when leaving page
     window.addEventListener('beforeunload', stopIndexQueueRefresh);
+}
+
+// Tab Navigation
+function openTab(tabName) {
+    // Hide all tab contents
+    const contents = document.getElementsByClassName('tab-content');
+    for (let i = 0; i < contents.length; i++) {
+        contents[i].style.display = 'none';
+        contents[i].classList.remove('active');
+    }
+
+    // Remove active class from all buttons
+    const buttons = document.getElementsByClassName('tab-btn');
+    for (let i = 0; i < buttons.length; i++) {
+        buttons[i].classList.remove('active');
+    }
+
+    // Show the specific tab content
+    const selectedTab = document.getElementById(tabName);
+    if (selectedTab) {
+        selectedTab.style.display = 'block';
+        selectedTab.classList.add('active');
+    }
+
+    // Add active class to the button that clicked it
+    // Find button with onclick="openTab('tabName')"
+    const activeBtn = Array.from(buttons).find(btn => btn.getAttribute('onclick').includes(tabName));
+    if (activeBtn) {
+        activeBtn.classList.add('active');
+    }
+}
+
+// Safety Check Feature
+async function runSafetyCheck() {
+    if (!currentDraftId) return;
+
+    const btn = document.getElementById('run-safety-check-btn');
+    const container = document.getElementById('safety-results-container');
+
+    btn.disabled = true;
+    btn.innerHTML = '⏳ Queued...';
+    container.innerHTML = '<p style="text-align: center; color: #718096; padding: 20px;">Safety check queued. Waiting for worker...</p>';
+
+    try {
+        const response = await fetch(`/api/draft/${currentDraftId}/safety-check`, {
+            method: 'POST'
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error || 'Failed to start safety check');
+        }
+
+        // Start polling for status
+        pollSafetyCheckStatus();
+
+    } catch (error) {
+        console.error('Error starting safety check:', error);
+        container.innerHTML = `<div class="alert alert-error">Error: ${error.message}</div>`;
+        showStatus(`Error: ${error.message}`, 'error');
+        btn.disabled = false;
+        btn.innerHTML = '🛡️ Run Safety Check';
+    }
+}
+
+let safetyCheckPollInterval = null;
+
+function pollSafetyCheckStatus() {
+    if (safetyCheckPollInterval) clearInterval(safetyCheckPollInterval);
+
+    const btn = document.getElementById('run-safety-check-btn');
+    const container = document.getElementById('safety-results-container');
+
+    safetyCheckPollInterval = setInterval(async () => {
+        try {
+            const response = await fetch(`/api/draft/${currentDraftId}/safety-check/status`);
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to get status');
+            }
+
+            if (data.status === 'ready') {
+                clearInterval(safetyCheckPollInterval);
+                renderSafetyResults(data.flags);
+                btn.disabled = false;
+                btn.innerHTML = '🛡️ Run Safety Check';
+                showStatus('Safety check completed', 'success');
+            } else if (data.status === 'error') {
+                clearInterval(safetyCheckPollInterval);
+                container.innerHTML = `<div class="alert alert-error">Error: Safety check failed</div>`;
+                btn.disabled = false;
+                btn.innerHTML = '🛡️ Run Safety Check';
+            } else {
+                // Still processing or queued
+                const isProcessing = data.status === 'processing';
+                btn.innerHTML = isProcessing ? '⏳ Analyzing...' : '⏳ Queued...';
+
+                // Show a more detailed processing message
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #4a5568;">
+                        <div class="spinner" style="margin: 0 auto 20px;"></div>
+                        <h3 style="margin-bottom: 10px;">${isProcessing ? 'Analyzing Content...' : 'Waiting in Queue...'}</h3>
+                        <p style="color: #718096;">
+                            ${isProcessing
+                        ? 'The AI is currently reviewing the book for safety issues.<br>This may take a minute for large books.'
+                        : 'Your request is in line to be processed.'}
+                        </p>
+                    </div>
+                `;
+            }
+
+        } catch (error) {
+            console.error('Error polling safety check:', error);
+            clearInterval(safetyCheckPollInterval);
+            btn.disabled = false;
+            btn.innerHTML = '🛡️ Run Safety Check';
+        }
+    }, 2000); // Poll every 2 seconds
+}
+
+async function refreshSafetyResults() {
+    if (!currentDraftId) return;
+
+    const btn = document.getElementById('refresh-safety-btn');
+    const originalText = btn ? btn.innerHTML : '🔄';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '🔄 ...';
+    }
+
+    try {
+        const response = await fetch(`/api/draft/${currentDraftId}/safety-check/status`);
+        const data = await response.json();
+
+        if (data.success) {
+            if (data.status === 'ready') {
+                renderSafetyResults(data.flags);
+                showStatus('Results loaded', 'success');
+                // Stop polling if it was running
+                if (safetyCheckPollInterval) clearInterval(safetyCheckPollInterval);
+            } else if (data.status === 'processing' || data.status === 'queued') {
+                // If it's running, ensure polling is active
+                if (!safetyCheckPollInterval) {
+                    pollSafetyCheckStatus();
+                }
+                showStatus(`Status: ${data.status}`, 'info');
+            } else {
+                // Idle state - show results if we have them (handled by renderSafetyResults check) or empty state
+                renderSafetyResults(data.flags);
+                if (safetyCheckPollInterval) clearInterval(safetyCheckPollInterval);
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing safety results:', error);
+        showStatus('Failed to refresh results', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+}
+
+function renderSafetyResults(flags) {
+    const container = document.getElementById('safety-results-container');
+
+    if (!flags || flags.length === 0) {
+        container.innerHTML = `
+            <div class="alert alert-success" style="text-align: center;">
+                <strong>✓ No Issues Found</strong><br>
+                The content appears to be safe based on the current analysis criteria.
+            </div>
+        `;
+        return;
+    }
+
+    let html = `
+        <div class="alert alert-info" style="margin-bottom: 20px;">
+            <strong>Found ${flags.length} potential issue${flags.length === 1 ? '' : 's'}</strong>
+        </div>
+        <table class="safety-table">
+            <thead>
+                <tr>
+                    <th style="width: 15%;">Issue / Location</th>
+                    <th style="width: 25%;">Context</th>
+                    <th style="width: 30%;">Original Text</th>
+                    <th style="width: 30%;">Rewrite / Fix</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    flags.forEach(flag => {
+        html += `
+            <tr>
+                <td>
+                    <div style="font-weight: bold; color: #c53030; margin-bottom: 5px;">${flag.issue}</div>
+                    <div style="font-size: 12px; color: #718096;">${flag.location || 'Unknown Location'}</div>
+                </td>
+                <td>
+                    <div style="font-weight: 600; margin-bottom: 4px;">Context:</div>
+                    <div style="font-style: italic; margin-bottom: 8px;">${flag.context || '-'}</div>
+                    <div style="font-size: 12px;">${flag.explanation || ''}</div>
+                </td>
+                <td>
+                    <div style="background: #fff5f5; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px;">
+                        "${flag.original_text || ''}"
+                    </div>
+                </td>
+                <td>
+                    ${flag.rewrite === 'FLAG_ONLY'
+                ? '<span class="safety-flag-badge">FLAG ONLY</span>'
+                : `<div style="background: #f0fff4; padding: 8px; border-radius: 4px; font-family: monospace; font-size: 12px; color: #22543d;">"${flag.rewrite}"</div>`
+            }
+                </td>
+            </tr>
+        `;
+    });
+
+    html += `
+            </tbody>
+        </table>
+    `;
+
+    container.innerHTML = html;
 }

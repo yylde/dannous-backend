@@ -244,6 +244,139 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             logger.error(f"Error parsing response: {e}")
             logger.debug(f"Response was: {response[:500]}")
             return [], [], []
+    def analyze_content_safety(self, book_text: str, grade_level: str) -> List[Dict]:
+        """
+        Analyze book content for controversial items based on grade level.
+        
+        Args:
+            book_text: Full text of the book
+            grade_level: Target grade level string
+            
+        Returns:
+            List of dictionaries containing safety flags/issues
+        """
+        logger.info(f"Analyzing content safety for grade level: {grade_level}")
+        
+        prompt = f"""You are an expert content moderator and educational consultant. Your task is to review the following book content for items that may be controversial, offensive, or inappropriate for students in {grade_level}.
+
+Flag any of the following issues (be STRICT and flag even minor instances):
+
+1. Racial and Ethnic Stereotypes (CRITICAL)
+   - The "Savage" Trope: Depicting Indigenous or non-white people as violent, primitive, or animalistic.
+   - Dehumanization: Treating non-white characters as less than human (e.g., "Blacks are not people").
+   - Dialect: Exaggerated phonetic spelling to mock speech of Black or working-class characters.
+   - Anti-Semitism: Greedy or villainous Jewish caricatures.
+   - Slurs: Casual use of terms like "N-word", "Injun", "Gypsy", "Chinaman", "Heathen", "Piccaninny", "Redskins", "Blacks" (as a noun).
+   - Negative comparisons involving skin color (e.g., "washing black white").
+
+2. Colonialism and Imperialism
+   - White Saviorism: White protagonist instantly ruling or "fixing" foreign cultures.
+   - Dehumanization: Local populations treated as background scenery, wildlife, or solely to serve white people.
+   - "White man's burden" narratives: Becoming "better" or "healthier" by shedding non-white cultural influences.
+
+3. Outdated Safety and Medical Advice / Ableism
+   - Dangerous Play: Unsupervised play with explosives, firearms, or dangerous machinery.
+   - Harmful "Cures": Mercury, bleeding, or strange home remedies.
+   - Disability as "Moral Failing": Implying disability is a choice, a result of a "bad attitude", or cured by "believing hard enough" (e.g., "fresh air cure" for paralysis).
+   - The "Magic Cure" Trope: Suggesting physical disabilities are psychosomatic or can be wished away.
+
+4. Violence, Horror, and Grim Themes
+   - Gore and Mutilation: Explicit descriptions of physical harm.
+   - Cruelty to Animals: Graphically depicted violence against animals (e.g., shooting dogs, hurting pets).
+   - Grim Death/Neglect: Blunt descriptions of death, corpses, or severe parental neglect (e.g., children left alone with dead bodies).
+
+5. Sexism and Gender Roles
+   - Lack of Agency: Female characters existing only to be rescued or serve men.
+   - Domestic Servitude: Girls cooking/cleaning while boys adventure.
+   - "Taming" Narratives: Tomboyish girls punished until they become "proper ladies".
+
+6. Classism and Social Stigma
+   - Mocking the Poor: Depicting poor characters as lazy, dirty, or stupid.
+   - Servant Mistreatment: Abusive language towards servants presented as normal or acceptable.
+   - Caricatured Dialect: "Simple" or difficult-to-read dialect for working-class characters.
+
+For each issue found, provide a structured response in JSON format.
+CRITICAL INSTRUCTIONS:
+1. BE EXHAUSTIVE: Flag EVERY single instance of the issues listed above. Do not skip any. If in doubt, FLAG IT.
+2. STRICT CHRONOLOGICAL ORDER: List issues EXACTLY in the order they appear in the text. Do not reorder based on chapter numbers.
+3. LOCATION: Use whatever chapter header (Roman numeral, number, or title) is nearest to the issue. If no header is clear, use "Text Segment".
+4. SEPARATE ENTRIES: If the same issue appears 10 times, create 10 separate entries.
+
+The response should be a list of objects with the following fields:
+- "issue": A short title for the issue (e.g., "The Racial Slur 'Gypsy'").
+- "location": The specific chapter/section where this instance appears.
+- "context": A brief description of the scene or context for this specific instance.
+- "explanation": Why this is an issue.
+- "original_text": The specific snippet of text causing the issue.
+- "rewrite": A suggested rewrite to make it appropriate, or "FLAG_ONLY" if it cannot be easily rewritten.
+
+Example Output Format:
+[
+    {{
+        "issue": "The Racial Slur 'Gypsy'",
+        "location": "Chapter I",
+        "context": "Introduction of the character.",
+        "explanation": "Offensive exonym.",
+        "original_text": "The old gypsy woman...",
+        "rewrite": "The old traveler woman..."
+    }},
+    {{
+        "issue": "Violence against Animals",
+        "location": "The Hunting Scene",
+        "context": "A dog is kicked by the antagonist.",
+        "explanation": "Cruelty to animals.",
+        "original_text": "He kicked the poor hound...",
+        "rewrite": "FLAG_ONLY"
+    }}
+]
+
+If no issues are found, return an empty list: []
+
+Book Content:
+{book_text[:1000000]} 
+"""
+
+        print(len(prompt))
+        
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {"role": "system", "content": "You are a helpful educational content safety assistant. Output ONLY valid JSON."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.1,  # Low temperature for consistent analysis
+                response_format={"type": "json_object"}
+            )
+            
+            content = response.choices[0].message.content
+            content = remove_thinking_tokens(content)
+            
+            # Parse JSON response
+            try:
+                # Handle potential wrapping in a key like "issues": [...]
+                data = json.loads(content)
+                print('here 1')
+                print(len(data))
+                if isinstance(data, list):
+                    return data
+                elif isinstance(data, dict):
+                    # Look for likely keys
+                    for key in ['issues', 'flags', 'items', 'results']:
+                        if key in data and isinstance(data[key], list):
+                            return data[key]
+                    # If no list found, maybe the dict itself is a single item?
+                    return [data]
+                return []
+            except json.JSONDecodeError:
+                print('here 2')
+                logger.error(f"Failed to parse JSON from safety check: {content}")
+                return []
+                
+        except Exception as e:
+            print('here 3')
+            logger.error(f"Error in content safety analysis: {e}")
+            return []
     def generate_questions(
         self,
         title: str,

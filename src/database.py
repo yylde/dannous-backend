@@ -282,7 +282,7 @@ class DatabaseManager:
                     if key in ('tag_status', 'description_status'):
                         logger.debug(f"Skipping dropped column {key} in update_draft")
                         continue
-                    if key in ('metadata', 'tags', 'last_marker_position'):
+                    if key in ('metadata', 'tags', 'content_flags', 'last_marker_position'):
                         set_clauses.append(f"{key} = %s")
                         values.append(json.dumps(value))
                     else:
@@ -346,7 +346,7 @@ class DatabaseManager:
                 cur.execute("""
                     SELECT id, gutenberg_id, title, author, full_text, full_html,
                            age_range, reading_level, genre, cover_image_url, metadata, 
-                           tags, description, created_at, updated_at
+                           tags, description, content_flags, created_at, updated_at
                     FROM draft_books
                     WHERE id = %s
                 """, (draft_id,))
@@ -368,6 +368,12 @@ class DatabaseManager:
                     draft['tags'] = json.loads(draft['tags'])
                 elif draft.get('tags') is None:
                     draft['tags'] = []
+                
+                # content_flags is JSONB - parse it
+                if isinstance(draft.get('content_flags'), str):
+                    draft['content_flags'] = json.loads(draft['content_flags'])
+                elif draft.get('content_flags') is None:
+                    draft['content_flags'] = []
                 
                 return draft
     

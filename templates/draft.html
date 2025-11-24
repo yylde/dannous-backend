@@ -117,7 +117,8 @@
             <h1>📚 Manual Chapter Splitter</h1>
             <p>Download books from Project Gutenberg and manually create chapters</p>
             <div style="display: flex; gap: 15px; margin-top: 10px; flex-wrap: wrap;">
-                <div id="current-draft-info" style="display: none; padding: 10px; background: #e6f7ff; border-radius: 5px; flex: 1; min-width: 250px;">
+                <div id="current-draft-info"
+                    style="display: none; padding: 10px; background: #e6f7ff; border-radius: 5px; flex: 1; min-width: 250px;">
                     <strong>Current Draft:</strong> <span id="draft-title"></span>
                 </div>
             </div>
@@ -136,72 +137,118 @@
 
                 <div class="controls">
                     <h2>Book Settings</h2>
-                    
-                    <!-- Tags and Cover URL Section -->
-                    <div class="tags-url-section">
-                        <div class="form-group tags-group">
-                            <label>
-                                Tags:
-                                <span id="tag-status-badge" class="tag-status-badge" style="display: none;"></span>
-                            </label>
-                            <div id="tags-container" class="tags-container">
-                                <div class="tag-chip add-tag-chip" onclick="showAddTagInput()">+ Add Tag</div>
+
+                    <!-- Tab Navigation -->
+                    <div class="tab-nav">
+                        <button class="tab-btn active" onclick="openTab('general-tab')">General</button>
+                        <button class="tab-btn" onclick="openTab('safety-tab')">Safety Check</button>
+                    </div>
+
+                    <!-- General Tab -->
+                    <div id="general-tab" class="tab-content active">
+                        <!-- Tags and Cover URL Section -->
+                        <div class="tags-url-section">
+                            <div class="form-group tags-group">
+                                <label>
+                                    Tags:
+                                    <span id="tag-status-badge" class="tag-status-badge" style="display: none;"></span>
+                                </label>
+                                <div id="tags-container" class="tags-container">
+                                    <div class="tag-chip add-tag-chip" onclick="showAddTagInput()">+ Add Tag</div>
+                                </div>
+                                <div id="add-tag-input-container" class="add-tag-input-container"
+                                    style="display: none;">
+                                    <input type="text" id="new-tag-input" placeholder="e.g., adventure, grade-3"
+                                        onkeypress="handleTagKeyPress(event)">
+                                    <button onclick="addNewTag()" class="btn btn-small">Add</button>
+                                    <button onclick="hideAddTagInput()"
+                                        class="btn btn-small btn-secondary">Cancel</button>
+                                </div>
                             </div>
-                            <div id="add-tag-input-container" class="add-tag-input-container" style="display: none;">
-                                <input type="text" id="new-tag-input" placeholder="e.g., adventure, grade-3" onkeypress="handleTagKeyPress(event)">
-                                <button onclick="addNewTag()" class="btn btn-small">Add</button>
-                                <button onclick="hideAddTagInput()" class="btn btn-small btn-secondary">Cancel</button>
+                            <div class="form-group">
+                                <label for="cover-image-url">Book Cover URL (optional):</label>
+                                <input type="url" id="cover-image-url" placeholder="https://example.com/cover.jpg"
+                                    oninput="updateCoverPreview()">
+                                <div id="cover-preview-container" style="margin-top: 10px; display: none;">
+                                    <img id="cover-preview-img" src="" alt="Cover preview"
+                                        style="max-width: 100px; max-height: 150px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);"
+                                        onerror="this.parentElement.style.display='none'">
+                                </div>
+                            </div>
+                            <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button onclick="saveTagsAndUrl()" class="btn btn-primary" id="save-tags-url-btn">
+                                    💾 Save Tags & URL
+                                </button>
+                                <button onclick="regenerateTags()" class="btn btn-secondary" id="regenerate-tags-btn">
+                                    ✨ Regenerate Tags
+                                </button>
+                                <button onclick="regenerateQuestions()" class="btn btn-secondary"
+                                    id="regenerate-questions-btn">
+                                    🔄 Regenerate Questions
+                                </button>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label for="cover-image-url">Book Cover URL (optional):</label>
-                            <input type="url" id="cover-image-url" placeholder="https://example.com/cover.jpg" oninput="updateCoverPreview()">
-                            <div id="cover-preview-container" style="margin-top: 10px; display: none;">
-                                <img id="cover-preview-img" src="" alt="Cover preview" style="max-width: 100px; max-height: 150px; border-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);" onerror="this.parentElement.style.display='none'">
+
+                        <!-- Book Description Section -->
+                        <div class="tags-url-section" style="margin-top: 20px;">
+                            <div class="form-group">
+                                <label for="book-description">
+                                    Book Description:
+                                    <span id="description-status-badge" class="status-badge"
+                                        style="display: none;"></span>
+                                </label>
+                                <textarea id="book-description" rows="10"
+                                    placeholder="Enter book description or click 'Regenerate with AI' to generate one..."
+                                    style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-family: inherit; font-size: 14px; resize: vertical;"></textarea>
+                            </div>
+                            <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                <button onclick="saveDescription()" class="btn btn-primary" id="save-description-btn">
+                                    💾 Save Description
+                                </button>
+                                <button onclick="generateDescription()" class="btn btn-secondary"
+                                    id="generate-description-btn">
+                                    ✨ Regenerate with AI
+                                </button>
                             </div>
                         </div>
-                        <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <button onclick="saveTagsAndUrl()" class="btn btn-primary" id="save-tags-url-btn">
-                                💾 Save Tags & URL
-                            </button>
-                            <button onclick="regenerateTags()" class="btn btn-secondary" id="regenerate-tags-btn">
-                                ✨ Regenerate Tags
-                            </button>
-                            <button onclick="regenerateQuestions()" class="btn btn-secondary" id="regenerate-questions-btn">
-                                🔄 Regenerate Questions
-                            </button>
+
+                        <div id="difficulty-info" class="difficulty-info"></div>
+                    </div>
+
+                    <!-- Safety Check Tab -->
+                    <div id="safety-tab" class="tab-content" style="display: none;">
+                        <div class="tags-url-section">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                                <h3 style="margin: 0;">Content Safety Analysis</h3>
+                                <div style="display: flex; gap: 10px;">
+                                    <button onclick="refreshSafetyResults()" class="btn btn-secondary"
+                                        id="refresh-safety-btn" title="Refresh results">
+                                        🔄 Refresh
+                                    </button>
+                                    <button onclick="runSafetyCheck()" class="btn btn-secondary"
+                                        id="run-safety-check-btn">
+                                        🛡️ Run Safety Check
+                                    </button>
+                                </div>
+                            </div>
+                            <p style="color: #718096; font-size: 14px; margin-bottom: 20px;">
+                                Analyze the book content for potential issues such as racial stereotypes, colonialist
+                                perspectives, graphic violence, or other controversial items unsuitable for the target
+                                grade level.
+                            </p>
+
+                            <div id="safety-results-container">
+                                <p style="text-align: center; color: #718096; padding: 20px;">
+                                    No safety check results yet. Click "Run Safety Check" to analyze.
+                                </p>
+                            </div>
                         </div>
                     </div>
-                    
-                    <!-- Book Description Section -->
-                    <div class="tags-url-section" style="margin-top: 20px;">
-                        <div class="form-group">
-                            <label for="book-description">
-                                Book Description: 
-                                <span id="description-status-badge" class="status-badge" style="display: none;"></span>
-                            </label>
-                            <textarea 
-                                id="book-description" 
-                                rows="10" 
-                                placeholder="Enter book description or click 'Regenerate with AI' to generate one..."
-                                style="width: 100%; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-family: inherit; font-size: 14px; resize: vertical;"
-                            ></textarea>
-                        </div>
-                        <div class="form-group" style="display: flex; gap: 10px; flex-wrap: wrap;">
-                            <button onclick="saveDescription()" class="btn btn-primary" id="save-description-btn">
-                                💾 Save Description
-                            </button>
-                            <button onclick="generateDescription()" class="btn btn-secondary" id="generate-description-btn">
-                                ✨ Regenerate with AI
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div id="difficulty-info" class="difficulty-info"></div>
                 </div>
 
                 <h2>Chapter Builder & Book Text</h2>
-                
+
                 <!-- Side-by-side layout for chapter editor and book text -->
                 <div class="side-by-side-container">
                     <!-- Left: Chapter Editor -->
@@ -232,7 +279,8 @@
                     <div class="side-by-side-right">
                         <div class="section-header">
                             <h3>Book Text</h3>
-                            <button id="refresh-usage-btn" onclick="recalculateHighlights()" class="btn btn-secondary btn-small" style="white-space: nowrap;">
+                            <button id="refresh-usage-btn" onclick="recalculateHighlights()"
+                                class="btn btn-secondary btn-small" style="white-space: nowrap;">
                                 🔄 Refresh Highlights
                             </button>
                         </div>

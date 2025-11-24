@@ -18,7 +18,8 @@ from src.config import settings
 from src.queue_executors import (
     execute_tag_generation,
     execute_description_generation,
-    execute_question_generation
+    execute_question_generation,
+    execute_safety_check
 )
 
 logger = logging.getLogger(__name__)
@@ -495,11 +496,17 @@ class QueueManagerV2:
                 # Execute based on task type
                 try:
                     if task.task_type == 'tags':
-                        execute_tag_generation(**task.payload)
+                        # Check if this is actually a safety check disguised as tags
+                        if task.payload.get('is_safety_check') or 'book_text' in task.payload:
+                            execute_safety_check(**task.payload)
+                        else:
+                            execute_tag_generation(**task.payload)
                     elif task.task_type == 'descriptions':
                         execute_description_generation(**task.payload)
                     elif task.task_type == 'questions':
                         execute_question_generation(**task.payload)
+                    elif task.task_type == 'safety_check':
+                        execute_safety_check(**task.payload)
                     else:
                         raise ValueError(f"Unknown task type: {task.task_type}")
                     
@@ -674,7 +681,7 @@ class QueueManagerV2:
         with self._get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute("""
-                    SELECT id, status, created_at
+                    SELECT id, status, created_at, payload
                     FROM queue_tasks
                     WHERE book_id = %s
                       AND task_type = %s
