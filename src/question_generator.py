@@ -244,6 +244,63 @@ Your entire response must be valid JSON starting with {{ and ending with }}"""
             logger.error(f"Error parsing response: {e}")
             logger.debug(f"Response was: {response[:500]}")
             return [], [], []
+    def _clean_and_parse_json(self, response: str) -> Any:
+        """
+        Robustly clean and parse JSON from LLM response.
+        Handles thinking tokens, markdown blocks, and finding JSON objects/arrays.
+        """
+        try:
+            # Remove thinking tokens
+            response = remove_thinking_tokens(response)
+            response = response.strip()
+            
+            # Remove markdown code blocks
+            if '```json' in response:
+                response = response.split('```json')[1].split('```')[0].strip()
+            elif '```' in response:
+                parts = response.split('```')
+                for part in parts:
+                    part = part.strip()
+                    if (part.startswith('{') and part.endswith('}')) or \
+                       (part.startswith('[') and part.endswith(']')):
+                        response = part
+                        break
+            
+            # Try to find JSON structure using regex
+            # Matches both objects {} and arrays []
+            # This regex attempts to match balanced braces/brackets to some extent
+            json_pattern = r'(\{.*\}|\[.*\])'
+            json_matches = re.findall(json_pattern, response, re.DOTALL)
+            
+            if json_matches:
+                # Take the longest match
+                candidate = max(json_matches, key=len)
+                try:
+                    return json.loads(candidate)
+                except:
+                    pass # Regex match failed to parse, try manual fallback
+            
+            # Fallback: manual boundary finding
+            # Try to find the outer-most JSON object or array
+            for start_char, end_char in [('{', '}'), ('[', ']')]:
+                if start_char in response:
+                    start_idx = response.find(start_char)
+                    end_idx = response.rfind(end_char)
+                    if start_idx != -1 and end_idx != -1 and end_idx > start_idx:
+                        candidate = response[start_idx:end_idx+1]
+                        try:
+                            return json.loads(candidate)
+                        except:
+                            continue
+
+            # Last attempt: parse the whole string
+            return json.loads(response)
+            
+        except Exception as e:
+            logger.error(f"Error parsing JSON: {e}")
+            logger.debug(f"Failed response content: {response[:500]}")
+            return None
+
     def analyze_content_safety(self, book_text: str, grade_level: str) -> List[Dict]:
         """
         Analyze book content for controversial items based on grade level.
@@ -302,7 +359,8 @@ CRITICAL INSTRUCTIONS:
 3. LOCATION: Use whatever chapter header (Roman numeral, number, or title) is nearest to the issue. If no header is clear, use "Text Segment".
 4. SEPARATE ENTRIES: If the same issue appears 10 times, create 10 separate entries.
 
-The response should be a list of objects with the following fields:
+The response should be a JSON object with a single key "issues" containing a list of objects.
+Each object should have the following fields:
 - "issue": A short title for the issue (e.g., "The Racial Slur 'Gypsy'").
 - "location": The specific chapter/section where this instance appears.
 - "context": A brief description of the scene or context for this specific instance.
@@ -311,32 +369,32 @@ The response should be a list of objects with the following fields:
 - "rewrite": A suggested rewrite to make it appropriate, or "FLAG_ONLY" if it cannot be easily rewritten.
 
 Example Output Format:
-[
-    {{
-        "issue": "The Racial Slur 'Gypsy'",
-        "location": "Chapter I",
-        "context": "Introduction of the character.",
-        "explanation": "Offensive exonym.",
-        "original_text": "The old gypsy woman...",
-        "rewrite": "The old traveler woman..."
-    }},
-    {{
-        "issue": "Violence against Animals",
-        "location": "The Hunting Scene",
-        "context": "A dog is kicked by the antagonist.",
-        "explanation": "Cruelty to animals.",
-        "original_text": "He kicked the poor hound...",
-        "rewrite": "FLAG_ONLY"
-    }}
-]
+{{
+    "issues": [
+        {{
+            "issue": "The Racial Slur 'Gypsy'",
+            "location": "Chapter I",
+            "context": "Introduction of the character.",
+            "explanation": "Offensive exonym.",
+            "original_text": "The old gypsy woman...",
+            "rewrite": "The old traveler woman..."
+        }},
+        {{
+            "issue": "Violence against Animals",
+            "location": "The Hunting Scene",
+            "context": "A dog is kicked by the antagonist.",
+            "explanation": "Cruelty to animals.",
+            "original_text": "He kicked the poor hound...",
+            "rewrite": "FLAG_ONLY"
+        }}
+    ]
+}}
 
-If no issues are found, return an empty list: []
+If no issues are found, return: {{ "issues": [] }}
 
 Book Content:
 {book_text[:1000000]} 
 """
-
-        print(len(prompt))
         
         try:
             response = self.client.chat.completions.create(
@@ -350,31 +408,29 @@ Book Content:
             )
             
             content = response.choices[0].message.content
-            content = remove_thinking_tokens(content)
             
-            # Parse JSON response
-            try:
-                # Handle potential wrapping in a key like "issues": [...]
-                data = json.loads(content)
-                print('here 1')
-                print(len(data))
-                if isinstance(data, list):
-                    return data
-                elif isinstance(data, dict):
-                    # Look for likely keys
-                    for key in ['issues', 'flags', 'items', 'results']:
-                        if key in data and isinstance(data[key], list):
-                            return data[key]
-                    # If no list found, maybe the dict itself is a single item?
-                    return [data]
-                return []
-            except json.JSONDecodeError:
-                print('here 2')
-                logger.error(f"Failed to parse JSON from safety check: {content}")
+            # Use robust parsing helper
+            data = self._clean_and_parse_json(content)
+            
+            if not data:
+                logger.error(f"Failed to parse JSON from safety check response")
                 return []
                 
+            if isinstance(data, dict):
+                # Look for likely keys
+                for key in ['issues', 'flags', 'items', 'results']:
+                    if key in data and isinstance(data[key], list):
+                        return data[key]
+                # If no list found, maybe the dict itself is a single item?
+                # But we expect a list wrapper now.
+                return []
+            elif isinstance(data, list):
+                # Should not happen with json_object prompt, but handle it
+                return data
+                
+            return []
+                
         except Exception as e:
-            print('here 3')
             logger.error(f"Error in content safety analysis: {e}")
             return []
     def generate_questions(

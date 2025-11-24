@@ -1,0 +1,48 @@
+# Database Configuration
+# Use the same database as your main reading platform
+DATABASE_URL=postgresql://admin:admin@localhost:5432/dannous
+PARALLEL_GENERATION=false
+PGHOST=localhost
+PGPORT=5432
+PGUSER=admin
+PGPASSWORD=admin
+
+# Ollama Configuration
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=gemma3n:e4b
+OLLAMA_TIMEOUT=120
+
+# Processing Configuration
+DEFAULT_READING_LEVEL=intermediate
+DEFAULT_AGE_RANGE=8-12
+DEFAULT_GENRE=fiction
+
+# Chapter Splitting Configuration
+MAX_CHAPTER_WORDS_BEGINNER=3000
+MAX_CHAPTER_WORDS_INTERMEDIATE=5000
+MAX_CHAPTER_WORDS_ADVANCED=7500
+MIN_CHAPTER_WORDS=2500
+
+# Question Generation Configuration
+QUESTIONS_PER_CHAPTER=3
+MIN_ANSWER_WORDS=20
+MAX_ANSWER_WORDS=200
+
+# Logging Configuration
+LOG_LEVEL=INFO
+LOG_FILE=processing.log
+
+# Project Gutenberg Configuration
+GUTENBERG_MIRROR=https://www.gutenberg.org
+DOWNLOAD_TIMEOUT=60
+
+# Processing Options
+PRESERVE_FORMATTING=false
+EXTRACT_VOCABULARY=true
+CALCULATE_READING_TIME=true
+READING_SPEED_WPM=200
+
+#OPEN ROUTER API KEY
+OPENROUTER_API_KEY=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
+OPENROUTER_FREE_MODEL=x-ai/grok-4.1-fast:free
+OPENROUTER_PAID_MODEL=google/gemini-flash-1.5
