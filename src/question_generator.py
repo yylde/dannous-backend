@@ -5,7 +5,7 @@ import logging
 import re
 import time
 import os
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple, Optional, Any
 from openai import OpenAI, RateLimitError
 from .config import settings
 from .ollama_queue import queue_ollama_call, TaskPriority
@@ -413,8 +413,9 @@ Book Content:
             data = self._clean_and_parse_json(content)
             
             if not data:
-                logger.error(f"Failed to parse JSON from safety check response")
-                return []
+                error_msg = f"Failed to parse JSON from safety check response: {content[:100]}..."
+                logger.error(error_msg)
+                raise ValueError(error_msg)
                 
             if isinstance(data, dict):
                 # Look for likely keys
@@ -432,7 +433,7 @@ Book Content:
                 
         except Exception as e:
             logger.error(f"Error in content safety analysis: {e}")
-            return []
+            raise e  # Re-raise exception to trigger queue error handling
     def generate_questions(
         self,
         title: str,
