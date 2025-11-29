@@ -906,7 +906,7 @@ Your response:"""
         # Build prompt for description generation
         synopsis_text = f"\nSynopsis: {synopsis}" if synopsis else ""
         
-        prompt = f"""You are a master copywriter creating enticing book descriptions that hook readers like a movie trailer.
+        prompt = f"""You are a master copywriter creating enticing book descriptions that hook young readers like a movie trailer.
 
 Book: "{title}" by {author}{synopsis_text}
 
@@ -914,16 +914,22 @@ Based on the title, author{', and synopsis' if synopsis else ''}, write a SHORT,
 
 The description should:
 - Be SHORT and ENTICING like a movie trailer - hook the reader immediately
-- Focus on the most exciting or intriguing element
-- Create curiosity and excitement
+- Use CONCRETE, KID-FRIENDLY language - avoid abstract or poetic phrases
+- Focus on specific characters, actions, and exciting situations kids can visualize
+- Use character names when possible to make it personal and relatable
+- Create curiosity and excitement with clear, simple language
 - Be 100-200 characters MAXIMUM (not 200-500!)
 - Not use quotation marks
-- End with intrigue or a cliffhanger feel (you can use "..." if it fits naturally)
+- End naturally without forced ellipsis (only use "..." if it truly fits)
 - Be appropriate for children
 - NO SPOILERS - Don't reveal plot twists, endings, or major story outcomes
 - Tease the adventure/mystery without giving away what happens
 
 Think: "What would make a kid say 'I NEED to read this!'?" - but keep them guessing!
+
+Examples of GOOD vs BAD:
+❌ BAD (too abstract): "Spring stirs the meadows! Mystery singers call... Love and danger lurk!"
+✅ GOOD (concrete & exciting): "Johnny Chuck wakes up starving after winter! He teams up with Peter Rabbit for wild adventures and discovers a mysterious singing pond!"
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY the description text
