@@ -403,7 +403,7 @@ Book Content:
                     {"role": "system", "content": "You are a helpful educational content safety assistant. Output ONLY valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.1,  # Low temperature for consistent analysis
+                temperature=0.0,  # Zero temperature for maximum determinism
                 response_format={"type": "json_object"}
             )
             
@@ -906,23 +906,30 @@ Your response:"""
         # Build prompt for description generation
         synopsis_text = f"\nSynopsis: {synopsis}" if synopsis else ""
         
-        prompt = f"""You are an expert librarian writing book descriptions for children's books.
+        prompt = f"""You are a master copywriter creating enticing book descriptions that hook readers like a movie trailer.
 
 Book: "{title}" by {author}{synopsis_text}
 
-Based on the title, author{', and synopsis' if synopsis else ''}, write an engaging description for this book (200-500 characters).
+Based on the title, author{', and synopsis' if synopsis else ''}, write a SHORT, PUNCHY description for this book (100-200 characters MAX).
 
 The description should:
-- Be engaging and appropriate for children
-- Capture the essence and appeal of the book
-- Be 200-500 characters long
+- Be SHORT and ENTICING like a movie trailer - hook the reader immediately
+- Focus on the most exciting or intriguing element
+- Create curiosity and excitement
+- Be 100-200 characters MAXIMUM (not 200-500!)
 - Not use quotation marks
-- Be a single paragraph
+- End with intrigue or a cliffhanger feel (you can use "..." if it fits naturally)
+- Be appropriate for children
+- NO SPOILERS - Don't reveal plot twists, endings, or major story outcomes
+- Tease the adventure/mystery without giving away what happens
+
+Think: "What would make a kid say 'I NEED to read this!'?" - but keep them guessing!
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY the description text
 - NO markdown, NO code blocks, NO explanations
-- Just the description paragraph itself
+- Just the description itself - SHORT and PUNCHY
+- MAXIMUM 200 characters
 
 Your response:"""
         
@@ -949,14 +956,13 @@ Your response:"""
                 # Remove quotes if present
                 description = description.strip('"').strip("'")
                 
-                # Truncate if too long
-                if len(description) > 500:
-                    description = description[:500].rsplit(' ', 1)[0] + '...'
-                
-                # Ensure minimum length
-                if len(description) >= 50:
+                # Ensure reasonable length (but don't truncate - trust the LLM)
+                if 50 <= len(description) <= 250:
                     logger.info(f"✓ Generated description ({len(description)} chars): {description[:100]}...")
                     return description
+                elif len(description) > 250:
+                    logger.warning(f"Attempt {attempt + 1}: Description too long ({len(description)} chars), retrying...")
+                    continue
                 else:
                     logger.warning(f"Attempt {attempt + 1}: Description too short ({len(description)} chars)")
                 
