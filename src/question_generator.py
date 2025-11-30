@@ -878,75 +878,93 @@ Your response:"""
         self,
         title: str,
         author: str,
-        book_text_sample: str = None,
+        book_text: str = None,
         book_id: str = None,
         use_queue: bool = True
     ) -> str:
         """
-        Generate a book description, optionally auto-generating synopsis from book content.
+        Generate a book description from the full book text.
         
         Args:
             title: Book title
             author: Book author
-            book_text_sample: Optional sample of book text for auto-generating synopsis
+            book_text: Full book text (plain text without HTML)
             book_id: Book ID
             use_queue: If True, use queue; if False, call LLM directly
         
         Returns:
-            Generated description string (200-500 characters)
+            Generated description string (3-4 sentences)
         """
         logger.info(f"Generating description for book: {title} by {author}")
         
-        # First, generate synopsis if book text sample is provided
-        synopsis = None
-        if book_text_sample:
-            logger.info("Auto-generating synopsis from book content")
-            synopsis = self.generate_synopsis(title, author, book_text_sample, book_id=book_id, use_queue=use_queue)
+        # Truncate book text if too long (to avoid context limits)
+        # Use more text than synopsis since we want a better understanding
+        if book_text and len(book_text) > 100000:
+            book_text = book_text[:100000] + "..."
+            logger.debug(f"Truncated book text to 100k characters")
         
         # Build prompt for description generation
-        synopsis_text = f"\nSynopsis: {synopsis}" if synopsis else ""
+        book_content = f"\n\nBook Content:\n{book_text}" if book_text else ""
         
-        prompt = f"""You are a master copywriter creating enticing book descriptions that hook young readers like a movie trailer.
+        prompt = f"""You are a professional book marketer writing compelling back-cover descriptions that sound sophisticated and enticing.
 
-Book: "{title}" by {author}{synopsis_text}
+Book: "{title}" by {author}{book_content}
 
-Based on the title, author{', and synopsis' if synopsis else ''}, write a SHORT, PUNCHY description for this book (100-200 characters MAX).
+Based on the book content above, write a DESCRIPTIVE, THEMATIC book description (3-5 sentences).
+
+CRITICAL - Write like a REAL book description:
+✅ Start with thematic framing: "A thrilling adventure about...", "A heartwarming tale of...", "An exciting story about...", "A charming adventure featuring..."
+✅ Use RICH, DESCRIPTIVE language - not simple choppy sentences
+✅ Paint a vivid picture of the world and characters
+✅ Explain what kind of story this is (adventure, mystery, comedy, etc.)
+✅ Give enough detail so readers understand the premise and conflict
+✅ Build narrative flow from setup → conflict → stakes
+✅ End with the central question/challenge without revealing the resolution
 
 The description should:
-- Be SHORT and ENTICING like a movie trailer - hook the reader immediately
-- Use CONCRETE, KID-FRIENDLY language - avoid abstract or poetic phrases
-- Focus on specific characters, actions, and exciting situations kids can visualize
-- Use character names when possible to make it personal and relatable
-- Create curiosity and excitement with clear, simple language
-- Be 100-200 characters MAXIMUM (not 200-500!)
-- Not use quotation marks
-- End naturally without forced ellipsis (only use "..." if it truly fits)
-- Be appropriate for children
-- NO SPOILERS - Don't reveal plot twists, endings, or major story outcomes
-- Tease the adventure/mystery without giving away what happens
+- Be 3-5 sentences with sophisticated, flowing prose
+- Open with thematic framing that describes what KIND of story this is
+- Match the tone to the book's target age group (warm for young kids, sophisticated for older readers/YA)
+- Use RICH, VIVID, DESCRIPTIVE language - avoid childish or choppy writing
+- Introduce characters with personality and context
+- Explain the situation, conflict, and what's at stake
+- Provide enough information so readers clearly understand what the book is about
+- Build to an unresolved question or challenge
+- NO SPOILERS about how conflicts resolve or how the story ends
+- Sound professional and enticing, like descriptions from major publishers
 
-Think: "What would make a kid say 'I NEED to read this!'?" - but keep them guessing!
+Think: "How would a professional publisher describe this book to make it sound irresistible?"
 
-Examples of GOOD vs BAD:
-❌ BAD (too abstract): "Spring stirs the meadows! Mystery singers call... Love and danger lurk!"
-✅ GOOD (concrete & exciting): "Johnny Chuck wakes up starving after winter! He teams up with Peter Rabbit for wild adventures and discovers a mysterious singing pond!"
+Examples of GOOD, DESCRIPTIVE book descriptions:
+
+✅ "A delightful tale of mischief and danger in the English countryside. The Flopsy Bunnies discover a treasure trove of overgrown lettuces at Mr. McGregor's rubbish heap, but their feast sends them into a deep sleep right in enemy territory. When the grumpy farmer stumbles upon the slumbering rabbits, only clever Benjamin Bunny stands between his family and disaster."
+
+✅ "A classic adventure of disobedience, danger, and daring escape. Young Peter Rabbit knows the rules - stay out of Mr. McGregor's garden, where his father met a terrible fate. But when the lure of fresh vegetables proves too strong, Peter finds himself in a wild chase that will test all his courage and cleverness."
+
+✅ "An imaginative journey into a world of wonder and whimsy. Bored on a drowsy afternoon, young Alice follows a peculiar white rabbit down a mysterious hole and tumbles into Wonderland - a place where logic has no meaning and the impossible happens constantly. When she encounters the terrifying Queen of Hearts, Alice realizes that finding her way home may be the greatest challenge of all."
 
 CRITICAL INSTRUCTIONS:
 - Respond with ONLY the description text
 - NO markdown, NO code blocks, NO explanations
-- Just the description itself - SHORT and PUNCHY
-- MAXIMUM 200 characters
+- Write with sophisticated, descriptive prose
+- Make it sound professional and enticing
+- 3-5 sentences that flow beautifully
 
 Your response:"""
         
-        # Call LLM with retries
+        # Call LLM with retries - Use queue with HARDCODED Gemini 2.0 Flash for descriptions
         max_retries = 2
+        description_model = "x-ai/grok-4.1-fast:free"
+        
         for attempt in range(max_retries):
             try:
-                logger.info(f"Description generation attempt {attempt + 1}/{max_retries}")
+                logger.info(f"Description generation attempt {attempt + 1}/{max_retries} using {description_model}")
+                
                 if use_queue:
-                    response = self._call_ollama(
-                        prompt, 
+                    # Use queue but with hardcoded Gemini 2.0 Flash model
+                    response = self._call_ollama_with_model(
+                        prompt=prompt,
+                        model=description_model,
                         force_json_format=False,
                         priority=TaskPriority.DESCRIPTION,
                         task_name=f"generate_description_{title}",
@@ -954,7 +972,11 @@ Your response:"""
                         book_id=book_id
                     )
                 else:
-                    response = self._call_ollama_direct(prompt, force_json_format=False)
+                    # Direct call with Gemini 2.0 Flash
+                    response = self.client.chat.completions.create(
+                        model=description_model,
+                        messages=[{"role": "user", "content": prompt}]
+                    ).choices[0].message.content
                 
                 # Clean up response
                 description = remove_thinking_tokens(response).strip()
@@ -962,15 +984,16 @@ Your response:"""
                 # Remove quotes if present
                 description = description.strip('"').strip("'")
                 
-                # Ensure reasonable length (but don't truncate - trust the LLM)
-                if 50 <= len(description) <= 250:
-                    logger.info(f"✓ Generated description ({len(description)} chars): {description[:100]}...")
+                # Count sentences
+                sentence_count = len([s for s in description.split('.') if s.strip()])
+                
+                # Validate sentence count (3-5 sentences)
+                if 3 <= sentence_count <= 5:
+                    logger.info(f"✓ Generated description ({sentence_count} sentences): {description[:100]}...")
                     return description
-                elif len(description) > 250:
-                    logger.warning(f"Attempt {attempt + 1}: Description too long ({len(description)} chars), retrying...")
-                    continue
                 else:
-                    logger.warning(f"Attempt {attempt + 1}: Description too short ({len(description)} chars)")
+                    logger.warning(f"Attempt {attempt + 1}: Description has {sentence_count} sentences (need 3-5), retrying...")
+                    continue
                 
             except Exception as e:
                 logger.warning(f"Description attempt {attempt + 1}: {type(e).__name__} - {e}")
@@ -980,6 +1003,61 @@ Your response:"""
         # Fallback: return a generic description
         logger.warning("Using fallback description")
         return f"{title} by {author} is a captivating children's book that engages young readers with its compelling story and memorable characters."
+    
+    def _call_ollama_with_model(
+        self, 
+        prompt: str,
+        model: str,
+        force_json_format: bool = False, 
+        priority: TaskPriority = TaskPriority.DESCRIPTION, 
+        task_name: str = "",
+        task_type: str = "unknown",
+        book_id: Optional[str] = None,
+        chapter_id: Optional[str] = None
+    ) -> str:
+        """Call LLM API through the priority queue with a specific model.
+        
+        Args:
+            prompt: The prompt to send to the model
+            model: Specific model to use (overrides self.model)
+            force_json_format: If True, appends instruction for JSON
+            priority: Task priority level
+            task_name: Descriptive name for queue logging
+            task_type: Type of task (description, tags, questions)
+            book_id: Book/draft ID if applicable
+            chapter_id: Chapter ID if applicable
+        
+        Returns:
+            Raw model response string
+        """
+        try:
+            # Create a custom function that uses the specified model
+            def call_with_custom_model(prompt: str, force_json_format: bool = False) -> str:
+                if force_json_format:
+                    prompt += "\\n\\nIMPORTANT: Respond ONLY in valid JSON format."
+                
+                try:
+                    return self.client.chat.completions.create(
+                        model=model,
+                        messages=[{"role": "user", "content": prompt}]
+                    ).choices[0].message.content
+                except Exception as e:
+                    logger.error(f"LLM call failed with model {model}: {e}")
+                    raise
+            
+            return queue_ollama_call(
+                func=call_with_custom_model,
+                priority=priority,
+                task_name=task_name or "llm_call",
+                prompt=prompt,
+                force_json_format=force_json_format,
+                task_type=task_type,
+                book_id=book_id,
+                chapter_id=chapter_id
+            )
+        except Exception as e:
+            logger.error(f"Queued LLM API call failed: {e}")
+            raise
     
     def _generate_fallback_tags(self, reading_level: str) -> List[str]:
         """Generate fallback tags based on reading level."""

@@ -792,6 +792,45 @@ class DatabaseManager:
                 """, (chapter_id,))
                 columns = [desc[0] for desc in cur.description]
                 return [dict(zip(columns, row)) for row in cur.fetchall()]
+    
+    def get_all_books_with_text(self) -> List[dict]:
+        """Get all published books with their full text for description regeneration."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    SELECT 
+                        b.id,
+                        b.title,
+                        b.author,
+                        b.description,
+                        COALESCE(
+                            STRING_AGG(c.content, ' ' ORDER BY c.chapter_number),
+                            ''
+                        ) as full_text
+                    FROM books b
+                    LEFT JOIN chapters c ON b.id = c.book_id
+                    WHERE b.is_active = true
+                    GROUP BY b.id, b.title, b.author, b.description
+                    ORDER BY b.created_at DESC
+                """)
+                columns = [desc[0] for desc in cur.description]
+                return [dict(zip(columns, row)) for row in cur.fetchall()]
+    
+    def update_book(self, book_id: str, **kwargs) -> None:
+        """Update book metadata (e.g., description)."""
+        with self.get_connection() as conn:
+            with conn.cursor() as cur:
+                # Build dynamic update query
+                set_clauses = []
+                values = []
+                for key, value in kwargs.items():
+                    set_clauses.append(f"{key} = %s")
+                    values.append(value)
+                
+                if set_clauses:
+                    values.append(book_id)
+                    query = f"UPDATE books SET {', '.join(set_clauses)} WHERE id = %s"
+                    cur.execute(query, values)
 
 
 def inject_vocabulary_abbr(html_content: str, vocabulary_list: List[dict]) -> str:

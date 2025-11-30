@@ -72,7 +72,7 @@ def execute_description_generation(book_id: str, title: str, author: str, text_s
     description = generator.generate_description(
         title=title,
         author=author,
-        book_text_sample=text_sample,
+        book_text=text_sample,
         book_id=book_id,
         use_queue=False
     )
