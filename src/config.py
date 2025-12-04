@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     
     # OpenRouter
     openrouter_api_key: Optional[str] = None
-    openrouter_free_model: str = "x-ai/grok-4.1-fast:free"
+    openrouter_free_model: str = "x-ai/gemini-2.0-flash-exp:free"
     openrouter_paid_model: str = "google/gemini-flash-1.5"
     
     # Processing defaults
